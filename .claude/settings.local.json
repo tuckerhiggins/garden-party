@@ -30,7 +30,10 @@
       "Bash(pip3 install:*)",
       "Bash(ls:*)",
       "Bash(npm install:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(which gh:*)"
     ]
   }
 }

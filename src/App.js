@@ -1,4 +1,4 @@
-// Garden Party v0.4 — gardenparty.fun
+// Garden Party v0.5 — gardenparty.fun
 // Garden View (illustrated cards) as primary · Map View as beautiful option
 // Season 2 · Opens March 20, 2026
 
@@ -9,6 +9,22 @@ import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
 import { fetchOracle, fetchSeasonOpener, fetchMissedCareVoice } from './claude';
+import { useAuth } from './hooks/useAuth';
+import { useGardenData } from './hooks/useGardenData';
+import { useMigration } from './hooks/useMigration';
+import { OracleChat } from './components/OracleChat';
+import { MobileView } from './components/MobileView';
+
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const handler = e => setMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return mobile;
+}
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO  = '"Press Start 2P", monospace';
@@ -1179,11 +1195,10 @@ export default function App() {
   const [sel, setSel] = useState(null);
   const [hov, setHov] = useState(null);
   const [withEmma, setWithEmma] = useState(false);
-  const [warmth, setWarmth] = useState(() => load(LS.warmth, 0));
-  const [careLog, setCareLog] = useState(() => load(LS.care, {}));
-  const [expenses, setExpenses] = useState(() => load(LS.expenses, []));
-  const [positions, setPositions] = useState(() => load(LS.positions, {}));
-  const [growth, setGrowth] = useState(() => load(LS.growth, {}));
+  const { user, role, signIn, signOut } = useAuth();
+  const { warmth, careLog, expenses, positions, growth, logAction, updateGrowth, movePosition, addExpense: addExpenseDb } = useGardenData({ user });
+  useMigration({ user });
+  const isMobile = useIsMobile();
   const [flash, setFlash] = useState(null);
   const [showExpense, setShowExpense] = useState(false);
   const [expInput, setExpInput] = useState({desc:'',amount:'',plantId:''});
@@ -1204,12 +1219,7 @@ export default function App() {
     TERRACE_PLANTS.map(p=>({...p, pos:positions[p.id]||p.pos, growth:growth[p.id]??p.growth??0})),
     [positions, growth]);
 
-  // Persist
-  useEffect(()=>save(LS.warmth,warmth),[warmth]);
-  useEffect(()=>save(LS.care,careLog),[careLog]);
-  useEffect(()=>save(LS.expenses,expenses),[expenses]);
-  useEffect(()=>save(LS.positions,positions),[positions]);
-  useEffect(()=>save(LS.growth,growth),[growth]);
+  // State now persisted via useGardenData (Supabase when available, localStorage fallback)
 
   // Oracle — fetch once per day on mount, after weather loads
   useEffect(() => {
@@ -1240,27 +1250,24 @@ export default function App() {
 
 
   // Care action
-  const doAction = useCallback((key,plant)=>{
-    const def=ACTION_DEFS[key]; if(!def) return;
-    const mult=withEmma?2:1, earned=def.warmth*mult;
-    const entry={action:key,label:def.label,emoji:def.emoji,date:new Date().toISOString(),withEmma,earned,plantName:plant.name};
-    setCareLog(prev=>{const u={...prev,[plant.id]:[...(prev[plant.id]||[]),entry]};save(LS.care,u);return u;});
-    setWarmth(w=>Math.min(1000,w+earned));
-    setFlash(`${def.emoji} ${def.label}${withEmma?' with Emma':''} · +${earned}♥`);
-    setTimeout(()=>setFlash(null),2500);
-  },[withEmma]);
+  const doAction = useCallback(async (key, plant) => {
+    const def = ACTION_DEFS[key]; if (!def) return;
+    const autoEmma = role === 'emma'; // Emma's actions always count as with-Emma
+    const isWithEmma = withEmma || autoEmma;
+    const earned = await logAction(key, plant, isWithEmma);
+    setFlash(`${def.emoji} ${def.label}${isWithEmma ? ' with Emma' : ''} · +${earned || def.warmth}♥`);
+    setTimeout(() => setFlash(null), 2500);
+  }, [withEmma, role, logAction]);
 
   // Expense
-  const addExpense = ()=>{
-    const amt=parseFloat(expInput.amount);
-    if(!expInput.desc||isNaN(amt)||amt<=0) return;
-    const exp={id:Date.now(),desc:expInput.desc,cents:Math.round(amt*100),
-      plantId:expInput.plantId||null,date:new Date().toISOString()};
-    setExpenses(p=>[...p,exp]);
-    setExpInput({desc:'',amount:'',plantId:''});
+  const addExpense = () => {
+    const amt = parseFloat(expInput.amount);
+    if (!expInput.desc || isNaN(amt) || amt <= 0) return;
+    addExpenseDb(expInput.desc, Math.round(amt * 100), expInput.plantId || null);
+    setExpInput({ desc: '', amount: '', plantId: '' });
     setShowExpense(false);
     setFlash(`💰 $${amt.toFixed(2)} logged`);
-    setTimeout(()=>setFlash(null),2000);
+    setTimeout(() => setFlash(null), 2000);
   };
 
   const totalSpend = expenses.reduce((s,e)=>s+e.cents,0);
@@ -1292,6 +1299,22 @@ export default function App() {
     );
   }
 
+  // Mobile — swap to the mobile layout
+  if (isMobile) {
+    return (
+      <MobileView
+        plants={terracePlants}
+        careLog={careLog}
+        warmth={warmth}
+        weather={weather}
+        onAction={doAction}
+        role={role}
+        signIn={signIn}
+        signOut={signOut}
+      />
+    );
+  }
+
   return (
     <div style={{width:'100vw',height:'100vh',background:C.appBg,display:'flex',flexDirection:'column',overflow:'hidden',fontFamily:SERIF}}>
 
@@ -1315,7 +1338,7 @@ export default function App() {
 
         {/* Mode switcher */}
         <div style={{display:'flex',gap:4}}>
-          {[{id:'garden',label:'🌿 Garden'},{id:'map',label:'🗺 Map'},{id:'journal',label:'📖 Journal'}].map(m=>(
+          {[{id:'garden',label:'🌿 Garden'},{id:'map',label:'🗺 Map'},{id:'journal',label:'📖 Journal'},{id:'oracle',label:'🌸 Oracle'}].map(m=>(
             <button key={m.id} onClick={()=>setMode(m.id)}
               style={{background:mode===m.id?C.uiGold:C.uiLight,border:`1px solid ${mode===m.id?C.uiGoldD:C.uiBorder}`,
                 borderRadius:3,padding:'4px 11px',color:mode===m.id?C.uiBg:C.uiText,
@@ -1324,6 +1347,14 @@ export default function App() {
             </button>
           ))}
         </div>
+        {/* Auth indicator */}
+        {role !== 'guest' && (
+          <button onClick={signOut}
+            style={{background:'none',border:`1px solid ${C.uiBorder}`,borderRadius:3,
+              padding:'4px 8px',color:C.uiMuted,fontFamily:MONO,fontSize:7,cursor:'pointer'}}>
+            {role === 'tucker' ? '🌿 Tucker' : role === 'emma' ? '🌹 Emma' : ''}
+          </button>
+        )}
 
         {/* Warmth */}
         <div style={{display:'flex',alignItems:'center',gap:5}}>
@@ -1408,7 +1439,7 @@ export default function App() {
               <div style={{position:'relative',width:320,flexShrink:0}}>
                 <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                   onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                  onGrowthChange={(id,val)=>setGrowth(prev=>({...prev,[id]:val}))}/>
+                  onGrowthChange={(id,val)=>updateGrowth(id,val)}/>
               </div>
             )}
           </div>
@@ -1445,8 +1476,8 @@ export default function App() {
                   selectedId={sel?.id}
                   cookiePos={cookiePos}
                   onSelect={p=>{ if(p) setSel(p); else setSel(null); }}
-                  onMove={(id,pos)=>setPositions(prev=>({...prev,[id]:pos}))}
-                  onGrowthChange={(id,val)=>setGrowth(prev=>({...prev,[id]:val}))}
+                  onMove={(id,pos)=>movePosition(id,pos)}
+                  onGrowthChange={(id,val)=>updateGrowth(id,val)}
                   onHover={setHov}
                   onDescend={()=>setScene('front')}
                 />
@@ -1498,7 +1529,7 @@ export default function App() {
               }}>
                 <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                   onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                  onGrowthChange={(id,val)=>setGrowth(prev=>({...prev,[id]:val}))}/>
+                  onGrowthChange={(id,val)=>updateGrowth(id,val)}/>
               </div>
             )}
           </div>
@@ -1508,6 +1539,17 @@ export default function App() {
           <div style={{flex:1, overflowY:'auto', background:C.appBg}}>
             <JournalView careLog={careLog} plants={[...terracePlants]}/>
           </div>
+        )}
+
+        {/* ── ORACLE VIEW ── */}
+        {mode==='oracle'&&(
+          <OracleChat
+            plants={terracePlants}
+            careLog={careLog}
+            warmth={warmth}
+            weather={weather}
+            style={{flex:1}}
+          />
         )}
 
       </div>
