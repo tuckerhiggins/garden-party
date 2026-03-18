@@ -56,6 +56,57 @@ const C = {
 };
 
 function plantColor(type) { return C[type] || '#909080'; }
+
+// ── AUTH BUTTON ───────────────────────────────────────────────────────────
+function AuthButton({ role, signIn, signOut }) {
+  const [showInput, setShowInput] = React.useState(false);
+  const [email, setEmail] = React.useState('');
+  const [sent, setSent] = React.useState(false);
+
+  if (role !== 'guest') {
+    return (
+      <button onClick={signOut}
+        style={{background:'none',border:`1px solid rgba(90,60,24,0.5)`,borderRadius:3,
+          padding:'4px 8px',color:'#a89070',fontFamily:MONO,fontSize:7,cursor:'pointer'}}>
+        {role === 'tucker' ? '🌿 Tucker' : '🌹 Emma'} · sign out
+      </button>
+    );
+  }
+
+  if (sent) {
+    return <span style={{fontFamily:MONO,fontSize:7,color:'#6090a0'}}>check email →</span>;
+  }
+
+  if (showInput) {
+    return (
+      <div style={{display:'flex',gap:4,alignItems:'center'}}>
+        <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
+          onKeyDown={e=>e.key==='Enter'&&email&&(signIn(email),setSent(true))}
+          placeholder="your@email.com" autoFocus
+          style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
+            borderRadius:3,padding:'4px 8px',color:'#f0e4cc',fontFamily:SERIF,fontSize:12,
+            width:160,outline:'none'}}/>
+        <button onClick={()=>{if(email){signIn(email);setSent(true);}}}
+          style={{background:'#2a1808',border:'none',borderRadius:3,padding:'4px 10px',
+            color:'#f0e4cc',fontFamily:MONO,fontSize:7,cursor:'pointer'}}>
+          GO
+        </button>
+        <button onClick={()=>setShowInput(false)}
+          style={{background:'none',border:'none',color:'#706040',fontSize:16,cursor:'pointer',padding:'0 2px'}}>
+          ×
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button onClick={()=>setShowInput(true)}
+      style={{background:'none',border:`1px solid rgba(90,60,24,0.5)`,borderRadius:3,
+        padding:'4px 8px',color:'#706040',fontFamily:MONO,fontSize:7,cursor:'pointer'}}>
+      sign in
+    </button>
+  );
+}
 function healthColor(h) { return C[h] || '#909080'; }
 function healthLabel(h) {
   return {thriving:'Thriving',content:'Content',thirsty:'Thirsty',
@@ -1348,13 +1399,7 @@ export default function App() {
           ))}
         </div>
         {/* Auth indicator */}
-        {role !== 'guest' && (
-          <button onClick={signOut}
-            style={{background:'none',border:`1px solid ${C.uiBorder}`,borderRadius:3,
-              padding:'4px 8px',color:C.uiMuted,fontFamily:MONO,fontSize:7,cursor:'pointer'}}>
-            {role === 'tucker' ? '🌿 Tucker' : role === 'emma' ? '🌹 Emma' : ''}
-          </button>
-        )}
+        <AuthButton role={role} signIn={signIn} signOut={signOut}/>
 
         {/* Warmth */}
         <div style={{display:'flex',alignItems:'center',gap:5}}>
