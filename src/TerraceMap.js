@@ -1198,14 +1198,14 @@ export function TerraceMap({ plants, selectedId, cookiePos, onSelect, onMove, on
       <g style={{ pointerEvents: 'none' }}>
 
       {/* ── Wall 3: neighbor building back strip (full width) ── */}
-      <rect x={0} y={0} width={VW} height={BH} fill="#ceca92"/>
+      <rect x={0} y={0} width={DR} height={BH} fill="#ceca92"/>
       {Array.from({ length: brickRows }, (_, row) => (
         <g key={`br${row}`}>
-          <line x1={0} y1={row * 10} x2={VW} y2={row * 10}
+          <line x1={0} y1={row * 10} x2={DR} y2={row * 10}
             stroke="rgba(148,138,72,0.20)" strokeWidth={0.7}/>
-          {Array.from({ length: Math.ceil(VW / 30) + 1 }, (_, col) => {
+          {Array.from({ length: Math.ceil(DR / 30) + 1 }, (_, col) => {
             const bx = (row % 2 === 0 ? 0 : 15) + col * 30;
-            return bx < VW
+            return bx < DR
               ? <line key={col} x1={bx} y1={row*10} x2={bx} y2={row*10+10}
                   stroke="rgba(148,138,72,0.11)" strokeWidth={0.5}/>
               : null;
@@ -1542,7 +1542,7 @@ export function TerraceMap({ plants, selectedId, cookiePos, onSelect, onMove, on
       ))}
 
       {/* ── Vignette (depth) ── */}
-      <rect x={0} y={0} width={VW} height={VH} fill="url(#vignette)"/>
+      <rect x={0} y={0} width={VW} height={VH} fill="url(#vignette)" clipPath="url(#deckClip)"/>
 
       {/* ── Cookie ── */}
       {cookiePos && (() => {

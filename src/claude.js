@@ -42,10 +42,10 @@ export async function cachedClaude(cacheKey, systemPrompt, userPrompt, maxTokens
 }
 
 // ── ORACLE ────────────────────────────────────────────────────────────────
-// Daily garden greeting. Cached until midnight.
-export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen, daysUntilSeason }) {
+// Daily garden greeting. Cached until midnight (busted when photo count changes).
+export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen, daysUntilSeason, photoContext = [], totalPhotos = 0 }) {
   const today = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
-  const cacheKey = `oracle_${new Date().toISOString().slice(0, 10)}`;
+  const cacheKey = `oracle_${new Date().toISOString().slice(0, 10)}_p${totalPhotos}`;
 
   const needsWater = plants.filter(p => {
     if (!p.actions?.includes('water')) return false;
@@ -68,12 +68,19 @@ export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen
     ? `${Math.round(weather.temp)}°F, ${weather.poem}`
     : 'weather unknown';
 
+  const unphotographed = photoContext.filter(p => p.count === 0).map(p => p.name);
+  const photographed = photoContext.filter(p => p.count > 0).map(p => {
+    const d = new Date(p.lastDate).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    return `${p.name} (last ${d})`;
+  });
+
   const systemPrompt = `You are the voice of a rooftop garden in Park Slope, Brooklyn.
 You speak in the first person — you are the garden itself.
 You know about your plants, your caretaker Tucker, and the season.
 Your tone is warm, slightly literary, never precious.
 One to two sentences maximum. Never a list.
-Never use the word "garden."`;
+Never use the word "garden."
+If plants haven't been photographed yet this season, you may gently invite Tucker to document one — make it feel like curiosity, not a task. Keep it natural — don't always mention photos.`;
 
   const userPrompt = `Today is ${today}.
 ${seasonOpen
@@ -83,6 +90,8 @@ Current warmth: ${warmth} points.
 Weather today: ${weatherDesc}.
 ${needsWater.length > 0 ? `Plants that need attention: ${needsWater.join(', ')}.` : 'All plants are well.'}
 ${recentCare.length > 0 ? `Recently cared for: ${recentCare.join(', ')}.` : ''}
+${unphotographed.length > 0 ? `Not yet photographed this season: ${unphotographed.join(', ')}.` : 'All plants have been photographed this season.'}
+${photographed.length > 0 ? `Photographed: ${photographed.join(', ')}.` : ''}
 
 Speak one or two sentences as the garden to Tucker, acknowledging the day.`;
 

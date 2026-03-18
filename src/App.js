@@ -56,6 +56,30 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric'});
 }
 
+// ── PHOTO STORAGE ─────────────────────────────────────────────────────────
+function getPhotos(plantId) {
+  try { return JSON.parse(localStorage.getItem('gp_photos_' + plantId) || '[]'); } catch { return []; }
+}
+function savePhotos(plantId, photos) {
+  try { localStorage.setItem('gp_photos_' + plantId, JSON.stringify(photos)); } catch {}
+}
+async function compressImage(file, maxPx = 900, quality = 0.78) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = url;
+  });
+}
+
 // ── WEATHER HOOK ─────────────────────────────────────────────────────────
 const WMO_POEM = {
   0:  (t) => `${t}°F and clear. The terrace is waiting.`,
@@ -752,6 +776,52 @@ function growthLabel(type) {
   }
 }
 
+// ── PHOTO SECTION ─────────────────────────────────────────────────────────
+function PhotoSection({ plant, color }) {
+  const [photos, setPhotos] = useState(() => getPhotos(plant.id));
+  const fileRef = useRef(null);
+
+  async function handleFile(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const dataUrl = await compressImage(file);
+    const newPhoto = { dataUrl, date: new Date().toISOString() };
+    const updated = [...photos, newPhoto].slice(-5); // keep last 5
+    savePhotos(plant.id, updated);
+    setPhotos(updated);
+    e.target.value = '';
+  }
+
+  const lastPhoto = photos[photos.length - 1];
+  return (
+    <div style={{marginBottom:14,borderRadius:8,overflow:'hidden',border:`1px solid ${color}22`}}>
+      {lastPhoto ? (
+        <img src={lastPhoto.dataUrl} alt={plant.name}
+          style={{width:'100%',maxHeight:200,objectFit:'cover',display:'block'}}/>
+      ) : (
+        <div style={{height:72,display:'flex',alignItems:'center',justifyContent:'center',
+          background:`${color}07`,color:'#b09070',fontFamily:SERIF,fontSize:13,fontStyle:'italic'}}>
+          No photos yet this season
+        </div>
+      )}
+      <div style={{padding:'7px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',
+        background:`${color}06`,borderTop:`1px solid ${color}15`}}>
+        <span style={{fontFamily:SERIF,fontSize:12,color:'#907050'}}>
+          {photos.length === 0
+            ? 'Document its season'
+            : `${photos.length} photo${photos.length > 1 ? 's' : ''} · last ${fmtDate(lastPhoto.date)}`}
+        </span>
+        <button onClick={() => fileRef.current?.click()}
+          style={{background:color,border:'none',borderRadius:4,padding:'5px 11px',
+            color:'#fff',cursor:'pointer',fontFamily:MONO,fontSize:7,letterSpacing:.5}}>
+          📷 ADD
+        </button>
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" capture="environment"
+        style={{display:'none'}} onChange={handleFile}/>
+    </div>
+  );
+}
+
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
 function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma, onGrowthChange }) {
   const [tab, setTab] = useState('history');
@@ -806,6 +876,10 @@ function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma,
               border:`1px solid ${color}20`}}>
               <PlantPortrait plant={plant}/>
             </div>
+            {/* Photo section */}
+            {plant.type !== 'empty-pot' && plant.health !== 'memorial' && (
+              <PhotoSection plant={plant} color={color}/>
+            )}
             {/* Growth control for climbers */}
             {CLIMBER_TYPES.has(plant.type) && onGrowthChange && (
               <div style={{background:`${plantColor(plant.type)}0d`,border:`1px solid ${plantColor(plant.type)}28`,
@@ -1140,7 +1214,16 @@ export default function App() {
   // Oracle — fetch once per day on mount, after weather loads
   useEffect(() => {
     if (!weather) return; // wait for weather
-    fetchOracle({ weather, warmth, plants: TERRACE_PLANTS, careLog, seasonOpen: SEASON_OPEN, daysUntilSeason: DAYS_UNTIL_SEASON })
+    const SEASON_START = new Date('2026-03-20');
+    const photoContext = TERRACE_PLANTS
+      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
+      .map(p => {
+        const all = getPhotos(p.id);
+        const season = all.filter(ph => new Date(ph.date) >= SEASON_START);
+        return { name: p.name, count: season.length, lastDate: season[season.length - 1]?.date ?? null };
+      });
+    const totalPhotos = photoContext.reduce((s, p) => s + p.count, 0);
+    fetchOracle({ weather, warmth, plants: TERRACE_PLANTS, careLog, seasonOpen: SEASON_OPEN, daysUntilSeason: DAYS_UNTIL_SEASON, photoContext, totalPhotos })
       .then(setOracle)
       .catch(() => {}); // fail silently in local dev
   }, [weather]);
@@ -1391,8 +1474,8 @@ export default function App() {
               )}
             </div>
 
-            {/* Hover card — right panel, appears on plant hover (takes priority over selected) */}
-            {hov && (
+            {/* Hover card — right panel, appears on plant hover */}
+            {hov && !sel && (
               <div style={{
                 position:'relative', zIndex:2,
                 width:400, flexShrink:0,
@@ -1406,7 +1489,7 @@ export default function App() {
             )}
 
             {/* Selected plant detail panel */}
-            {sel && !hov && (
+            {sel && (
               <div style={{
                 position:'relative', zIndex:2,
                 width:340, flexShrink:0,
