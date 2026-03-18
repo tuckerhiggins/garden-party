@@ -1365,6 +1365,7 @@ export default function App() {
                   onMove={(id,pos)=>setPositions(prev=>({...prev,[id]:pos}))}
                   onGrowthChange={(id,val)=>setGrowth(prev=>({...prev,[id]:val}))}
                   onHover={setHov}
+                  onDescend={()=>setScene('front')}
                 />
               </div>
 
@@ -1390,8 +1391,8 @@ export default function App() {
               )}
             </div>
 
-            {/* Hover card — right panel, appears on plant hover */}
-            {hov && !sel && (
+            {/* Hover card — right panel, appears on plant hover (takes priority over selected) */}
+            {hov && (
               <div style={{
                 position:'relative', zIndex:2,
                 width:400, flexShrink:0,
@@ -1405,7 +1406,7 @@ export default function App() {
             )}
 
             {/* Selected plant detail panel */}
-            {sel && (
+            {sel && !hov && (
               <div style={{
                 position:'relative', zIndex:2,
                 width:340, flexShrink:0,

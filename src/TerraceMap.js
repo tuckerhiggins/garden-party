@@ -1043,8 +1043,8 @@ export function TerraceMap({ plants, selectedId, cookiePos, onSelect, onMove, on
     return plants
       .filter(p => p.health !== 'memorial' && p.wall !== 3)
       .find(p => {
-        const { x, y } = pxy(p.pos);
-        const r = INTEGRATED_TYPES.has(p.type) ? 22
+        const { x, y } = WALL4_TYPES.has(p.type) ? pxyW4(p.pos) : pxy(p.pos);
+        const r = INTEGRATED_TYPES.has(p.type) ? 32
           : WALL4_TYPES.has(p.type) ? 44
           : tokenR(p.type) + 10;
         return Math.hypot(pt.x - x, pt.y - y) <= r;
@@ -1198,14 +1198,14 @@ export function TerraceMap({ plants, selectedId, cookiePos, onSelect, onMove, on
       <g style={{ pointerEvents: 'none' }}>
 
       {/* ── Wall 3: neighbor building back strip (full width) ── */}
-      <rect x={0} y={0} width={DR} height={BH} fill="#ceca92"/>
+      <rect x={0} y={0} width={VW} height={BH} fill="#ceca92"/>
       {Array.from({ length: brickRows }, (_, row) => (
         <g key={`br${row}`}>
-          <line x1={0} y1={row * 10} x2={DR} y2={row * 10}
+          <line x1={0} y1={row * 10} x2={VW} y2={row * 10}
             stroke="rgba(148,138,72,0.20)" strokeWidth={0.7}/>
-          {Array.from({ length: Math.ceil(DR / 30) + 1 }, (_, col) => {
+          {Array.from({ length: Math.ceil(VW / 30) + 1 }, (_, col) => {
             const bx = (row % 2 === 0 ? 0 : 15) + col * 30;
-            return bx < DR
+            return bx < VW
               ? <line key={col} x1={bx} y1={row*10} x2={bx} y2={row*10+10}
                   stroke="rgba(148,138,72,0.11)" strokeWidth={0.5}/>
               : null;
