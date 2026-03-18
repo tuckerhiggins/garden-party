@@ -1,6 +1,6 @@
 // Mobile view — optimized for use while actually in the garden
 // Hero features: photo upload, quick care, oracle chat
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { OracleChat } from './OracleChat';
 import { ACTION_DEFS, SEASON_OPEN } from '../data/plants';
 
@@ -344,6 +344,57 @@ function MobileJournal({ plants, careLog }) {
   );
 }
 
+// ── MOBILE SIGN IN ─────────────────────────────────────────────────────────
+function MobileSignIn({ signIn }) {
+  const [open, setOpen] = React.useState(false);
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [error, setError] = React.useState('');
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)}
+        style={{background:'none',border:'none',fontFamily:MONO,fontSize:6,color:C.uiMuted,cursor:'pointer',padding:'4px 6px'}}>
+        sign in
+      </button>
+    );
+  }
+
+  const attempt = async () => {
+    setError('');
+    try { await signIn(email, password); setOpen(false); }
+    catch { setError('wrong email or password'); }
+  };
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(4,2,1,0.95)',zIndex:200,
+      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div style={{fontFamily:MONO,fontSize:8,color:C.uiGold,marginBottom:24}}>SIGN IN</div>
+      <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
+        placeholder="email" autoFocus
+        style={{width:'100%',maxWidth:280,padding:'12px 14px',marginBottom:10,
+          background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
+          borderRadius:8,color:'#f0e4cc',fontFamily:SERIF,fontSize:16,outline:'none'}}/>
+      <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
+        onKeyDown={e=>e.key==='Enter'&&attempt()}
+        placeholder="password"
+        style={{width:'100%',maxWidth:280,padding:'12px 14px',marginBottom:16,
+          background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
+          borderRadius:8,color:'#f0e4cc',fontFamily:SERIF,fontSize:16,outline:'none'}}/>
+      {error && <div style={{color:'#c07050',fontFamily:SERIF,fontSize:13,marginBottom:10}}>{error}</div>}
+      <button onClick={attempt}
+        style={{width:'100%',maxWidth:280,padding:'12px',background:C.uiGold,
+          border:'none',borderRadius:8,color:C.uiBg,fontFamily:MONO,fontSize:9,cursor:'pointer',marginBottom:12}}>
+        SIGN IN
+      </button>
+      <button onClick={()=>setOpen(false)}
+        style={{background:'none',border:'none',color:C.uiMuted,fontFamily:SERIF,fontSize:14,cursor:'pointer'}}>
+        cancel
+      </button>
+    </div>
+  );
+}
+
 // ── MAIN MOBILE VIEW ───────────────────────────────────────────────────────
 export function MobileView({
   plants, careLog, warmth, weather,
@@ -402,15 +453,13 @@ export function MobileView({
           <span style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold }}>{warmth}♥</span>
         </div>
         {/* Auth indicator */}
-        {role !== 'guest' && (
+        {role !== 'guest' ? (
           <button onClick={signOut}
-            style={{
-              background: 'none', border: 'none',
-              fontFamily: MONO, fontSize: 6, color: C.uiMuted,
-              cursor: 'pointer', padding: '4px 6px',
-            }}>
-            {role === 'tucker' ? 'T' : role === 'emma' ? 'E' : ''}
+            style={{background:'none',border:'none',fontFamily:MONO,fontSize:6,color:C.uiMuted,cursor:'pointer',padding:'4px 6px'}}>
+            {role === 'tucker' ? '🌿' : '🌹'} sign out
           </button>
+        ) : (
+          <MobileSignIn signIn={signIn}/>
         )}
       </div>
 

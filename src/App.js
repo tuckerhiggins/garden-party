@@ -61,7 +61,8 @@ function plantColor(type) { return C[type] || '#909080'; }
 function AuthButton({ role, signIn, signOut }) {
   const [showInput, setShowInput] = React.useState(false);
   const [email, setEmail] = React.useState('');
-  const [sent, setSent] = React.useState(false);
+  const [password, setPassword] = React.useState('');
+  const [error, setError] = React.useState('');
 
   if (role !== 'guest') {
     return (
@@ -73,20 +74,26 @@ function AuthButton({ role, signIn, signOut }) {
     );
   }
 
-  if (sent) {
-    return <span style={{fontFamily:MONO,fontSize:7,color:'#6090a0'}}>check email →</span>;
-  }
-
   if (showInput) {
+    const attempt = async () => {
+      setError('');
+      try { await signIn(email, password); setShowInput(false); }
+      catch { setError('wrong email or password'); }
+    };
     return (
       <div style={{display:'flex',gap:4,alignItems:'center'}}>
         <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-          onKeyDown={e=>e.key==='Enter'&&email&&(signIn(email),setSent(true))}
-          placeholder="your@email.com" autoFocus
+          placeholder="email" autoFocus
           style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
             borderRadius:3,padding:'4px 8px',color:'#f0e4cc',fontFamily:SERIF,fontSize:12,
-            width:160,outline:'none'}}/>
-        <button onClick={()=>{if(email){signIn(email);setSent(true);}}}
+            width:130,outline:'none'}}/>
+        <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
+          onKeyDown={e=>e.key==='Enter'&&attempt()}
+          placeholder="password"
+          style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
+            borderRadius:3,padding:'4px 8px',color:'#f0e4cc',fontFamily:SERIF,fontSize:12,
+            width:100,outline:'none'}}/>
+        <button onClick={attempt}
           style={{background:'#2a1808',border:'none',borderRadius:3,padding:'4px 10px',
             color:'#f0e4cc',fontFamily:MONO,fontSize:7,cursor:'pointer'}}>
           GO
@@ -95,6 +102,7 @@ function AuthButton({ role, signIn, signOut }) {
           style={{background:'none',border:'none',color:'#706040',fontSize:16,cursor:'pointer',padding:'0 2px'}}>
           ×
         </button>
+        {error && <span style={{fontFamily:SERIF,fontSize:11,color:'#c07050'}}>{error}</span>}
       </div>
     );
   }

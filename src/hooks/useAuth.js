@@ -25,12 +25,10 @@ export function useAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email) => {
+  const signIn = async (email, password) => {
     if (!supabase) return;
-    await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin },
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
   };
 
   const signOut = async () => {
