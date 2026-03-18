@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(npx react-scripts:*)",
+      "Bash(CI=false npx react-scripts build 2>&1 | tail -12)",
+      "Bash(brew install:*)",
+      "Bash(which pdftotext:*)",
+      "Bash(python3:*)",
+      "WebSearch",
+      "Bash(CI=false npx react-scripts build 2>&1 | grep -E \"error|warning|Compiled|Failed\" | head -20)",
+      "Bash(sleep:*)",
+      "Bash(open:*)",
+      "Bash(screencapture:*)",
+      "Bash(osascript:*)",
+      "Bash(npm start:*)",
+      "Bash(curl:*)",
+      "Bash(for i:*)",
+      "Bash(node:*)",
+      "Bash(\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --headless=new --screenshot=/tmp/front.png --window-size=1400,900 \"http://127.0.0.1:3456\" 2>/dev/null; echo \"exit: $?\")",
+      "Bash(kill:*)",
+      "Bash(lsof:*)",
+      "Bash(sips:*)",
+      "Bash(ffmpeg:*)",
+      "Bash(grep:*)",
+      "Bash(getent services:*)",
+      "Read(//private/etc/**)",
+      "Bash(npx:*)",
+      "Bash(which cliclick:*)",
+      "Bash(pip3 install:*)",
+      "Bash(ls:*)",
+      "Bash(npm install:*)",
+      "Bash(git init:*)"
+    ]
+  }
+}

@@ -1,0 +1,221 @@
+<svg viewBox="0 0 1400 900" width="1400" height="900" xmlns="http://www.w3.org/2000/svg"
+  style="font-family: Georgia, serif; background: #f5f0e8;">
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- ZONE 1: SKY -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <rect x="0" y="0" width="1400" height="80" fill="#b8ccd8" opacity="0.5" stroke="#6a8898" strokeWidth="1" strokeDasharray="6 3"/>
+  <text x="700" y="46" textAnchor="middle" fontSize="13" fill="#2a4858" fontStyle="italic">SKY — sky gradient, stays as-is</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- ZONE 2: BUILDING FACADE (upper floors) -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <rect x="0" y="80" width="1400" height="200" fill="#c8906050" stroke="#8a5030" strokeWidth="1" strokeDasharray="6 3"/>
+  <text x="700" y="168" textAnchor="middle" fontSize="13" fill="#5a2010" fontStyle="italic">UPPER FLOORS — 2 floors, taller windows, more breathing room</text>
+  <!-- window boxes schematic -->
+  <rect x="60" y="100" width="110" height="70" fill="none" stroke="#4a2010" strokeWidth="2"/>
+  <rect x="200" y="100" width="110" height="70" fill="none" stroke="#4a2010" strokeWidth="2"/>
+  <text x="115" y="190" textAnchor="middle" fontSize="11" fill="#4a2010">win</text>
+  <text x="255" y="190" textAnchor="middle" fontSize="11" fill="#4a2010">win</text>
+  <rect x="1090" y="100" width="110" height="70" fill="none" stroke="#4a2010" strokeWidth="2"/>
+  <rect x="1230" y="100" width="110" height="70" fill="none" stroke="#4a2010" strokeWidth="2"/>
+  <text x="1145" y="190" textAnchor="middle" fontSize="11" fill="#4a2010">win</text>
+  <text x="1285" y="190" textAnchor="middle" fontSize="11" fill="#4a2010">win</text>
+  <!-- center window (above door) -->
+  <rect x="620" y="100" width="160" height="70" fill="none" stroke="#4a2010" strokeWidth="2"/>
+  <text x="700" y="188" textAnchor="middle" fontSize="11" fill="#4a2010">center win</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- ZONE 3: PARLOR FLOOR — the main event -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <rect x="0" y="280" width="1400" height="200" fill="#be785840" stroke="#8a5030" strokeWidth="1" strokeDasharray="6 3"/>
+
+  <!-- Left: large window -->
+  <rect x="30" y="295" width="200" height="170" fill="none" stroke="#4a2010" strokeWidth="2.5"/>
+  <text x="130" y="390" textAnchor="middle" fontSize="12" fill="#4a2010">large window</text>
+  <text x="130" y="406" textAnchor="middle" fontSize="11" fill="#8a5030" fontStyle="italic">(stays)</text>
+
+  <!-- Left: carved organic relief panel -->
+  <rect x="260" y="295" width="240" height="170" fill="#be785830" stroke="#8a5030" strokeWidth="2.5"/>
+  <text x="380" y="372" textAnchor="middle" fontSize="12" fill="#4a2010">organic carved</text>
+  <text x="380" y="390" textAnchor="middle" fontSize="12" fill="#4a2010">relief panel</text>
+  <text x="380" y="410" textAnchor="middle" fontSize="11" fill="#c03020" fontStyle="italic">← REPLACE compass rose</text>
+  <!-- scribble to suggest organic carving -->
+  <ellipse cx="380" cy="362" rx="55" ry="38" fill="none" stroke="#8a5030" strokeWidth="1.5" strokeDasharray="3 2"/>
+  <ellipse cx="380" cy="362" rx="35" ry="24" fill="none" stroke="#8a5030" strokeWidth="1" strokeDasharray="2 2"/>
+  <path d="M355 345 Q365 330 380 340 Q395 330 405 345 Q415 362 405 375 Q395 390 380 382 Q365 390 355 375 Q345 362 355 345 Z" fill="none" stroke="#8a5030" strokeWidth="1.5"/>
+
+  <!-- Center: door arch -->
+  <path d="M 570 480 L 570 330 A 130 130 0 0 1 830 330 L 830 480 Z" fill="#16122050" stroke="#4a2010" strokeWidth="3"/>
+  <text x="700" y="420" textAnchor="middle" fontSize="14" fill="#c8a018" fontWeight="bold">No 75</text>
+  <text x="700" y="460" textAnchor="middle" fontSize="11" fill="#c8a018" fontStyle="italic">door (clickable)</text>
+  <!-- globe sconces -->
+  <circle cx="548" cy="315" r="14" fill="#f0ece4" stroke="#c0a890" strokeWidth="1.5"/>
+  <circle cx="852" cy="315" r="14" fill="#f0ece4" stroke="#c0a890" strokeWidth="1.5"/>
+  <text x="700" y="302" textAnchor="middle" fontSize="11" fill="#8a5030" fontStyle="italic">globe sconces (stays)</text>
+
+  <!-- Right: plain arched window with ironwork (REPLACES phantom neighbor window) -->
+  <rect x="900" y="295" width="180" height="170" fill="none" stroke="#4a2010" strokeWidth="2.5"/>
+  <path d="M 900 420 L 900 330 A 90 90 0 0 1 1080 330 L 1080 420 Z" fill="#0d182030" stroke="#4a2010" strokeWidth="1.5"/>
+  <text x="990" y="455" textAnchor="middle" fontSize="12" fill="#4a2010">arched window</text>
+  <text x="990" y="471" textAnchor="middle" fontSize="11" fill="#2a7030" fontStyle="italic">← clean up, no fake neighbor</text>
+
+  <!-- Right: small panel -->
+  <rect x="1100" y="295" width="100" height="170" fill="#be785830" stroke="#8a5030" strokeWidth="2"/>
+  <text x="1150" y="388" textAnchor="middle" fontSize="11" fill="#4a2010">small</text>
+  <text x="1150" y="403" textAnchor="middle" fontSize="11" fill="#4a2010">panel</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- ZONE 4: STOOP PLATFORM — THE KEY CHANGE -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <rect x="480" y="480" width="440" height="110" fill="#be785860" stroke="#c03020" strokeWidth="2.5"/>
+  <text x="700" y="525" textAnchor="middle" fontSize="14" fill="#c03020" fontWeight="bold">STOOP PLATFORM</text>
+  <text x="700" y="545" textAnchor="middle" fontSize="12" fill="#8a2010">flat stone ledge — NO STAIRS VISIBLE</text>
+  <text x="700" y="563" textAnchor="middle" fontSize="11" fill="#8a2010" fontStyle="italic">stairs are around the corner (implied, off-screen)</text>
+  <text x="700" y="580" textAnchor="middle" fontSize="11" fill="#8a2010" fontStyle="italic">pots sit on platform surface</text>
+  <!-- pot suggestions -->
+  <ellipse cx="530" cy="492" rx="22" ry="10" fill="#e0d8c8" stroke="#b0a898" strokeWidth="1.5"/>
+  <path d="M 508 492 C 504 470 496 458 508 458 C 520 458 512 458 530 458 C 548 458 540 458 552 458 C 564 458 556 470 552 492 Z" fill="#e0d8c8" stroke="#b0a898" strokeWidth="1.5"/>
+  <ellipse cx="870" cy="492" rx="22" ry="10" fill="#e0d8c8" stroke="#b0a898" strokeWidth="1.5"/>
+  <path d="M 848 492 C 844 470 836 458 848 458 C 860 458 852 458 870 458 C 888 458 880 458 892 458 C 904 458 896 470 892 492 Z" fill="#e0d8c8" stroke="#b0a898" strokeWidth="1.5"/>
+
+  <!-- stoop base wall (front face, solid, no stairs) -->
+  <rect x="480" y="590" width="440" height="50" fill="#be785870" stroke="#8a5030" strokeWidth="1.5"/>
+  <text x="700" y="621" textAnchor="middle" fontSize="11" fill="#5a2010" fontStyle="italic">stone plinth face — same warm terracotta as facade</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- ZONE 5: GROUND LEVEL — garden + retaining wall -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <rect x="0" y="640" width="460" height="130" fill="#3a221040" stroke="#5a3820" strokeWidth="1" strokeDasharray="5 3"/>
+  <text x="230" y="680" textAnchor="middle" fontSize="13" fill="#3a2210" fontWeight="bold">EMMA'S ROSE GARDEN</text>
+  <text x="230" y="698" textAnchor="middle" fontSize="11" fill="#5a3820" fontStyle="italic">6 Double Knock Out roses</text>
+  <text x="230" y="714" textAnchor="middle" fontSize="11" fill="#5a3820" fontStyle="italic">magnolia tree (left, large)</text>
+  <text x="230" y="730" textAnchor="middle" fontSize="11" fill="#5a3820" fontStyle="italic">iron fence along top</text>
+  <text x="230" y="748" textAnchor="middle" fontSize="11" fill="#5a3820" fontStyle="italic">Cookie the cat wanders here</text>
+  <!-- rose cane sketches -->
+  <line x1="80" y1="770" x2="72" y2="680" stroke="#604828" strokeWidth="2"/>
+  <line x1="80" y1="770" x2="88" y2="685" stroke="#604828" strokeWidth="1.5"/>
+  <line x1="160" y1="770" x2="152" y2="678" stroke="#604828" strokeWidth="2"/>
+  <line x1="160" y1="770" x2="168" y2="683" stroke="#604828" strokeWidth="1.5"/>
+  <line x1="250" y1="770" x2="240" y2="675" stroke="#604828" strokeWidth="2"/>
+  <line x1="340" y1="770" x2="332" y2="680" stroke="#604828" strokeWidth="2"/>
+  <line x1="420" y1="770" x2="414" y2="677" stroke="#604828" strokeWidth="2"/>
+  <!-- iron fence top -->
+  <rect x="10" y="637" width="450" height="4" fill="#151210"/>
+  {Array.from({length:28}).forEach((_, i) => null)}
+  <line x1="20" y1="637" x2="20" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="36" y1="637" x2="36" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="52" y1="637" x2="52" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="68" y1="637" x2="68" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="84" y1="637" x2="84" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="100" y1="637" x2="100" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="116" y1="637" x2="116" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="132" y1="637" x2="132" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="148" y1="637" x2="148" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="164" y1="637" x2="164" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="180" y1="637" x2="180" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="196" y1="637" x2="196" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="212" y1="637" x2="212" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="228" y1="637" x2="228" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="244" y1="637" x2="244" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="260" y1="637" x2="260" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="276" y1="637" x2="276" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="292" y1="637" x2="292" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="308" y1="637" x2="308" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="324" y1="637" x2="324" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="340" y1="637" x2="340" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="356" y1="637" x2="356" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="372" y1="637" x2="372" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="388" y1="637" x2="388" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="404" y1="637" x2="404" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="420" y1="637" x2="420" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="436" y1="637" x2="436" y2="615" stroke="#151210" strokeWidth="2.5"/>
+  <line x1="452" y1="637" x2="452" y2="615" stroke="#151210" strokeWidth="2.5"/>
+
+  <!-- retaining wall face (left of stoop) -->
+  <rect x="0" y="640" width="460" height="50" fill="#be786040" stroke="#8a5030" strokeWidth="1"/>
+  <text x="230" y="670" textAnchor="middle" fontSize="11" fill="#5a2010">retaining wall (same warm stone)</text>
+
+  <!-- Right of stoop — sidewalk extends -->
+  <rect x="920" y="640" width="480" height="130" fill="#c0b8a830" stroke="#a0988a" strokeWidth="1" strokeDasharray="5 3"/>
+  <text x="1160" y="706" textAnchor="middle" fontSize="12" fill="#5a5040" fontStyle="italic">sidewalk / right side</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- ZONE 6: SIDEWALK -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <rect x="0" y="770" width="1400" height="80" fill="#c0b8a840" stroke="#a0988a" strokeWidth="1" strokeDasharray="5 3"/>
+  <text x="700" y="818" textAnchor="middle" fontSize="12" fill="#5a5040" fontStyle="italic">sidewalk — concrete, stays as-is</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- ZONE 7: STREET -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <rect x="0" y="850" width="1400" height="50" fill="#3a383030" stroke="#2a2820" strokeWidth="1" strokeDasharray="5 3"/>
+  <text x="700" y="880" textAnchor="middle" fontSize="11" fill="#2a2820" fontStyle="italic">street</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- MAGNOLIA TREE (large, left side) -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <line x1="115" y1="770" x2="120" y2="400" stroke="#c8bfb0" strokeWidth="18" strokeLinecap="round"/>
+  <line x1="120" y1="500" x2="60" y2="300" stroke="#c8bfb0" strokeWidth="10" strokeLinecap="round"/>
+  <line x1="120" y1="480" x2="260" y2="340" stroke="#c8bfb0" strokeWidth="8" strokeLinecap="round"/>
+  <text x="90" y="630" textAnchor="middle" fontSize="11" fill="#5a4830" fontStyle="italic">magnolia tree</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- ANNOTATION ARROWS & LABELS -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+
+  <!-- KEY CHANGE callout — stoop -->
+  <rect x="940" y="490" width="360" height="110" fill="#fff8f0" stroke="#c03020" strokeWidth="2" rx="4"/>
+  <text x="960" y="512" fontSize="13" fill="#c03020" fontWeight="bold">⚡ KEY CHANGE: No Stairs</text>
+  <text x="960" y="532" fontSize="11" fill="#3a2010">The stoop is a flat elevated platform.</text>
+  <text x="960" y="549" fontSize="11" fill="#3a2010">Stairs exist but are around the corner</text>
+  <text x="960" y="566" fontSize="11" fill="#3a2010">(Park Slope stoops go up from the side).</text>
+  <text x="960" y="583" fontSize="11" fill="#3a2010">Player sees: warm stone ledge + door + pots.</text>
+  <line x1="920" y1="535" x2="942" y2="535" stroke="#c03020" strokeWidth="1.5" markerEnd="url(#arrow)"/>
+
+  <!-- Relief panel callout -->
+  <rect x="20" y="295" width="220" height="56" fill="#fff8f0" stroke="#8a5030" strokeWidth="1.5" rx="3"/>
+  <text x="30" y="313" fontSize="11" fill="#8a5030" fontWeight="bold">REMOVE: compass rose</text>
+  <text x="30" y="329" fontSize="11" fill="#3a2010">Replace with dense organic</text>
+  <text x="30" y="345" fontSize="11" fill="#3a2010">floral relief (vines, petals)</text>
+
+  <!-- Right window callout -->
+  <rect x="1090" y="295" width="270" height="42" fill="#fff8f0" stroke="#2a7030" strokeWidth="1.5" rx="3"/>
+  <text x="1100" y="312" fontSize="11" fill="#2a7030" fontWeight="bold">REMOVE: phantom neighbor arch</text>
+  <text x="1100" y="328" fontSize="11" fill="#3a2010">clean rectangular window with ironwork</text>
+
+  <!-- Upper floors callout -->
+  <rect x="1090" y="80" width="280" height="42" fill="#fff8f0" stroke="#4a6890" strokeWidth="1.5" rx="3"/>
+  <text x="1100" y="97" fontSize="11" fill="#4a6890" fontWeight="bold">INCREASE: floor height</text>
+  <text x="1100" y="113" fontSize="11" fill="#3a2010">UF_H 68 → 100px, windows breathe more</text>
+
+  <!-- Garden callout -->
+  <rect x="20" y="770" width="300" height="56" fill="#fff8f0" stroke="#2a6020" strokeWidth="1.5" rx="3"/>
+  <text x="30" y="787" fontSize="11" fill="#2a6020" fontWeight="bold">KEEP + ENHANCE: the garden</text>
+  <text x="30" y="803" fontSize="11" fill="#3a2010">This is the player's world. Roses clickable,</text>
+  <text x="30" y="819" fontSize="11" fill="#3a2010">Cookie wanders, magnolia blooms.</text>
+
+  <!-- Title -->
+  <text x="700" y="36" textAnchor="middle" fontSize="20" fill="#3a1806" fontWeight="bold" letterSpacing="2">GARDEN PARTY — FRONT MAP REDESIGN PROPOSAL</text>
+  <text x="700" y="56" textAnchor="middle" fontSize="12" fill="#8a5030" fontStyle="italic">open this file in a browser to view • wireframe only, not final art</text>
+
+  <!-- Zone labels on left margin -->
+  <text x="6" y="44" fontSize="10" fill="#888" transform="rotate(-90,6,44)">SKY</text>
+  <text x="6" y="190" fontSize="10" fill="#888" transform="rotate(-90,6,190)">UPPER</text>
+  <text x="6" y="390" fontSize="10" fill="#888" transform="rotate(-90,6,390)">PARLOR</text>
+  <text x="6" y="540" fontSize="10" fill="#888" transform="rotate(-90,6,540)">STOOP</text>
+  <text x="6" y="700" fontSize="10" fill="#888" transform="rotate(-90,6,700)">GARDEN</text>
+  <text x="6" y="810" fontSize="10" fill="#888" transform="rotate(-90,6,810)">WALK</text>
+
+  <!-- Vertical zone dividers on right -->
+  <line x1="1395" y1="80" x2="1395" y2="80" stroke="none"/>
+
+  <!-- horizontal zone lines -->
+  <line x1="0" y1="80" x2="1400" y2="80" stroke="#aaa" strokeWidth="0.5" strokeDasharray="4 4"/>
+  <line x1="0" y1="280" x2="1400" y2="280" stroke="#aaa" strokeWidth="0.5" strokeDasharray="4 4"/>
+  <line x1="0" y1="480" x2="1400" y2="480" stroke="#aaa" strokeWidth="0.5" strokeDasharray="4 4"/>
+  <line x1="0" y1="640" x2="1400" y2="640" stroke="#aaa" strokeWidth="0.5" strokeDasharray="4 4"/>
+  <line x1="0" y1="770" x2="1400" y2="770" stroke="#aaa" strokeWidth="0.5" strokeDasharray="4 4"/>
+  <line x1="0" y1="850" x2="1400" y2="850" stroke="#aaa" strokeWidth="0.5" strokeDasharray="4 4"/>
+
+</svg>
