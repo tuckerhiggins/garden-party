@@ -57,6 +57,57 @@ const C = {
 
 function plantColor(type) { return C[type] || '#909080'; }
 
+// ── SET PASSWORD MODAL ────────────────────────────────────────────────────
+function SetPasswordModal({ updatePassword }) {
+  const [pw, setPw] = React.useState('');
+  const [pw2, setPw2] = React.useState('');
+  const [err, setErr] = React.useState('');
+  const [done, setDone] = React.useState(false);
+
+  const submit = async () => {
+    if (pw.length < 8) { setErr('At least 8 characters'); return; }
+    if (pw !== pw2) { setErr('Passwords don\'t match'); return; }
+    try { await updatePassword(pw); setDone(true); }
+    catch (e) { setErr(e.message); }
+  };
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(4,2,1,0.95)',display:'flex',
+      alignItems:'center',justifyContent:'center',zIndex:500}}>
+      <div style={{width:360,padding:'40px 36px',textAlign:'center'}}>
+        <div style={{fontFamily:MONO,fontSize:8,color:C.uiGold,marginBottom:20,letterSpacing:.5}}>
+          SET YOUR PASSWORD
+        </div>
+        {done ? (
+          <div style={{fontFamily:SERIF,fontSize:16,color:'#d8ccb0',lineHeight:1.8}}>
+            Password set. You're signed in.
+          </div>
+        ) : (
+          <>
+            <input type="password" value={pw} onChange={e=>setPw(e.target.value)}
+              placeholder="new password (8+ characters)" autoFocus
+              style={{width:'100%',padding:'12px 14px',marginBottom:10,boxSizing:'border-box',
+                background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
+                borderRadius:8,color:'#f0e4cc',fontFamily:SERIF,fontSize:15,outline:'none'}}/>
+            <input type="password" value={pw2} onChange={e=>setPw2(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&submit()}
+              placeholder="confirm password"
+              style={{width:'100%',padding:'12px 14px',marginBottom:16,boxSizing:'border-box',
+                background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
+                borderRadius:8,color:'#f0e4cc',fontFamily:SERIF,fontSize:15,outline:'none'}}/>
+            {err && <div style={{color:'#c07050',fontFamily:SERIF,fontSize:13,marginBottom:10}}>{err}</div>}
+            <button onClick={submit}
+              style={{width:'100%',padding:'12px',background:C.uiGold,border:'none',
+                borderRadius:8,color:C.uiBg,fontFamily:MONO,fontSize:9,cursor:'pointer'}}>
+              SET PASSWORD
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── AUTH BUTTON ───────────────────────────────────────────────────────────
 function AuthButton({ role, signIn, signOut }) {
   const [showInput, setShowInput] = React.useState(false);
@@ -1254,7 +1305,7 @@ export default function App() {
   const [sel, setSel] = useState(null);
   const [hov, setHov] = useState(null);
   const [withEmma, setWithEmma] = useState(false);
-  const { user, role, signIn, signOut } = useAuth();
+  const { user, role, signIn, signOut, needsPasswordSet, updatePassword } = useAuth();
   const { warmth, careLog, expenses, positions, growth, logAction, updateGrowth, movePosition, addExpense: addExpenseDb } = useGardenData({ user });
   useMigration({ user });
   const isMobile = useIsMobile();
@@ -1661,6 +1712,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ── SET PASSWORD MODAL (after clicking recovery email link) ── */}
+      {needsPasswordSet && <SetPasswordModal updatePassword={updatePassword}/>}
 
       {/* ── SEASON OPENER MODAL ── */}
       {SEASON_OPEN && !seasonOpenerDismissed && seasonOpener && seasonOpener !== 'loading' && (

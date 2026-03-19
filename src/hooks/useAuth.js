@@ -5,6 +5,7 @@ export function useAuth() {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState('guest');
   const [loading, setLoading] = useState(!!supabase);
+  const [needsPasswordSet, setNeedsPasswordSet] = useState(false);
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -16,10 +17,12 @@ export function useAuth() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
       setUser(u);
       setRole(u?.user_metadata?.role ?? 'guest');
+      // PASSWORD_RECOVERY event fires when user clicks a recovery link
+      if (event === 'PASSWORD_RECOVERY') setNeedsPasswordSet(true);
     });
 
     return () => subscription.unsubscribe();
@@ -36,5 +39,12 @@ export function useAuth() {
     await supabase.auth.signOut();
   };
 
-  return { user, role, loading, signIn, signOut };
+  const updatePassword = async (newPassword) => {
+    if (!supabase) return;
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    setNeedsPasswordSet(false);
+  };
+
+  return { user, role, loading, needsPasswordSet, signIn, signOut, updatePassword };
 }
