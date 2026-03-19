@@ -1496,7 +1496,7 @@ export default function App() {
               borderBottom:`1px solid ${C.cardBorder}`,
               display:'flex',alignItems:'center',padding:'0 16px',gap:8,
             }}>
-              {[{id:'cards',label:'🌿 Garden'},{id:'map',label:'🗺 Map'}].map(v=>(
+              {[{id:'cards',label:'🌿 Plants'},{id:'map',label:'🗺 Map'}].map(v=>(
                 <button key={v.id} onClick={()=>setGardenView(v.id)}
                   style={{background:gardenView===v.id?'#2a1808':'transparent',
                     border:`1px solid ${gardenView===v.id?'rgba(90,60,24,0.6)':C.cardBorder}`,
