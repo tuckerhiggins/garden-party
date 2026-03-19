@@ -513,7 +513,13 @@ export function StonePotPortrait() {
 }
 
 // Master function — returns the right portrait for a plant
-export function PlantPortrait({ plant }) {
+export function PlantPortrait({ plant, aiSvg }) {
+  if (aiSvg) {
+    return (
+      <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}
+        dangerouslySetInnerHTML={{ __html: aiSvg }}/>
+    );
+  }
   const { type, id, health } = plant;
 
   if (health === 'memorial') return <EmptyPotPortrait isMemorial={true} potColor="#b0a080"/>;

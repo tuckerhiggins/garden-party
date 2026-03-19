@@ -767,7 +767,7 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma
 }
 
 // ── PLANT CARD ────────────────────────────────────────────────────────────
-function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen }) {
+function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait }) {
   const history = careLog[plant.id] || [];
   const lastAction = history.length > 0 ? history[history.length-1] : null;
   const needsCare = seasonOpen && plant.actions?.some(a => actionStatus(plant, a, careLog, seasonOpen).available && !ACTION_DEFS[a]?.alwaysAvailable);
@@ -795,9 +795,9 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen }) {
       {/* Portrait illustration */}
       <div style={{height:164, background:`linear-gradient(170deg,${color}14 0%,${color}04 100%)`,
         position:'relative', overflow:'hidden'}}>
-        <PlantPortrait plant={plant}/>
+        <PlantPortrait plant={plant} aiSvg={portrait?.svg}/>
 
-        {needsDoc && (
+        {needsDoc && !portrait?.analyzing && (
           <div style={{position:'absolute',top:8,left:8,background:'rgba(18,12,6,0.72)',
             border:'1px solid rgba(212,168,48,0.40)',borderRadius:20,padding:'2px 8px'}}>
             <span style={{fontSize:9,color:'rgba(212,168,48,0.80)',fontFamily:MONO,letterSpacing:.3}}>unseen</span>
@@ -820,6 +820,14 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen }) {
           </div>
         )}
 
+        {portrait?.analyzing && (
+          <div style={{position:'absolute',top:8,left:8,background:'rgba(18,12,6,0.72)',
+            border:'1px solid rgba(212,168,48,0.50)',borderRadius:20,padding:'2px 8px',
+            animation:'pulse 1.5s infinite'}}>
+            <span style={{fontSize:9,color:'rgba(212,168,48,0.90)',fontFamily:MONO,letterSpacing:.3}}>READING</span>
+          </div>
+        )}
+
         {/* Subtle identity color gradient at portrait bottom */}
         <div style={{position:'absolute',bottom:0,left:0,right:0,height:28,
           background:`linear-gradient(0deg,${color}20 0%,transparent 100%)`}}/>
@@ -828,6 +836,13 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen }) {
       {/* Card body */}
       <div style={{padding:'10px 12px 11px',
         background:`linear-gradient(180deg,${color}07 0%,transparent 48px)`}}>
+
+        {portrait?.visualNote && !portrait?.analyzing && (
+          <div style={{fontSize:11,color:'#907050',fontStyle:'italic',fontFamily:'"Crimson Pro", Georgia, serif',
+            lineHeight:1.55,marginBottom:7,paddingTop:1,opacity:0.88}}>
+            {portrait.visualNote}
+          </div>
+        )}
 
         {/* Name row */}
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:2}}>
@@ -888,26 +903,8 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen }) {
   );
 }
 
-// ── GROWTH SLIDER — all plants with visual growth states ──────────────────
-const CLIMBER_TYPES = new Set([
-  'wisteria', 'climbing-rose',
-  'hydrangea', 'serviceberry', 'maple', 'evergreen', 'evergreen-xmas',
-]);
-function growthLabel(type) {
-  switch (type) {
-    case 'wisteria':       return 'Vine coverage';
-    case 'climbing-rose':  return 'Cane coverage';
-    case 'hydrangea':      return 'Bloom development';
-    case 'serviceberry':   return 'Foliage & bloom';
-    case 'maple':          return 'Foliage density';
-    case 'evergreen':
-    case 'evergreen-xmas': return 'Fullness';
-    default:               return 'Growth';
-  }
-}
-
 // ── PHOTO SECTION ─────────────────────────────────────────────────────────
-function PhotoSection({ plant, color }) {
+function PhotoSection({ plant, color, onAnalyze }) {
   const [photos, setPhotos] = useState(() => getPhotos(plant.id));
   const fileRef = useRef(null);
 
@@ -919,6 +916,38 @@ function PhotoSection({ plant, color }) {
     savePhotos(plant.id, updated);
     setPhotos(updated);
     e.target.value = '';
+    // Trigger AI analysis in background
+    if (onAnalyze) {
+      onAnalyze(plant.id, { analyzing: true });
+      const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+      fetch('/api/analyze-plant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: base64,
+          plantName: plant.name,
+          plantType: plant.type,
+          plantSpecies: plant.species || '',
+          today: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+        }),
+      })
+        .then(r => r.json())
+        .then(({ analysis, svg }) => {
+          onAnalyze(plant.id, {
+            svg: svg || null,
+            visualNote: analysis?.visualNote || null,
+            growth: analysis?.growth ?? null,
+            bloomState: analysis?.bloomState || null,
+            foliageState: analysis?.foliageState || null,
+            analyzing: false,
+            date: new Date().toISOString(),
+          });
+          if (analysis?.growth != null) {
+            updateGrowth(plant.id, analysis.growth);
+          }
+        })
+        .catch(() => onAnalyze(plant.id, { analyzing: false }));
+    }
   }
 
   const lastPhoto = photos[photos.length - 1];
@@ -953,7 +982,7 @@ function PhotoSection({ plant, color }) {
 }
 
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
-function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma, onGrowthChange, seasonOpen }) {
+function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma, seasonOpen, onAnalyze }) {
   const [tab, setTab] = useState('history');
   const [showHowTo, setShowHowTo] = useState(null);
   const history = careLog[plant.id] || [];
@@ -1008,33 +1037,7 @@ function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma,
             </div>
             {/* Photo section */}
             {plant.type !== 'empty-pot' && plant.health !== 'memorial' && (
-              <PhotoSection plant={plant} color={color}/>
-            )}
-            {/* Growth control for climbers */}
-            {CLIMBER_TYPES.has(plant.type) && onGrowthChange && (
-              <div style={{background:`${plantColor(plant.type)}0d`,border:`1px solid ${plantColor(plant.type)}28`,
-                borderRadius:8,padding:'10px 12px',marginBottom:12}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-                  <span style={{fontFamily:MONO,fontSize:7,color:plantColor(plant.type),letterSpacing:.5}}>
-                    {growthLabel(plant.type).toUpperCase()}
-                  </span>
-                  <span style={{fontFamily:SERIF,fontSize:15,color:'#2a1808',fontWeight:600}}>
-                    {Math.round((plant.growth||0)*100)}%
-                  </span>
-                </div>
-                {/* Progress bar */}
-                <div style={{height:6,background:'rgba(0,0,0,0.08)',borderRadius:3,marginBottom:8,overflow:'hidden'}}>
-                  <div style={{height:'100%',width:`${(plant.growth||0)*100}%`,
-                    background:`linear-gradient(90deg, ${plantColor(plant.type)}88, ${plantColor(plant.type)})`,
-                    borderRadius:3,transition:'width .3s ease'}}/>
-                </div>
-                <input type="range" min={0} max={100} value={Math.round((plant.growth||0)*100)}
-                  onChange={e => onGrowthChange(plant.id, e.target.value / 100)}
-                  style={{width:'100%',accentColor:plantColor(plant.type),cursor:'pointer'}}/>
-                <div style={{fontSize:11,color:'#b09070',fontFamily:SERIF,marginTop:4,lineHeight:1.5}}>
-                  Update after each photo — this drives the map visualization.
-                </div>
-              </div>
+              <PhotoSection plant={plant} color={color} onAnalyze={onAnalyze}/>
             )}
 
             {/* Badges */}
@@ -1319,6 +1322,16 @@ export default function App() {
   const [expInput, setExpInput] = useState({desc:'',amount:'',plantId:''});
   const [draggingId, setDraggingId] = useState(null);
   const [oracle, setOracle] = useState(null);
+  const [portraits, setPortraits] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}'); } catch { return {}; }
+  });
+  const updatePortrait = useCallback((id, data) => {
+    setPortraits(prev => {
+      const next = { ...prev, [id]: { ...prev[id], ...data } };
+      try { localStorage.setItem('gp_portraits_v1', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
   const [seasonOpener, setSeasonOpener] = useState(null); // null | 'loading' | string
   const [seasonOpenerDismissed, setSeasonOpenerDismissed] = useState(
     () => !!localStorage.getItem('gp_season_opener_dismissed_2026')
@@ -1617,7 +1630,8 @@ export default function App() {
                         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
                           {ps.map(p=>(
                             <PlantCard key={p.id} plant={p} careLog={careLog}
-                              onSelect={p=>{setSel(p);}} isSelected={sel?.id===p.id} seasonOpen={seasonOpen}/>
+                              onSelect={p=>{setSel(p);}} isSelected={sel?.id===p.id} seasonOpen={seasonOpen}
+                              portrait={portraits[p.id]}/>
                           ))}
                         </div>
                       </div>
@@ -1635,7 +1649,7 @@ export default function App() {
               <div style={{position:'relative',width:320,flexShrink:0}}>
                 <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                   onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                  onGrowthChange={(id,val)=>updateGrowth(id,val)} seasonOpen={seasonOpen}/>
+                  seasonOpen={seasonOpen} onAnalyze={updatePortrait}/>
               </div>
             )}
             </>)}
@@ -1655,7 +1669,6 @@ export default function App() {
                       cookiePos={cookiePos}
                       onSelect={p=>{ if(p) setSel(p); else setSel(null); }}
                       onMove={(id,pos)=>movePosition(id,pos)}
-                      onGrowthChange={(id,val)=>updateGrowth(id,val)}
                       onHover={setHov}
                       onDescend={()=>setScene('front')}
                     />
@@ -1688,7 +1701,7 @@ export default function App() {
                     background:'rgba(250,246,238,0.97)',borderLeft:`1px solid ${C.cardBorder}`}}>
                     <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                       onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                      onGrowthChange={(id,val)=>updateGrowth(id,val)} seasonOpen={seasonOpen}/>
+                      seasonOpen={seasonOpen} onAnalyze={updatePortrait}/>
                   </div>
                 )}
               </div>

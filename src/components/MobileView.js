@@ -104,6 +104,42 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, seasonOpen })
     if (plant.actions?.includes('photo')) {
       onAction('photo', plant);
     }
+    // Background AI analysis — updates growth in localStorage for map
+    const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+    fetch('/api/analyze-plant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64: base64,
+        plantName: plant.name,
+        plantType: plant.type,
+        plantSpecies: plant.species || '',
+        today: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+      }),
+    })
+      .then(r => r.json())
+      .then(({ analysis, svg }) => {
+        // Store portrait result for desktop to pick up
+        try {
+          const stored = JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}');
+          stored[plant.id] = {
+            ...stored[plant.id],
+            svg: svg || stored[plant.id]?.svg || null,
+            visualNote: analysis?.visualNote || stored[plant.id]?.visualNote || null,
+            growth: analysis?.growth ?? stored[plant.id]?.growth ?? null,
+            analyzing: false,
+            date: new Date().toISOString(),
+          };
+          localStorage.setItem('gp_portraits_v1', JSON.stringify(stored));
+          // Also update growth in existing gp_growth_v4
+          if (analysis?.growth != null) {
+            const growth = JSON.parse(localStorage.getItem('gp_growth_v4') || '{}');
+            growth[plant.id] = analysis.growth;
+            localStorage.setItem('gp_growth_v4', JSON.stringify(growth));
+          }
+        } catch {}
+      })
+      .catch(() => {});
   }
 
   const waterStatus = actionStatus(plant, 'water', careLog, seasonOpen);
