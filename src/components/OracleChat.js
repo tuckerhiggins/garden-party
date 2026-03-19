@@ -115,10 +115,10 @@ export function OracleChat({ plants, careLog, warmth, weather, style }) {
   }, [messages, plants, careLog, warmth, weather, streaming]);
 
   const STARTERS = [
-    'What needs the most attention today?',
-    'How is the wisteria doing this season?',
-    'Should I water anything today?',
-    'What should I plant in the empty pot?',
+    "What's actually happening out here right now?",
+    'What do I need to know for this week?',
+    'What are the roots doing underground right now?',
+    'What should I actually do today?',
   ];
 
   return (

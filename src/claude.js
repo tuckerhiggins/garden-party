@@ -74,28 +74,30 @@ export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen
     return `${p.name} (last ${d})`;
   });
 
-  const systemPrompt = `You are the voice of a rooftop garden in Park Slope, Brooklyn.
-You speak in the first person — you are the garden itself.
-You know about your plants, your caretaker Tucker, and the season.
-Your tone is warm, slightly literary, never precious.
-One to two sentences maximum. Never a list.
-Never use the word "garden."
-If plants haven't been photographed yet this season, you may gently invite Tucker to document one — make it feel like curiosity, not a task. Keep it natural — don't always mention photos.`;
+  const daysIntoSeason = seasonOpen
+    ? Math.floor((Date.now() - new Date('2026-03-20').getTime()) / 86400000)
+    : null;
+
+  const systemPrompt = `You are a knowledgeable garden companion for Tucker's Brooklyn rooftop terrace — part botanist, part mission control. You know these specific plants by name and exactly where they are in the season.
+
+Speak directly and usefully. Tell Tucker one specific thing that's true right now — in the soil, in the roots, in the buds, or about the week ahead. Be precise about timing and plant biology. Say what he might not notice on his own.
+
+Tone: warm but direct. Like a skilled friend who genuinely knows plants. Not poetic for its own sake. Not yearning. Grounded and specific. Say things like "the wisteria's buds set last fall — those swollen tips are 4–6 weeks from opening" not vague atmospheric observations.
+
+2–3 sentences. Start mid-thought — no greeting. Vary what you foreground: care urgency, something happening underground, a weather note, a timing observation. Don't always lead with what needs water.`;
 
   const userPrompt = `Today is ${today}.
 ${seasonOpen
-  ? `The season opened ${Math.floor((Date.now() - new Date('2026-03-20').getTime()) / 86400000)} days ago.`
-  : `The season opens in ${daysUntilSeason} days.`}
+  ? `Day ${daysIntoSeason} of season 2. In Brooklyn, late March means soil temps climbing through 45–50°F, roots becoming active, break of dormancy for roses and wisteria.`
+  : `Season 2 opens in ${daysUntilSeason} days. Pre-season — plants are in late dormancy.`}
 Current warmth: ${warmth} points.
 Weather today: ${weatherDesc}.
-${needsWater.length > 0 ? `Plants that need attention: ${needsWater.join(', ')}.` : 'All plants are well.'}
-${recentCare.length > 0 ? `Recently cared for: ${recentCare.join(', ')}.` : ''}
-${unphotographed.length > 0 ? `Not yet photographed this season: ${unphotographed.join(', ')}.` : 'All plants have been photographed this season.'}
-${photographed.length > 0 ? `Photographed: ${photographed.join(', ')}.` : ''}
+${needsWater.length > 0 ? `Overdue for water: ${needsWater.join(', ')}.` : 'No plants overdue for water.'}
+${recentCare.length > 0 ? `Cared for in past 48h: ${recentCare.join(', ')}.` : ''}
 
-Speak one or two sentences as the garden to Tucker, acknowledging the day.`;
+Give Tucker one specific, useful observation about what's happening right now.`;
 
-  return cachedClaude(cacheKey, systemPrompt, userPrompt, 120);
+  return cachedClaude(cacheKey, systemPrompt, userPrompt, 160);
 }
 
 // ── MISSED CARE VOICE ─────────────────────────────────────────────────────

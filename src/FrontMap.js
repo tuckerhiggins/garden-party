@@ -335,13 +335,6 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
           textShadow: '2px 3px 0 #1a0804, 0 0 28px rgba(200,160,24,0.45)',
           marginTop: 2,
         }}>GARDEN  PARTY</div>
-        <div style={{
-          fontFamily: '"Cormorant Garamond", Georgia, serif',
-          fontSize: 14, fontWeight: 300, fontStyle: 'italic',
-          color: '#c8a870', letterSpacing: 4, marginTop: 3,
-          textShadow: '0 1px 8px rgba(10,5,2,0.9)',
-          opacity: 0.80,
-        }}>Emma's Rose Garden</div>
       </div>
 
       {/* ── WEATHER + WARMTH HUD — top right ── */}
@@ -674,6 +667,38 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
         {/* LAYER 6 — DEPTH HAZE                                         */}
         {/* ══════════════════════════════════════════════════════════════ */}
         <rect x="0" y="420" width={VW} height="230" fill="url(#hazeG)"/>
+
+        {/* ══════════════════════════════════════════════════════════════ */}
+        {/* LAYER 6b — GARDEN SIGN                                        */}
+        {/* ══════════════════════════════════════════════════════════════ */}
+        <g transform="rotate(-3, 1003, 612)">
+          {/* Post — thin stake into soil */}
+          <rect x="1000" y="606" width="6" height="52" fill="#3a2010" rx="1"/>
+          <rect x="1001" y="606" width="2" height="52" fill="#251408" opacity="0.5"/>
+          {/* Signboard */}
+          <rect x="922" y="565" width="162" height="44" fill="#6a3e1c" rx="3"/>
+          {/* Wood grain */}
+          <line x1="924" y1="575" x2="1082" y2="575" stroke="#4a2a0e" strokeWidth="0.9" opacity="0.4"/>
+          <line x1="924" y1="583" x2="1078" y2="583" stroke="#4a2a0e" strokeWidth="0.7" opacity="0.28"/>
+          <line x1="926" y1="591" x2="1080" y2="591" stroke="#4a2a0e" strokeWidth="0.6" opacity="0.2"/>
+          {/* Top highlight */}
+          <rect x="922" y="565" width="162" height="4" fill="#8a5e34" rx="2" opacity="0.7"/>
+          {/* Bottom shadow */}
+          <rect x="922" y="607" width="162" height="2" fill="#251008" opacity="0.55"/>
+          {/* Corner nails */}
+          <circle cx="932" cy="572" r="2.2" fill="#907050" opacity="0.75"/>
+          <circle cx="1072" cy="572" r="2.2" fill="#907050" opacity="0.75"/>
+          <circle cx="932" cy="604" r="2.2" fill="#907050" opacity="0.75"/>
+          <circle cx="1072" cy="604" r="2.2" fill="#907050" opacity="0.75"/>
+          {/* Text */}
+          <text x="1003" y="593"
+            textAnchor="middle"
+            fontFamily='"Cormorant Garamond", Georgia, serif'
+            fontSize="15" fontStyle="italic"
+            fill="#f0ddb8" opacity="0.90">
+            Emma's Rose Garden
+          </text>
+        </g>
 
         {/* ══════════════════════════════════════════════════════════════ */}
         {/* LAYER 7 — ROSE CANES (sharp foreground, interactive)         */}
