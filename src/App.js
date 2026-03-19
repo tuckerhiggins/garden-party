@@ -1269,7 +1269,8 @@ function JournalView({ careLog, plants }) {
 // ── MAIN APP ──────────────────────────────────────────────────────────────
 export default function App() {
   const [scene, setScene] = useState('front'); // 'front' | 'game'
-  const [mode, setMode] = useState('garden'); // 'garden' | 'map' | 'journal'
+  const [mode, setMode] = useState('garden'); // 'garden' | 'journal' | 'oracle'
+  const [gardenView, setGardenView] = useState('cards'); // 'cards' | 'map'
   const [gardenSection, setGardenSection] = useState('all');
   const [sel, setSel] = useState(null);
   const [hov, setHov] = useState(null);
@@ -1372,7 +1373,7 @@ export default function App() {
           oracle={oracle}
           selectedId={sel}
           onSelect={(p) => setSel(p?.id ?? null)}
-          onEnter={() => { setScene('game'); setMode('map'); }}
+          onEnter={() => { setScene('game'); setMode('garden'); setGardenView('map'); }}
         />
       </div>
     );
@@ -1398,7 +1399,7 @@ export default function App() {
     <div style={{width:'100vw',height:'100vh',background:C.appBg,display:'flex',flexDirection:'column',overflow:'hidden',fontFamily:SERIF}}>
 
       {/* ── TOP CHROME ── */}
-      <div style={{height:48,background:C.uiPane,borderBottom:`2px solid ${C.uiBorder}`,
+      <div style={{height:46,background:C.uiPane,borderBottom:`2px solid ${C.uiBorder}`,
         display:'flex',alignItems:'center',padding:'0 16px',gap:12,flexShrink:0}}>
         <span style={{fontFamily:MONO,fontSize:10,color:C.uiGold,letterSpacing:.5}}>GARDEN PARTY</span>
         <div style={{background:C.uiLight,border:`1px solid ${C.uiBorder}`,borderRadius:3,
@@ -1408,25 +1409,14 @@ export default function App() {
         {!SEASON_OPEN&&<span style={{fontSize:11,color:'#6090a0',fontStyle:'italic'}}>Season opens March 20</span>}
         <div style={{flex:1}}/>
 
-        {/* Weather indicator */}
+        {/* Weather */}
         {weather && (
-          <span style={{fontSize:11, color:C.uiMuted, fontStyle:'italic', fontFamily:SERIF}}>
+          <span style={{fontSize:11,color:C.uiMuted,fontStyle:'italic',fontFamily:SERIF}}>
             {Math.round(weather.temp)}°F
           </span>
         )}
 
-        {/* Mode switcher */}
-        <div style={{display:'flex',gap:4}}>
-          {[{id:'garden',label:'🌿 Garden'},{id:'map',label:'🗺 Map'},{id:'journal',label:'📖 Journal'},{id:'oracle',label:'🌸 Oracle'}].map(m=>(
-            <button key={m.id} onClick={()=>setMode(m.id)}
-              style={{background:mode===m.id?C.uiGold:C.uiLight,border:`1px solid ${mode===m.id?C.uiGoldD:C.uiBorder}`,
-                borderRadius:3,padding:'4px 11px',color:mode===m.id?C.uiBg:C.uiText,
-                fontFamily:MONO,fontSize:8,cursor:'pointer',transition:'all .12s'}}>
-              {m.label}
-            </button>
-          ))}
-        </div>
-        {/* Auth indicator */}
+        {/* Auth */}
         <AuthButton role={role} signIn={signIn} signOut={signOut} checking={checking} authError={authError}/>
 
         {/* Warmth */}
@@ -1445,37 +1435,83 @@ export default function App() {
         </button>
       </div>
 
-      {/* ── MAIN CONTENT ── */}
+      {/* ── BODY: SIDEBAR + CONTENT ── */}
       <div style={{flex:1,display:'flex',overflow:'hidden'}}>
+
+        {/* ── LEFT SIDEBAR NAV ── */}
+        <div style={{
+          width:58,flexShrink:0,background:C.uiPane,
+          borderRight:`2px solid ${C.uiBorder}`,
+          display:'flex',flexDirection:'column',
+          paddingTop:8,
+        }}>
+          {[
+            {id:'garden', icon:'🌿', label:'Garden'},
+            {id:'journal',icon:'📖', label:'Journal'},
+          ].map(item=>(
+            <button key={item.id} onClick={()=>setMode(item.id)}
+              style={{
+                background:'none',border:'none',cursor:'pointer',
+                padding:'10px 0',width:'100%',
+                display:'flex',flexDirection:'column',alignItems:'center',gap:3,
+                borderLeft:`3px solid ${mode===item.id?C.uiGold:'transparent'}`,
+                transition:'border-color .15s',
+              }}>
+              <span style={{fontSize:18,lineHeight:1}}>{item.icon}</span>
+              <span style={{fontFamily:MONO,fontSize:5.5,
+                color:mode===item.id?C.uiGold:C.uiDim,letterSpacing:.4,transition:'color .15s'}}>
+                {item.label.toUpperCase()}
+              </span>
+            </button>
+          ))}
+
+          {/* Oracle — separated, pushed toward bottom */}
+          <div style={{marginTop:'auto',paddingBottom:12,borderTop:`1px solid ${C.uiBorder}`,paddingTop:8}}>
+            <button onClick={()=>setMode('oracle')}
+              style={{
+                background:'none',border:'none',cursor:'pointer',
+                padding:'10px 0',width:'100%',
+                display:'flex',flexDirection:'column',alignItems:'center',gap:3,
+                borderLeft:`3px solid ${mode==='oracle'?C.uiGold:'transparent'}`,
+                transition:'border-color .15s',
+              }}>
+              <span style={{fontSize:18,lineHeight:1}}>🌸</span>
+              <span style={{fontFamily:MONO,fontSize:5.5,
+                color:mode==='oracle'?C.uiGold:C.uiDim,letterSpacing:.4,transition:'color .15s'}}>
+                ORACLE
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* ── MAIN CONTENT ── */}
+        <div style={{flex:1,display:'flex',overflow:'hidden'}}>
 
         {/* ── GARDEN VIEW ── */}
         {mode==='garden'&&(
-          <div style={{flex:1,display:'flex',overflow:'hidden'}}>
-            {/* Roster */}
+          <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+            {/* Garden/Map toggle bar */}
+            <div style={{
+              height:38,flexShrink:0,background:C.appBg,
+              borderBottom:`1px solid ${C.cardBorder}`,
+              display:'flex',alignItems:'center',padding:'0 16px',gap:8,
+            }}>
+              {[{id:'cards',label:'🌿 Garden'},{id:'map',label:'🗺 Map'}].map(v=>(
+                <button key={v.id} onClick={()=>setGardenView(v.id)}
+                  style={{background:gardenView===v.id?'#2a1808':'transparent',
+                    border:`1px solid ${gardenView===v.id?'rgba(90,60,24,0.6)':C.cardBorder}`,
+                    borderRadius:20,padding:'3px 14px',
+                    color:gardenView===v.id?'#f0e4cc':'#907050',
+                    fontFamily:SERIF,fontSize:12,cursor:'pointer',transition:'all .12s'}}>
+                  {v.label}
+                </button>
+              ))}
+            </div>
+            <div style={{flex:1,display:'flex',overflow:'hidden'}}>
+            {/* ── CARDS SUB-VIEW ── */}
+            {gardenView==='cards'&&(<>
             <div style={{flex:1,overflowY:'auto',padding:'0'}}>
-              {/* Section tabs */}
-              <div style={{position:'sticky',top:0,zIndex:10,background:C.appBg,
-                borderBottom:`1px solid ${C.cardBorder}`,padding:'10px 16px',
-                display:'flex',alignItems:'center',gap:10}}>
-                {[{id:'all',label:'All Plants'},{id:'terrace',label:'Terrace'}].map(s=>(
-                  <button key={s.id} onClick={()=>setGardenSection(s.id)}
-                    style={{background:gardenSection===s.id?'#2a1808':'transparent',
-                      border:`1px solid ${gardenSection===s.id?'#2a1808':C.cardBorder}`,
-                      borderRadius:20,padding:'4px 14px',
-                      color:gardenSection===s.id?'#f0e4cc':'#907050',
-                      fontFamily:SERIF,fontSize:12,cursor:'pointer',transition:'all .12s'}}>
-                    {s.label}
-                  </button>
-                ))}
-                {needsCareCount>0&&SEASON_OPEN&&(
-                  <span style={{fontSize:11,color:'#c07030',fontFamily:SERIF,marginLeft:'auto'}}>
-                    {needsCareCount} plant{needsCareCount!==1?'s':''} need care
-                  </span>
-                )}
-              </div>
-
               <div style={{padding:'14px 16px 24px',display:'flex',flexDirection:'column',gap:0}}>
-                {/* Helper: render one species group */}
                 {(()=>{
                   const renderGroups = (plants, groups, sectionLabel) => groups.map(grp => {
                     const ps = plants.filter(p => grp.types.includes(p.type));
@@ -1506,8 +1542,6 @@ export default function App() {
                 })()}
               </div>
             </div>
-
-            {/* Detail panel */}
             {sel&&(
               <div style={{position:'relative',width:320,flexShrink:0}}>
                 <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
@@ -1515,98 +1549,65 @@ export default function App() {
                   onGrowthChange={(id,val)=>updateGrowth(id,val)}/>
               </div>
             )}
-          </div>
-        )}
+            </>)}
 
-        {/* ── MAP VIEW ── */}
-        {mode==='map'&&(
-          <div style={{flex:1,display:'flex',overflow:'hidden',position:'relative'}}>
-
-            {/* Blurry brownstone background */}
-            <div style={{
-              position:'absolute', inset:'-8%',
-              backgroundImage:'url(/brownstone.jpg)',
-              backgroundSize:'cover', backgroundPosition:'center 35%',
-              filter:'blur(32px)',
-              zIndex:0,
-            }}/>
-            {/* Dark vignette over photo */}
-            <div style={{position:'absolute',inset:0,background:'rgba(7,4,1,0.60)',zIndex:0}}/>
-
-            {/* Terrace map — left-aligned, height-constrained */}
-            <div style={{
-              flex:1, position:'relative', zIndex:1,
-              display:'flex', alignItems:'center', justifyContent:'flex-start',
-              padding:'0 0 0 20px', overflow:'hidden',
-            }}>
-              <div style={{
-                height:'100%', maxHeight:'100%',
-                aspectRatio:'820 / 854',
-                maxWidth:'58vw', flexShrink:0,
-              }}>
-                <TerraceMap
-                  plants={terracePlants}
-                  selectedId={sel?.id}
-                  cookiePos={cookiePos}
-                  onSelect={p=>{ if(p) setSel(p); else setSel(null); }}
-                  onMove={(id,pos)=>movePosition(id,pos)}
-                  onGrowthChange={(id,val)=>updateGrowth(id,val)}
-                  onHover={setHov}
-                  onDescend={()=>setScene('front')}
-                />
-              </div>
-
-              {/* Weather pill — bottom-left of map area when no card visible */}
-              {weather && !hov && !sel && (
-                <div style={{
-                  position:'absolute', bottom:14, left:26,
-                  background:'rgba(18,10,4,0.82)',
-                  border:`1px solid ${C.uiBorder}`,
-                  borderRadius:4, padding:'5px 12px',
-                  pointerEvents:'none',
-                }}>
-                  <div style={{fontFamily:SERIF, fontSize:11, color:'rgba(240,228,200,0.80)', fontStyle:'italic'}}>
-                    {weather.poem}
+            {/* ── MAP SUB-VIEW ── */}
+            {gardenView==='map'&&(
+              <div style={{flex:1,display:'flex',overflow:'hidden',position:'relative'}}>
+                <div style={{position:'absolute',inset:'-8%',backgroundImage:'url(/brownstone.jpg)',
+                  backgroundSize:'cover',backgroundPosition:'center 35%',filter:'blur(32px)',zIndex:0}}/>
+                <div style={{position:'absolute',inset:0,background:'rgba(7,4,1,0.60)',zIndex:0}}/>
+                <div style={{flex:1,position:'relative',zIndex:1,display:'flex',alignItems:'center',
+                  justifyContent:'flex-start',padding:'0 0 0 20px',overflow:'hidden'}}>
+                  <div style={{height:'100%',maxHeight:'100%',aspectRatio:'820 / 854',maxWidth:'58vw',flexShrink:0}}>
+                    <TerraceMap
+                      plants={terracePlants}
+                      selectedId={sel?.id}
+                      cookiePos={cookiePos}
+                      onSelect={p=>{ if(p) setSel(p); else setSel(null); }}
+                      onMove={(id,pos)=>movePosition(id,pos)}
+                      onGrowthChange={(id,val)=>updateGrowth(id,val)}
+                      onHover={setHov}
+                      onDescend={()=>setScene('front')}
+                    />
                   </div>
+                  {weather && !hov && !sel && (
+                    <div style={{position:'absolute',bottom:14,left:26,background:'rgba(18,10,4,0.82)',
+                      border:`1px solid ${C.uiBorder}`,borderRadius:4,padding:'5px 12px',pointerEvents:'none'}}>
+                      <div style={{fontFamily:SERIF,fontSize:11,color:'rgba(240,228,200,0.80)',fontStyle:'italic'}}>
+                        {weather.poem}
+                      </div>
+                    </div>
+                  )}
+                  {!SEASON_OPEN && !hov && !sel && (
+                    <div style={{position:'absolute',bottom:14,left:26,background:'rgba(20,30,50,.85)',
+                      border:'1px solid #3860a0',borderRadius:4,padding:'6px 14px',textAlign:'center'}}>
+                      <div style={{fontFamily:MONO,fontSize:7,color:'#6090c0'}}>Season opens March 20</div>
+                    </div>
+                  )}
                 </div>
-              )}
-              {!SEASON_OPEN && !hov && !sel && (
-                <div style={{position:'absolute',bottom:14,left:26,background:'rgba(20,30,50,.85)',
-                  border:'1px solid #3860a0',borderRadius:4,padding:'6px 14px',textAlign:'center'}}>
-                  <div style={{fontFamily:MONO,fontSize:7,color:'#6090c0'}}>Season opens March 20</div>
-                </div>
-              )}
-            </div>
-
-            {/* Hover card — right panel, appears on plant hover */}
-            {hov && !sel && (
-              <div style={{
-                position:'relative', zIndex:2,
-                width:400, flexShrink:0,
-                background:'rgba(10,6,3,0.93)',
-                borderLeft:'1px solid rgba(160,130,80,0.18)',
-                overflowY:'auto',
-              }}>
-                <MapPlantCard hovPlant={hov} plants={terracePlants} careLog={careLog}
-                  onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}/>
-              </div>
-            )}
-
-            {/* Selected plant detail panel */}
-            {sel && (
-              <div style={{
-                position:'relative', zIndex:2,
-                width:340, flexShrink:0,
-                background:'rgba(250,246,238,0.97)',
-                borderLeft:`1px solid ${C.cardBorder}`,
-              }}>
-                <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
-                  onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                  onGrowthChange={(id,val)=>updateGrowth(id,val)}/>
+                {hov && !sel && (
+                  <div style={{position:'relative',zIndex:2,width:400,flexShrink:0,
+                    background:'rgba(10,6,3,0.93)',borderLeft:'1px solid rgba(160,130,80,0.18)',
+                    overflowY:'auto'}}>
+                    <MapPlantCard hovPlant={hov} plants={terracePlants} careLog={careLog}
+                      onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}/>
+                  </div>
+                )}
+                {sel && (
+                  <div style={{position:'relative',zIndex:2,width:340,flexShrink:0,
+                    background:'rgba(250,246,238,0.97)',borderLeft:`1px solid ${C.cardBorder}`}}>
+                    <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
+                      onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
+                      onGrowthChange={(id,val)=>updateGrowth(id,val)}/>
+                  </div>
+                )}
               </div>
             )}
           </div>
+        </div>
         )}
+
         {/* ── JOURNAL VIEW ── */}
         {mode==='journal'&&(
           <div style={{flex:1, overflowY:'auto', background:C.appBg}}>
@@ -1625,7 +1626,8 @@ export default function App() {
           />
         )}
 
-      </div>
+      </div>{/* end inner main content */}
+      </div>{/* end body: sidebar + content */}
 
       {/* ── EXPENSE MODAL ── */}
       {showExpense&&(
