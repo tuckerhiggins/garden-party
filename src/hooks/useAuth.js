@@ -1,76 +1,50 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../supabase';
+// PIN-based identity — verified server-side, stored in localStorage.
+// PINs live in Vercel env vars (TUCKER_PIN, EMMA_PIN) — never in client code.
+import { useState } from 'react';
+
+const STORAGE_KEY = 'gp_identity';
 
 export function useAuth() {
-  const [user, setUser] = useState(null);
-  const [role, setRole] = useState('guest');
-  const [loading, setLoading] = useState(!!supabase);
-  const [needsPasswordSet, setNeedsPasswordSet] = useState(false);
+  const [role, setRoleState] = useState(() => localStorage.getItem(STORAGE_KEY) || 'guest');
+  const [error, setError] = useState('');
+  const [checking, setChecking] = useState(false);
 
-  useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
-
-    // ── 1. Check URL hash for Supabase implicit-flow tokens ──────────────
-    // Recovery links arrive as: #access_token=...&type=recovery
-    const hash = window.location.hash;
-    if (hash && hash.includes('access_token')) {
-      const params = new URLSearchParams(hash.slice(1)); // strip leading #
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-      const type = params.get('type');
-
-      if (accessToken) {
-        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken || '' })
-          .then(({ data: { session } }) => {
-            if (session) {
-              setUser(session.user);
-              setRole(session.user?.user_metadata?.role ?? 'guest');
-              if (type === 'recovery') setNeedsPasswordSet(true);
-              // Clean URL — remove the tokens from the address bar
-              window.history.replaceState({}, document.title, window.location.pathname);
-            }
-          })
-          .catch(() => {});
-      }
+  const signIn = async (pin) => {
+    setChecking(true);
+    setError('');
+    try {
+      const res = await fetch('/api/verify-identity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Wrong PIN');
+      localStorage.setItem(STORAGE_KEY, data.role);
+      setRoleState(data.role);
+    } catch (e) {
+      setError(e.message);
+      throw e;
+    } finally {
+      setChecking(false);
     }
-
-    // ── 2. Load existing session ──────────────────────────────────────────
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const u = session?.user ?? null;
-      setUser(u);
-      setRole(u?.user_metadata?.role ?? 'guest');
-      setLoading(false);
-    });
-
-    // ── 3. Listen for future auth changes ────────────────────────────────
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      const u = session?.user ?? null;
-      setUser(u);
-      setRole(u?.user_metadata?.role ?? 'guest');
-      if (event === 'PASSWORD_RECOVERY') setNeedsPasswordSet(true);
-      if (event === 'SIGNED_IN') setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const signIn = async (email, password) => {
-    if (!supabase) return;
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
   };
 
-  const signOut = async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+  const signOut = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setRoleState('guest');
   };
 
-  const updatePassword = async (newPassword) => {
-    if (!supabase) return;
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) throw error;
-    setNeedsPasswordSet(false);
+  return {
+    user: role !== 'guest' ? { id: role } : null,
+    role,
+    loading: false,
+    needsPasswordSet: false,
+    checking,
+    authError: error,
+    signIn,
+    signOut,
+    setRole: setRoleState,
+    updatePassword: () => {},
   };
-
-  return { user, role, loading, needsPasswordSet, signIn, signOut, updatePassword };
 }

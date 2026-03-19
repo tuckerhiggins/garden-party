@@ -344,12 +344,12 @@ function MobileJournal({ plants, careLog }) {
   );
 }
 
-// ── MOBILE SIGN IN ─────────────────────────────────────────────────────────
+// ── MOBILE SIGN IN (PIN) ──────────────────────────────────────────────────
 function MobileSignIn({ signIn }) {
   const [open, setOpen] = React.useState(false);
-  const [email, setEmail] = React.useState('');
-  const [password, setPassword] = React.useState('');
+  const [pin, setPin] = React.useState('');
   const [error, setError] = React.useState('');
+  const [checking, setChecking] = React.useState(false);
 
   if (!open) {
     return (
@@ -361,33 +361,30 @@ function MobileSignIn({ signIn }) {
   }
 
   const attempt = async () => {
-    setError('');
-    try { await signIn(email, password); setOpen(false); }
-    catch { setError('wrong email or password'); }
+    setError(''); setChecking(true);
+    try { await signIn(pin); setOpen(false); setPin(''); }
+    catch (e) { setError(e.message); }
+    finally { setChecking(false); }
   };
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(4,2,1,0.95)',zIndex:200,
       display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24}}>
-      <div style={{fontFamily:MONO,fontSize:8,color:C.uiGold,marginBottom:24}}>SIGN IN</div>
-      <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-        placeholder="email" autoFocus
-        style={{width:'100%',maxWidth:280,padding:'12px 14px',marginBottom:10,
-          background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
-          borderRadius:8,color:'#f0e4cc',fontFamily:SERIF,fontSize:16,outline:'none'}}/>
-      <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
+      <div style={{fontFamily:MONO,fontSize:8,color:C.uiGold,marginBottom:24}}>ENTER PIN</div>
+      <input type="password" value={pin} onChange={e=>setPin(e.target.value)}
         onKeyDown={e=>e.key==='Enter'&&attempt()}
-        placeholder="password"
-        style={{width:'100%',maxWidth:280,padding:'12px 14px',marginBottom:16,
-          background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
-          borderRadius:8,color:'#f0e4cc',fontFamily:SERIF,fontSize:16,outline:'none'}}/>
-      {error && <div style={{color:'#c07050',fontFamily:SERIF,fontSize:13,marginBottom:10}}>{error}</div>}
-      <button onClick={attempt}
-        style={{width:'100%',maxWidth:280,padding:'12px',background:C.uiGold,
-          border:'none',borderRadius:8,color:C.uiBg,fontFamily:MONO,fontSize:9,cursor:'pointer',marginBottom:12}}>
-        SIGN IN
+        placeholder="your PIN" autoFocus
+        style={{width:'100%',maxWidth:280,padding:'14px',marginBottom:16,textAlign:'center',
+          background:'rgba(255,255,255,0.06)',border:`1px solid ${error?'#c07050':'rgba(90,60,24,0.5)'}`,
+          borderRadius:8,color:'#f0e4cc',fontFamily:SERIF,fontSize:18,letterSpacing:4,outline:'none'}}/>
+      {error && <div style={{color:'#c07050',fontFamily:SERIF,fontSize:13,marginBottom:12}}>{error}</div>}
+      <button onClick={attempt} disabled={checking}
+        style={{width:'100%',maxWidth:280,padding:'14px',background:C.uiGold,
+          border:'none',borderRadius:8,color:C.uiBg,fontFamily:MONO,fontSize:9,
+          cursor:'pointer',marginBottom:12,opacity:checking?0.6:1}}>
+        {checking ? '…' : 'SIGN IN'}
       </button>
-      <button onClick={()=>setOpen(false)}
+      <button onClick={()=>{setOpen(false);setPin('');setError('');}}
         style={{background:'none',border:'none',color:C.uiMuted,fontFamily:SERIF,fontSize:14,cursor:'pointer'}}>
         cancel
       </button>
@@ -456,7 +453,7 @@ export function MobileView({
         {role !== 'guest' ? (
           <button onClick={signOut}
             style={{background:'none',border:'none',fontFamily:MONO,fontSize:6,color:C.uiMuted,cursor:'pointer',padding:'4px 6px'}}>
-            {role === 'tucker' ? '🌿' : '🌹'} sign out
+            {role === 'tucker' ? '🌿' : '🌹'} ×
           </button>
         ) : (
           <MobileSignIn signIn={signIn}/>

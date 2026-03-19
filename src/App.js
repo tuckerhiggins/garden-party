@@ -109,57 +109,53 @@ function SetPasswordModal({ updatePassword }) {
 }
 
 // ── AUTH BUTTON ───────────────────────────────────────────────────────────
-function AuthButton({ role, signIn, signOut }) {
-  const [showInput, setShowInput] = React.useState(false);
-  const [email, setEmail] = React.useState('');
-  const [password, setPassword] = React.useState('');
-  const [error, setError] = React.useState('');
+function AuthButton({ role, signIn, signOut, checking, authError }) {
+  const [open, setOpen] = React.useState(false);
+  const [pin, setPin] = React.useState('');
+  const [localError, setLocalError] = React.useState('');
+
+  const attempt = async () => {
+    setLocalError('');
+    try { await signIn(pin); setOpen(false); setPin(''); }
+    catch (e) { setLocalError(e.message); }
+  };
 
   if (role !== 'guest') {
     return (
       <button onClick={signOut}
         style={{background:'none',border:`1px solid rgba(90,60,24,0.5)`,borderRadius:3,
           padding:'4px 8px',color:'#a89070',fontFamily:MONO,fontSize:7,cursor:'pointer'}}>
-        {role === 'tucker' ? '🌿 Tucker' : '🌹 Emma'} · sign out
+        {role === 'tucker' ? '🌿 Tucker' : '🌹 Emma'} ×
       </button>
     );
   }
 
-  if (showInput) {
-    const attempt = async () => {
-      setError('');
-      try { await signIn(email, password); setShowInput(false); }
-      catch { setError('wrong email or password'); }
-    };
+  if (open) {
     return (
       <div style={{display:'flex',gap:4,alignItems:'center'}}>
-        <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-          placeholder="email" autoFocus
-          style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
-            borderRadius:3,padding:'4px 8px',color:'#f0e4cc',fontFamily:SERIF,fontSize:12,
-            width:130,outline:'none'}}/>
-        <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
+        <input
+          type="password" value={pin} onChange={e=>setPin(e.target.value)}
           onKeyDown={e=>e.key==='Enter'&&attempt()}
-          placeholder="password"
-          style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
-            borderRadius:3,padding:'4px 8px',color:'#f0e4cc',fontFamily:SERIF,fontSize:12,
-            width:100,outline:'none'}}/>
-        <button onClick={attempt}
+          placeholder="PIN" autoFocus
+          style={{background:'rgba(255,255,255,0.06)',border:`1px solid ${localError?'#c07050':'rgba(90,60,24,0.5)'}`,
+            borderRadius:3,padding:'4px 8px',color:'#f0e4cc',fontFamily:SERIF,fontSize:13,
+            width:90,outline:'none'}}/>
+        <button onClick={attempt} disabled={checking}
           style={{background:'#2a1808',border:'none',borderRadius:3,padding:'4px 10px',
-            color:'#f0e4cc',fontFamily:MONO,fontSize:7,cursor:'pointer'}}>
-          GO
+            color:'#f0e4cc',fontFamily:MONO,fontSize:7,cursor:'pointer',opacity:checking?0.6:1}}>
+          {checking ? '…' : 'GO'}
         </button>
-        <button onClick={()=>setShowInput(false)}
+        <button onClick={()=>{setOpen(false);setPin('');setLocalError('');}}
           style={{background:'none',border:'none',color:'#706040',fontSize:16,cursor:'pointer',padding:'0 2px'}}>
           ×
         </button>
-        {error && <span style={{fontFamily:SERIF,fontSize:11,color:'#c07050'}}>{error}</span>}
+        {localError && <span style={{fontFamily:SERIF,fontSize:11,color:'#c07050'}}>{localError}</span>}
       </div>
     );
   }
 
   return (
-    <button onClick={()=>setShowInput(true)}
+    <button onClick={()=>setOpen(true)}
       style={{background:'none',border:`1px solid rgba(90,60,24,0.5)`,borderRadius:3,
         padding:'4px 8px',color:'#706040',fontFamily:MONO,fontSize:7,cursor:'pointer'}}>
       sign in
@@ -1305,7 +1301,7 @@ export default function App() {
   const [sel, setSel] = useState(null);
   const [hov, setHov] = useState(null);
   const [withEmma, setWithEmma] = useState(false);
-  const { user, role, signIn, signOut, needsPasswordSet, updatePassword } = useAuth();
+  const { user, role, signIn, signOut, checking, authError } = useAuth();
   const { warmth, careLog, expenses, positions, growth, logAction, updateGrowth, movePosition, addExpense: addExpenseDb } = useGardenData({ user });
   useMigration({ user });
   const isMobile = useIsMobile();
@@ -1458,7 +1454,7 @@ export default function App() {
           ))}
         </div>
         {/* Auth indicator */}
-        <AuthButton role={role} signIn={signIn} signOut={signOut}/>
+        <AuthButton role={role} signIn={signIn} signOut={signOut} checking={checking} authError={authError}/>
 
         {/* Warmth */}
         <div style={{display:'flex',alignItems:'center',gap:5}}>
@@ -1712,9 +1708,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* ── SET PASSWORD MODAL (after clicking recovery email link) ── */}
-      {needsPasswordSet && <SetPasswordModal updatePassword={updatePassword}/>}
 
       {/* ── SEASON OPENER MODAL ── */}
       {SEASON_OPEN && !seasonOpenerDismissed && seasonOpener && seasonOpener !== 'loading' && (
