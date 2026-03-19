@@ -3,6 +3,7 @@
 // Season 2 · Opens March 20, 2026
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { TERRACE_PLANTS, FRONT_PLANTS, ACTION_DEFS, ACTION_HOWTO,
   SEASON_OPEN, DAYS_UNTIL_SEASON } from './data/plants';
 import { PlantPortrait } from './PlantPortraits';
@@ -454,7 +455,7 @@ function drawTerraceMap(ctx,W,H,T,f,plants,selId,hovId,cookiePos){
     ctx.fillStyle='#a89878'; ctx.beginPath(); ctx.roundRect(cx-7,cy-7,14,14,3); ctx.fill();
   });
 
-  // ── Plants ────────────────────────────────────────────────────────────
+  // ── Plants ────────────────────────────────────────���───────────────────
   plants.forEach(p=>{
     const {px,py}=proj(p.pos.x,p.pos.y,W,H,0);
     const isSel=p.id===selId, isHov=p.id===hovId;
@@ -1405,6 +1406,7 @@ export default function App() {
           onSelect={(p) => setSel(p?.id ?? null)}
           onEnter={() => { setScene('game'); setMode('map'); }}
         />
+        <Analytics />
       </div>
     );
   }
@@ -1412,16 +1414,19 @@ export default function App() {
   // Mobile — swap to the mobile layout
   if (isMobile) {
     return (
-      <MobileView
-        plants={terracePlants}
-        careLog={careLog}
-        warmth={warmth}
-        weather={weather}
-        onAction={doAction}
-        role={role}
-        signIn={signIn}
-        signOut={signOut}
-      />
+      <>
+        <MobileView
+          plants={terracePlants}
+          careLog={careLog}
+          warmth={warmth}
+          weather={weather}
+          onAction={doAction}
+          role={role}
+          signIn={signIn}
+          signOut={signOut}
+        />
+        <Analytics />
+      </>
     );
   }
 
@@ -1549,7 +1554,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ── MAP VIEW ── */}
+        {/* ─�� MAP VIEW ── */}
         {mode==='map'&&(
           <div style={{flex:1,display:'flex',overflow:'hidden',position:'relative'}}>
 
@@ -1769,6 +1774,7 @@ export default function App() {
         input::placeholder{color:#c0a888}
         select option{background:#faf6ee;color:#2a1808}
       `}</style>
+      <Analytics />
     </div>
   );
 }
