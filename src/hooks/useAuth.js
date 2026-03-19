@@ -6,8 +6,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 
 const EMAILS = {
-  tucker: 'tucker@gardenparty.app',
-  emma:   'emma@gardenparty.app',
+  tucker: 'tuckerhiggins5@gmail.com',
+  emma:   'emma.newburger@gmail.com',
 };
 
 function roleFromUser(user) {
