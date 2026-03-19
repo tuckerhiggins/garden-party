@@ -3,8 +3,16 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO = '"Press Start 2P", monospace';
 
+function fmtForecastDay(day, index) {
+  const date = new Date(day.date + 'T12:00:00');
+  const label = index === 0 ? 'Today' : index === 1 ? 'Tomorrow' :
+    date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const rain = day.precipChance > 20 ? ` · ${day.precipChance}% rain` : '';
+  return `${label}: ${day.high}°F high, ${day.low}°F low, ${day.label}${rain}`;
+}
+
 // Builds a lean garden context object for the system prompt
-function buildGardenContext({ plants, careLog, warmth, weather }) {
+function buildGardenContext({ plants, careLog, warmth, weather, seasonOpen, seasonBlocking }) {
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
@@ -25,15 +33,32 @@ function buildGardenContext({ plants, careLog, warmth, weather }) {
       };
     });
 
+  const forecast = weather?.forecast
+    ? weather.forecast.slice(0, 10).map(fmtForecastDay).join('\n')
+    : null;
+
+  // Find upcoming rain windows (useful for watering/neem timing)
+  const rainDays = weather?.forecast
+    ?.slice(1, 7)
+    .filter(d => d.precipChance > 40)
+    .map(d => {
+      const date = new Date(d.date + 'T12:00:00');
+      return date.toLocaleDateString('en-US', { weekday: 'short' }) + ` (${d.precipChance}%)`;
+    }) ?? [];
+
   return {
     today,
     weather: weather ? `${Math.round(weather.temp)}°F, ${weather.poem}` : null,
+    forecast,
+    rainDays: rainDays.length ? rainDays.join(', ') : 'none in the next 6 days',
     warmth,
+    seasonOpen: seasonOpen ?? true,
+    seasonBlocking: seasonBlocking ?? null,
     plants: contextPlants,
   };
 }
 
-export function OracleChat({ plants, careLog, warmth, weather, style }) {
+export function OracleChat({ plants, careLog, warmth, weather, seasonOpen, seasonBlocking, style }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -57,7 +82,7 @@ export function OracleChat({ plants, careLog, warmth, weather, style }) {
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
     try {
-      const gardenContext = buildGardenContext({ plants, careLog, warmth, weather });
+      const gardenContext = buildGardenContext({ plants, careLog, warmth, weather, seasonOpen, seasonBlocking });
 
       const res = await fetch('/api/oracle-chat', {
         method: 'POST',

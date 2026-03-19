@@ -3,8 +3,7 @@
 // Season 2 · Opens March 20, 2026
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { TERRACE_PLANTS, FRONT_PLANTS, ACTION_DEFS, ACTION_HOWTO,
-  SEASON_OPEN, DAYS_UNTIL_SEASON } from './data/plants';
+import { TERRACE_PLANTS, FRONT_PLANTS, ACTION_DEFS, ACTION_HOWTO } from './data/plants';
 import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
@@ -199,16 +198,43 @@ function wmoPoem(code, temp) {
   return WMO_POEM[match]?.(t) ?? `${t}°F`;
 }
 
+const WMO_LABEL = (code) => {
+  if (code === 0) return 'clear';
+  if (code <= 2) return 'partly cloudy';
+  if (code <= 3) return 'overcast';
+  if (code <= 48) return 'foggy';
+  if (code <= 57) return 'drizzle';
+  if (code <= 67) return 'rain';
+  if (code <= 77) return 'snow';
+  if (code <= 82) return 'showers';
+  return 'storm';
+};
+
 function useWeather() {
   const [weather, setWeather] = useState(null);
   useEffect(() => {
     const fetch_ = () => {
-      fetch('https://api.open-meteo.com/v1/forecast?latitude=40.6782&longitude=-73.9442&current=temperature_2m,weathercode&temperature_unit=fahrenheit')
+      fetch(
+        'https://api.open-meteo.com/v1/forecast?latitude=40.6782&longitude=-73.9442' +
+        '&current=temperature_2m,weathercode' +
+        '&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max' +
+        '&temperature_unit=fahrenheit&forecast_days=10&timezone=America%2FNew_York'
+      )
         .then(r => r.json())
         .then(d => {
           const temp = d.current.temperature_2m;
           const code = d.current.weathercode;
-          setWeather({ temp, code, poem: wmoPoem(code, temp) });
+          const dl = d.daily;
+          const forecast = dl.time.map((date, i) => ({
+            date,
+            code: dl.weathercode[i],
+            high: Math.round(dl.temperature_2m_max[i]),
+            low: Math.round(dl.temperature_2m_min[i]),
+            precip: Math.round((dl.precipitation_sum[i] || 0) * 10) / 10,
+            precipChance: dl.precipitation_probability_max[i] || 0,
+            label: WMO_LABEL(dl.weathercode[i]),
+          }));
+          setWeather({ temp, code, poem: wmoPoem(code, temp), forecast });
         })
         .catch(() => {});
     };
@@ -246,8 +272,8 @@ const load = (k,d) => { try{ const v=localStorage.getItem(k); return v?JSON.pars
 const save = (k,v) => { try{ localStorage.setItem(k,JSON.stringify(v)); }catch{} };
 
 // ── CARE LOGIC ────────────────────────────────────────────────────────────
-function actionStatus(plant, key, careLog) {
-  if (!SEASON_OPEN) return { available:false, reason:`Opens Mar 20` };
+function actionStatus(plant, key, careLog, seasonOpen) {
+  if (!seasonOpen) return { available:false, reason:'Not yet open' };
   const def = ACTION_DEFS[key]; if (!def) return { available:false, reason:'?' };
   if (def.alwaysAvailable) return { available:true };
   const entries = (careLog[plant.id]||[]).filter(e=>e.action===key);
@@ -561,7 +587,7 @@ function MissedCareVoice({ plant, daysSinceWater }) {
   );
 }
 
-function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma, setWithEmma }) {
+function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma, setWithEmma, seasonOpen }) {
   const [confirmed, setConfirmed] = useState({}); // plantId → action key just logged
   const group = TERRACE_GROUPS.find(g => g.types.includes(hovPlant.type)) ||
     { key: hovPlant.type, label: hovPlant.name, types: [hovPlant.type] };
@@ -610,15 +636,15 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma
         const availableNonTrivial = (p.actions || []).filter(k => {
           const def = ACTION_DEFS[k];
           if (!def || def.alwaysAvailable) return false;
-          return actionStatus(p, k, careLog).available;
+          return actionStatus(p, k, careLog, seasonOpen).available;
         });
         const cooldownActions = (p.actions || []).filter(k => {
           const def = ACTION_DEFS[k];
           if (!def || def.alwaysAvailable) return false;
-          const s = actionStatus(p, k, careLog);
-          return !s.available && s.reason && !s.reason.startsWith('Opens') && s.reason !== 'Done for season';
+          const s = actionStatus(p, k, careLog, seasonOpen);
+          return !s.available && s.reason && !s.reason.startsWith('Not yet') && s.reason !== 'Done for season';
         });
-        const needsWater = p.actions?.includes('water') && actionStatus(p,'water',careLog).available && URGENT_HEALTH.has(p.health);
+        const needsWater = p.actions?.includes('water') && actionStatus(p,'water',careLog,seasonOpen).available && URGENT_HEALTH.has(p.health);
         const justLogged = confirmed[p.id];
 
         return (
@@ -701,7 +727,7 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma
               <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
                 {cooldownActions.map(k => {
                   const def = ACTION_DEFS[k];
-                  const s = actionStatus(p, k, careLog);
+                  const s = actionStatus(p, k, careLog, seasonOpen);
                   return (
                     <span key={k} style={{ fontSize:10, color:'rgba(240,228,200,0.32)' }}>
                       {def?.emoji} {def?.label} in {s.reason}
@@ -741,10 +767,10 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma
 }
 
 // ── PLANT CARD ────────────────────────────────────────────────────────────
-function PlantCard({ plant, careLog, onSelect, isSelected }) {
+function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen }) {
   const history = careLog[plant.id] || [];
   const lastAction = history.length > 0 ? history[history.length-1] : null;
-  const needsCare = SEASON_OPEN && plant.actions?.some(a => actionStatus(plant, a, careLog).available && !ACTION_DEFS[a]?.alwaysAvailable);
+  const needsCare = seasonOpen && plant.actions?.some(a => actionStatus(plant, a, careLog, seasonOpen).available && !ACTION_DEFS[a]?.alwaysAvailable);
   const color = plantColor(plant.type);
   const hColor = healthColor(plant.health);
   const poemLines = plant.poem ? plant.poem.split('\n') : [];
@@ -918,14 +944,14 @@ function PhotoSection({ plant, color }) {
 }
 
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
-function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma, onGrowthChange }) {
+function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma, onGrowthChange, seasonOpen }) {
   const [tab, setTab] = useState('history');
   const [showHowTo, setShowHowTo] = useState(null);
   const history = careLog[plant.id] || [];
   const color = plantColor(plant.type);
 
   const handleAction = (key) => {
-    const st = actionStatus(plant, key, careLog);
+    const st = actionStatus(plant, key, careLog, seasonOpen);
     if (!st.available) return;
     const howto = ACTION_HOWTO[key];
     if (howto) {
@@ -1016,7 +1042,7 @@ function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma,
             {history.length===0 ? (
               <div style={{fontSize:13,color:'#b09070',fontStyle:'italic',fontFamily:SERIF,lineHeight:1.7}}>
                 No care logged yet this season.
-                {SEASON_OPEN ? ' Tend this plant to begin its story.' : ' Season opens March 20.'}
+                {seasonOpen ? ' Tend this plant to begin its story.' : ''}
               </div>
             ) : (
               <div style={{display:'flex',flexDirection:'column',gap:0}}>
@@ -1092,12 +1118,12 @@ function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma,
                 </div>
               </div>
             )}
-            {!SEASON_OPEN && (
+            {!seasonOpen && (
               <div style={{background:'rgba(40,80,120,0.08)',border:'1px solid rgba(60,100,160,0.2)',
                 borderRadius:6,padding:'10px 12px',marginBottom:12}}>
                 <div style={{fontFamily:MONO,fontSize:7,color:'#6090b0',marginBottom:4}}>PRE-SEASON</div>
                 <div style={{fontSize:12,color:'#608090',fontFamily:SERIF,lineHeight:1.6}}>
-                  Care actions unlock March 20. Season 2 Day 1.
+                  Care actions unlock when Season 2 opens.
                 </div>
               </div>
             )}
@@ -1105,7 +1131,7 @@ function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma,
               <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14}}>
                 {(plant.actions||[]).map(a=>{
                   const def=ACTION_DEFS[a]; if(!def) return null;
-                  const st=actionStatus(plant,a,careLog);
+                  const st=actionStatus(plant,a,careLog,seasonOpen);
                   return(
                     <button key={a} onClick={()=>handleAction(a)} disabled={!st.available}
                       style={{display:'flex',alignItems:'center',gap:8,
@@ -1299,28 +1325,58 @@ export default function App() {
     TERRACE_PLANTS.map(p=>({...p, pos:positions[p.id]||p.pos, growth:growth[p.id]??p.growth??0})),
     [positions, growth]);
 
-  // State now persisted via useGardenData (Supabase when available, localStorage fallback)
+  // ── SEASON READINESS ──────────────────────────────────────────────────────
+  // Three gates — all must be true for the season to open:
+  //   1. Readiness: ≥75% of active plants photographed
+  //   2. Calendar: not before March 10 (absolute earliest for Brooklyn Zone 7b)
+  //   3. Weather: not raining today, <60% rain chance tomorrow
+  const { seasonOpen, seasonReadiness, plantsNeedingPhotos, photoCount, activePlantCount, seasonBlocking } = useMemo(() => {
+    const active = terracePlants.filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
+    const withPhotos = active.filter(p => getPhotos(p.id).length > 0);
+    const score = active.length > 0 ? withPhotos.length / active.length : 0;
+    const readinessOk = score >= 0.75;
+
+    const calendarOk = new Date() >= new Date('2026-03-10');
+
+    const todayCode = weather?.code ?? 0;
+    const todayBad = todayCode >= 61; // WMO ≥61 = precipitation
+    const tomorrow = weather?.forecast?.[1];
+    const tomorrowBad = tomorrow ? (tomorrow.precipChance > 60 || tomorrow.code >= 61) : false;
+    const weatherOk = !todayBad && !tomorrowBad;
+
+    let blocking = null;
+    if (!readinessOk) blocking = 'readiness';
+    else if (!calendarOk) blocking = 'calendar';
+    else if (!weatherOk) blocking = tomorrow?.precipChance > 60 ? 'rain-tomorrow' : 'rain-today';
+
+    return {
+      seasonOpen: readinessOk && calendarOk && weatherOk,
+      seasonReadiness: score,
+      plantsNeedingPhotos: active.filter(p => getPhotos(p.id).length === 0).map(p => p.name),
+      photoCount: withPhotos.length,
+      activePlantCount: active.length,
+      seasonBlocking: blocking,
+    };
+  }, [terracePlants, weather]);
 
   // Oracle — fetch once per day on mount, after weather loads
   useEffect(() => {
     if (!weather) return; // wait for weather
-    const SEASON_START = new Date('2026-03-20');
     const photoContext = TERRACE_PLANTS
       .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
       .map(p => {
         const all = getPhotos(p.id);
-        const season = all.filter(ph => new Date(ph.date) >= SEASON_START);
-        return { name: p.name, count: season.length, lastDate: season[season.length - 1]?.date ?? null };
+        return { name: p.name, count: all.length, lastDate: all[all.length - 1]?.date ?? null };
       });
     const totalPhotos = photoContext.reduce((s, p) => s + p.count, 0);
-    fetchOracle({ weather, warmth, plants: TERRACE_PLANTS, careLog, seasonOpen: SEASON_OPEN, daysUntilSeason: DAYS_UNTIL_SEASON, photoContext, totalPhotos })
+    fetchOracle({ weather, warmth, plants: TERRACE_PLANTS, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos })
       .then(setOracle)
       .catch(() => {}); // fail silently in local dev
   }, [weather]);
 
-  // Season opener — show once on/after March 20
+  // Season opener — show once when season first opens
   useEffect(() => {
-    if (!SEASON_OPEN) return;
+    if (!seasonOpen) return;
     if (seasonOpenerDismissed) return;
     setSeasonOpener('loading');
     fetchSeasonOpener({ warmth, plants: TERRACE_PLANTS })
@@ -1358,7 +1414,7 @@ export default function App() {
   }),[terracePlants]);
 
   const needsCareCount = ALL_PLANTS.filter(p=>
-    SEASON_OPEN && p.actions?.some(a=>actionStatus(p,a,careLog).available&&!ACTION_DEFS[a]?.alwaysAvailable)
+    seasonOpen && p.actions?.some(a=>actionStatus(p,a,careLog,seasonOpen).available&&!ACTION_DEFS[a]?.alwaysAvailable)
   ).length;
 
   // ── FRONT SCENE (opening screen) ────────────────────────────────────────
@@ -1391,6 +1447,7 @@ export default function App() {
         role={role}
         signIn={signIn}
         signOut={signOut}
+        seasonOpen={seasonOpen}
       />
     );
   }
@@ -1403,10 +1460,15 @@ export default function App() {
         display:'flex',alignItems:'center',padding:'0 16px',gap:12,flexShrink:0}}>
         <span style={{fontFamily:MONO,fontSize:10,color:C.uiGold,letterSpacing:.5}}>GARDEN PARTY</span>
         <div style={{background:C.uiLight,border:`1px solid ${C.uiBorder}`,borderRadius:3,
-          padding:'2px 8px',fontFamily:MONO,fontSize:7,color:SEASON_OPEN?C.uiGold:'#6090a0'}}>
-          {SEASON_OPEN?'S2 · OPEN':`S2 · ${DAYS_UNTIL_SEASON}d`}
+          padding:'2px 8px',fontFamily:MONO,fontSize:7,color:seasonOpen?C.uiGold:'#6090a0'}}>
+          {seasonOpen?'S2 · OPEN':`${photoCount}/${activePlantCount} seen`}
         </div>
-        {!SEASON_OPEN&&<span style={{fontSize:11,color:'#6090a0',fontStyle:'italic'}}>Season opens March 20</span>}
+        {!seasonOpen&&<span style={{fontSize:11,color:'#6090a0',fontStyle:'italic'}}>
+          {seasonBlocking==='readiness'?'Photograph your plants to open Season 2':
+           seasonBlocking==='calendar'?'Too early in the year':
+           seasonBlocking==='rain-today'?'Waiting for clear weather':
+           seasonBlocking==='rain-tomorrow'?'Rain forecast tomorrow':'Season not yet open'}
+        </span>}
         <div style={{flex:1}}/>
 
         {/* Weather */}
@@ -1528,7 +1590,7 @@ export default function App() {
                         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
                           {ps.map(p=>(
                             <PlantCard key={p.id} plant={p} careLog={careLog}
-                              onSelect={p=>{setSel(p);}} isSelected={sel?.id===p.id}/>
+                              onSelect={p=>{setSel(p);}} isSelected={sel?.id===p.id} seasonOpen={seasonOpen}/>
                           ))}
                         </div>
                       </div>
@@ -1546,7 +1608,7 @@ export default function App() {
               <div style={{position:'relative',width:320,flexShrink:0}}>
                 <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                   onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                  onGrowthChange={(id,val)=>updateGrowth(id,val)}/>
+                  onGrowthChange={(id,val)=>updateGrowth(id,val)} seasonOpen={seasonOpen}/>
               </div>
             )}
             </>)}
@@ -1579,10 +1641,10 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  {!SEASON_OPEN && !hov && !sel && (
+                  {!seasonOpen && !hov && !sel && (
                     <div style={{position:'absolute',bottom:14,left:26,background:'rgba(20,30,50,.85)',
                       border:'1px solid #3860a0',borderRadius:4,padding:'6px 14px',textAlign:'center'}}>
-                      <div style={{fontFamily:MONO,fontSize:7,color:'#6090c0'}}>Season opens March 20</div>
+                      <div style={{fontFamily:MONO,fontSize:7,color:'#6090c0'}}>{photoCount}/{activePlantCount} plants seen · Season 2 not yet open</div>
                     </div>
                   )}
                 </div>
@@ -1591,7 +1653,7 @@ export default function App() {
                     background:'rgba(10,6,3,0.93)',borderLeft:'1px solid rgba(160,130,80,0.18)',
                     overflowY:'auto'}}>
                     <MapPlantCard hovPlant={hov} plants={terracePlants} careLog={careLog}
-                      onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}/>
+                      onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma} seasonOpen={seasonOpen}/>
                   </div>
                 )}
                 {sel && (
@@ -1599,7 +1661,7 @@ export default function App() {
                     background:'rgba(250,246,238,0.97)',borderLeft:`1px solid ${C.cardBorder}`}}>
                     <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                       onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                      onGrowthChange={(id,val)=>updateGrowth(id,val)}/>
+                      onGrowthChange={(id,val)=>updateGrowth(id,val)} seasonOpen={seasonOpen}/>
                   </div>
                 )}
               </div>
@@ -1622,6 +1684,8 @@ export default function App() {
             careLog={careLog}
             warmth={warmth}
             weather={weather}
+            seasonOpen={seasonOpen}
+            seasonBlocking={seasonBlocking}
             style={{flex:1}}
           />
         )}
@@ -1685,7 +1749,7 @@ export default function App() {
       )}
 
       {/* ── SEASON OPENER MODAL ── */}
-      {SEASON_OPEN && !seasonOpenerDismissed && seasonOpener && seasonOpener !== 'loading' && (
+      {seasonOpen && !seasonOpenerDismissed && seasonOpener && seasonOpener !== 'loading' && (
         <div style={{position:'fixed',inset:0,background:'rgba(4,2,1,0.92)',display:'flex',
           alignItems:'center',justifyContent:'center',zIndex:400,
           animation:'fadeInModal .8s ease'}}>

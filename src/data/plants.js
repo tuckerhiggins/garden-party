@@ -1,10 +1,8 @@
 // Garden Party — Plant Roster & Game Data
-// Season 2 · Opens March 20, 2026
+// Season 2 — opens when the garden is ready, not on a fixed date.
+// SEASON_OPEN is computed in App.js from photo coverage (≥75% of active plants photographed).
 
-export const SEASON_START = new Date('2026-03-20');
-export const TODAY = new Date();
-export const DAYS_UNTIL_SEASON = Math.max(0, Math.ceil((SEASON_START - TODAY) / 86400000));
-export const SEASON_OPEN = TODAY >= SEASON_START;
+export const SEASON_START = new Date('2026-03-20'); // used for photo-date filtering only
 
 // ── ACTION DEFINITIONS ────────────────────────────────────────────────────
 // cooldownDays: how many days must pass before this action can be done again

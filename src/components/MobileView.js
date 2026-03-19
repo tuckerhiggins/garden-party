@@ -2,7 +2,7 @@
 // Hero features: photo upload, quick care, oracle chat
 import React, { useState, useRef, useCallback } from 'react';
 import { OracleChat } from './OracleChat';
-import { ACTION_DEFS, SEASON_OPEN } from '../data/plants';
+import { ACTION_DEFS } from '../data/plants';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO = '"Press Start 2P", monospace';
@@ -43,8 +43,8 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function actionStatus(plant, key, careLog) {
-  if (!SEASON_OPEN) return { available: false, reason: 'Opens Mar 20' };
+function actionStatus(plant, key, careLog, seasonOpen) {
+  if (!seasonOpen) return { available: false, reason: 'Not yet open' };
   const def = ACTION_DEFS[key]; if (!def) return { available: false, reason: '?' };
   if (def.alwaysAvailable) return { available: true };
   const entries = (careLog[plant.id] || []).filter(e => e.action === key);
@@ -84,7 +84,7 @@ async function compressImage(file, maxPx = 900, quality = 0.78) {
 }
 
 // ── MOBILE PLANT CARD ──────────────────────────────────────────────────────
-function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded }) {
+function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, seasonOpen }) {
   const [photos, setPhotos] = useState(() => getPhotos(plant.id));
   const fileRef = useRef(null);
   const color = plantColor(plant.type);
@@ -105,10 +105,10 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded }) {
     }
   }
 
-  const waterStatus = actionStatus(plant, 'water', careLog);
+  const waterStatus = actionStatus(plant, 'water', careLog, seasonOpen);
   const availableActions = (plant.actions || [])
     .filter(a => a !== 'water' && a !== 'photo' && a !== 'visit')
-    .filter(a => actionStatus(plant, a, careLog).available)
+    .filter(a => actionStatus(plant, a, careLog, seasonOpen).available)
     .slice(0, 1); // show one extra action max
 
   if (plant.health === 'memorial' || plant.type === 'empty-pot') return null;
@@ -244,10 +244,10 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded }) {
 }
 
 // ── QUICK CARE TAB ─────────────────────────────────────────────────────────
-function QuickCareTab({ plants, careLog, onAction }) {
+function QuickCareTab({ plants, careLog, onAction, seasonOpen }) {
   const actionable = plants.filter(p =>
     p.health !== 'memorial' && p.type !== 'empty-pot' &&
-    (p.actions || []).some(a => actionStatus(p, a, careLog).available && !ACTION_DEFS[a]?.alwaysAvailable)
+    (p.actions || []).some(a => actionStatus(p, a, careLog, seasonOpen).available && !ACTION_DEFS[a]?.alwaysAvailable)
   );
   const needsWater = plants.filter(p => {
     if (!p.actions?.includes('water')) return false;
@@ -256,12 +256,12 @@ function QuickCareTab({ plants, careLog, onAction }) {
     return (Date.now() - new Date(entries[entries.length - 1].date).getTime()) / 86400000 > 1;
   });
 
-  if (!SEASON_OPEN) {
+  if (!seasonOpen) {
     return (
       <div style={{ padding: '40px 20px', textAlign: 'center' }}>
         <div style={{ fontSize: 32, marginBottom: 12 }}>🌱</div>
         <div style={{ fontFamily: SERIF, fontSize: 16, color: '#907050', fontStyle: 'italic' }}>
-          Season 2 opens March 20.
+          Season 2 isn't open yet. Keep photographing your plants.
         </div>
       </div>
     );
@@ -289,7 +289,7 @@ function QuickCareTab({ plants, careLog, onAction }) {
         {prioritized.length} NEED{prioritized.length !== 1 ? 'S' : ''} CARE
       </div>
       {prioritized.map(p => (
-        <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction}/>
+        <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction} seasonOpen={seasonOpen}/>
       ))}
     </div>
   );
@@ -428,7 +428,7 @@ function MobileSignIn({ signIn }) {
 // ── MAIN MOBILE VIEW ───────────────────────────────────────────────────────
 export function MobileView({
   plants, careLog, warmth, weather,
-  onAction, role, signIn, signOut,
+  onAction, role, signIn, signOut, seasonOpen,
 }) {
   const [tab, setTab] = useState('care');
   const [flash, setFlash] = useState(null);
@@ -516,14 +516,14 @@ export function MobileView({
             {plants
               .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
               .map(p => (
-                <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction}/>
+                <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction} seasonOpen={seasonOpen}/>
               ))
             }
           </div>
         )}
 
         {tab === 'care' && (
-          <QuickCareTab plants={plants} careLog={careLog} onAction={handleAction}/>
+          <QuickCareTab plants={plants} careLog={careLog} onAction={handleAction} seasonOpen={seasonOpen}/>
         )}
 
         {tab === 'oracle' && (
