@@ -344,12 +344,15 @@ function MobileJournal({ plants, careLog }) {
   );
 }
 
-// ── MOBILE SIGN IN (PIN) ──────────────────────────────────────────────────
+// ── MOBILE SIGN IN ─────────────────────────────────────────────────────────
 function MobileSignIn({ signIn }) {
   const [open, setOpen] = React.useState(false);
-  const [pin, setPin] = React.useState('');
+  const [who, setWho] = React.useState(null); // 'tucker' | 'emma'
+  const [pw, setPw] = React.useState('');
   const [error, setError] = React.useState('');
   const [checking, setChecking] = React.useState(false);
+
+  const close = () => { setOpen(false); setWho(null); setPw(''); setError(''); };
 
   if (!open) {
     return (
@@ -362,21 +365,51 @@ function MobileSignIn({ signIn }) {
 
   const attempt = async () => {
     setError(''); setChecking(true);
-    try { await signIn(pin); setOpen(false); setPin(''); }
+    try { await signIn(who, pw); close(); }
     catch (e) { setError(e.message); }
     finally { setChecking(false); }
   };
 
+  // Step 1 — pick who you are
+  if (!who) {
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(4,2,1,0.95)',zIndex:200,
+        display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24,gap:16}}>
+        <div style={{fontFamily:MONO,fontSize:8,color:C.uiGold,marginBottom:8}}>WHO ARE YOU?</div>
+        <button onClick={() => setWho('tucker')}
+          style={{width:'100%',maxWidth:280,padding:'16px',background:'rgba(212,168,48,0.12)',
+            border:'1px solid rgba(212,168,48,0.3)',borderRadius:10,color:C.uiText,
+            fontFamily:SERIF,fontSize:18,cursor:'pointer'}}>
+          🌿 Tucker
+        </button>
+        <button onClick={() => setWho('emma')}
+          style={{width:'100%',maxWidth:280,padding:'16px',background:'rgba(232,64,112,0.10)',
+            border:'1px solid rgba(232,64,112,0.25)',borderRadius:10,color:C.uiText,
+            fontFamily:SERIF,fontSize:18,cursor:'pointer'}}>
+          🌹 Emma
+        </button>
+        <button onClick={close}
+          style={{background:'none',border:'none',color:C.uiMuted,fontFamily:SERIF,fontSize:14,cursor:'pointer',marginTop:8}}>
+          cancel
+        </button>
+      </div>
+    );
+  }
+
+  // Step 2 — enter password
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(4,2,1,0.95)',zIndex:200,
       display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24}}>
-      <div style={{fontFamily:MONO,fontSize:8,color:C.uiGold,marginBottom:24}}>ENTER PIN</div>
-      <input type="password" value={pin} onChange={e=>setPin(e.target.value)}
+      <div style={{fontFamily:MONO,fontSize:8,color:C.uiGold,marginBottom:8}}>
+        {who === 'tucker' ? '🌿 TUCKER' : '🌹 EMMA'}
+      </div>
+      <div style={{fontFamily:SERIF,fontSize:13,color:C.uiMuted,marginBottom:24}}>Enter your password</div>
+      <input type="password" value={pw} onChange={e=>setPw(e.target.value)}
         onKeyDown={e=>e.key==='Enter'&&attempt()}
-        placeholder="your PIN" autoFocus
+        placeholder="password" autoFocus
         style={{width:'100%',maxWidth:280,padding:'14px',marginBottom:16,textAlign:'center',
           background:'rgba(255,255,255,0.06)',border:`1px solid ${error?'#c07050':'rgba(90,60,24,0.5)'}`,
-          borderRadius:8,color:'#f0e4cc',fontFamily:SERIF,fontSize:18,letterSpacing:4,outline:'none'}}/>
+          borderRadius:8,color:'#f0e4cc',fontFamily:SERIF,fontSize:18,outline:'none'}}/>
       {error && <div style={{color:'#c07050',fontFamily:SERIF,fontSize:13,marginBottom:12}}>{error}</div>}
       <button onClick={attempt} disabled={checking}
         style={{width:'100%',maxWidth:280,padding:'14px',background:C.uiGold,
@@ -384,9 +417,9 @@ function MobileSignIn({ signIn }) {
           cursor:'pointer',marginBottom:12,opacity:checking?0.6:1}}>
         {checking ? '…' : 'SIGN IN'}
       </button>
-      <button onClick={()=>{setOpen(false);setPin('');setError('');}}
+      <button onClick={() => { setWho(null); setPw(''); setError(''); }}
         style={{background:'none',border:'none',color:C.uiMuted,fontFamily:SERIF,fontSize:14,cursor:'pointer'}}>
-        cancel
+        ← back
       </button>
     </div>
   );

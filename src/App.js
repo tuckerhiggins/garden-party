@@ -57,66 +57,18 @@ const C = {
 
 function plantColor(type) { return C[type] || '#909080'; }
 
-// ── SET PASSWORD MODAL ────────────────────────────────────────────────────
-function SetPasswordModal({ updatePassword }) {
-  const [pw, setPw] = React.useState('');
-  const [pw2, setPw2] = React.useState('');
-  const [err, setErr] = React.useState('');
-  const [done, setDone] = React.useState(false);
-
-  const submit = async () => {
-    if (pw.length < 8) { setErr('At least 8 characters'); return; }
-    if (pw !== pw2) { setErr('Passwords don\'t match'); return; }
-    try { await updatePassword(pw); setDone(true); }
-    catch (e) { setErr(e.message); }
-  };
-
-  return (
-    <div style={{position:'fixed',inset:0,background:'rgba(4,2,1,0.95)',display:'flex',
-      alignItems:'center',justifyContent:'center',zIndex:500}}>
-      <div style={{width:360,padding:'40px 36px',textAlign:'center'}}>
-        <div style={{fontFamily:MONO,fontSize:8,color:C.uiGold,marginBottom:20,letterSpacing:.5}}>
-          SET YOUR PASSWORD
-        </div>
-        {done ? (
-          <div style={{fontFamily:SERIF,fontSize:16,color:'#d8ccb0',lineHeight:1.8}}>
-            Password set. You're signed in.
-          </div>
-        ) : (
-          <>
-            <input type="password" value={pw} onChange={e=>setPw(e.target.value)}
-              placeholder="new password (8+ characters)" autoFocus
-              style={{width:'100%',padding:'12px 14px',marginBottom:10,boxSizing:'border-box',
-                background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
-                borderRadius:8,color:'#f0e4cc',fontFamily:SERIF,fontSize:15,outline:'none'}}/>
-            <input type="password" value={pw2} onChange={e=>setPw2(e.target.value)}
-              onKeyDown={e=>e.key==='Enter'&&submit()}
-              placeholder="confirm password"
-              style={{width:'100%',padding:'12px 14px',marginBottom:16,boxSizing:'border-box',
-                background:'rgba(255,255,255,0.06)',border:'1px solid rgba(90,60,24,0.5)',
-                borderRadius:8,color:'#f0e4cc',fontFamily:SERIF,fontSize:15,outline:'none'}}/>
-            {err && <div style={{color:'#c07050',fontFamily:SERIF,fontSize:13,marginBottom:10}}>{err}</div>}
-            <button onClick={submit}
-              style={{width:'100%',padding:'12px',background:C.uiGold,border:'none',
-                borderRadius:8,color:C.uiBg,fontFamily:MONO,fontSize:9,cursor:'pointer'}}>
-              SET PASSWORD
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── AUTH BUTTON ───────────────────────────────────────────────────────────
 function AuthButton({ role, signIn, signOut, checking, authError }) {
   const [open, setOpen] = React.useState(false);
-  const [pin, setPin] = React.useState('');
+  const [who, setWho] = React.useState(null); // 'tucker' | 'emma'
+  const [pw, setPw] = React.useState('');
   const [localError, setLocalError] = React.useState('');
+
+  const close = () => { setOpen(false); setWho(null); setPw(''); setLocalError(''); };
 
   const attempt = async () => {
     setLocalError('');
-    try { await signIn(pin); setOpen(false); setPin(''); }
+    try { await signIn(who, pw); close(); }
     catch (e) { setLocalError(e.message); }
   };
 
@@ -130,22 +82,43 @@ function AuthButton({ role, signIn, signOut, checking, authError }) {
     );
   }
 
-  if (open) {
+  if (open && !who) {
+    return (
+      <div style={{display:'flex',gap:4,alignItems:'center'}}>
+        <button onClick={()=>setWho('tucker')}
+          style={{background:'#2a1808',border:'1px solid rgba(90,60,24,0.5)',borderRadius:3,
+            padding:'4px 10px',color:'#f0e4cc',fontFamily:MONO,fontSize:7,cursor:'pointer'}}>
+          🌿 Tucker
+        </button>
+        <button onClick={()=>setWho('emma')}
+          style={{background:'#2a1808',border:'1px solid rgba(90,60,24,0.5)',borderRadius:3,
+            padding:'4px 10px',color:'#f0e4cc',fontFamily:MONO,fontSize:7,cursor:'pointer'}}>
+          🌹 Emma
+        </button>
+        <button onClick={close}
+          style={{background:'none',border:'none',color:'#706040',fontSize:16,cursor:'pointer',padding:'0 2px'}}>
+          ×
+        </button>
+      </div>
+    );
+  }
+
+  if (open && who) {
     return (
       <div style={{display:'flex',gap:4,alignItems:'center'}}>
         <input
-          type="password" value={pin} onChange={e=>setPin(e.target.value)}
+          type="password" value={pw} onChange={e=>setPw(e.target.value)}
           onKeyDown={e=>e.key==='Enter'&&attempt()}
-          placeholder="PIN" autoFocus
+          placeholder="password" autoFocus
           style={{background:'rgba(255,255,255,0.06)',border:`1px solid ${localError?'#c07050':'rgba(90,60,24,0.5)'}`,
             borderRadius:3,padding:'4px 8px',color:'#f0e4cc',fontFamily:SERIF,fontSize:13,
-            width:90,outline:'none'}}/>
+            width:100,outline:'none'}}/>
         <button onClick={attempt} disabled={checking}
           style={{background:'#2a1808',border:'none',borderRadius:3,padding:'4px 10px',
             color:'#f0e4cc',fontFamily:MONO,fontSize:7,cursor:'pointer',opacity:checking?0.6:1}}>
           {checking ? '…' : 'GO'}
         </button>
-        <button onClick={()=>{setOpen(false);setPin('');setLocalError('');}}
+        <button onClick={close}
           style={{background:'none',border:'none',color:'#706040',fontSize:16,cursor:'pointer',padding:'0 2px'}}>
           ×
         </button>

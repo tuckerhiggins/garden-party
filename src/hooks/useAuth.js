@@ -1,50 +1,79 @@
-// PIN-based identity — verified server-side, stored in localStorage.
-// PINs live in Vercel env vars (TUCKER_PIN, EMMA_PIN) — never in client code.
-import { useState } from 'react';
+// Supabase email+password auth.
+// Two accounts live in Supabase: tucker@gardenparty.app and emma@gardenparty.app
+// Create them once in Supabase dashboard → Authentication → Users → Add user
+// (disable "Send invite email" so no confirmation email is needed)
+import { useState, useEffect } from 'react';
+import { supabase } from '../supabase';
 
-const STORAGE_KEY = 'gp_identity';
+const EMAILS = {
+  tucker: 'tucker@gardenparty.app',
+  emma:   'emma@gardenparty.app',
+};
+
+function roleFromUser(user) {
+  if (!user) return 'guest';
+  if (user.email === EMAILS.tucker) return 'tucker';
+  if (user.email === EMAILS.emma)   return 'emma';
+  return 'guest';
+}
 
 export function useAuth() {
-  const [role, setRoleState] = useState(() => localStorage.getItem(STORAGE_KEY) || 'guest');
-  const [error, setError] = useState('');
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
+  const [authError, setAuthError] = useState('');
 
-  const signIn = async (pin) => {
+  useEffect(() => {
+    if (!supabase) { setLoading(false); return; }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // name: 'tucker' | 'emma'
+  const signIn = async (name, password) => {
+    if (!supabase) return;
+    const email = EMAILS[name];
+    if (!email) throw new Error('Unknown user');
     setChecking(true);
-    setError('');
+    setAuthError('');
     try {
-      const res = await fetch('/api/verify-identity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Wrong PIN');
-      localStorage.setItem(STORAGE_KEY, data.role);
-      setRoleState(data.role);
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
     } catch (e) {
-      setError(e.message);
+      setAuthError(e.message);
       throw e;
     } finally {
       setChecking(false);
     }
   };
 
-  const signOut = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setRoleState('guest');
+  const signOut = async () => {
+    if (supabase) await supabase.auth.signOut();
   };
 
+  const user = session?.user || null;
+  const role = roleFromUser(user);
+
   return {
-    user: role !== 'guest' ? { id: role } : null,
+    user,
     role,
-    loading: false,
-    needsPasswordSet: false,
+    loading,
     checking,
-    authError: error,
+    authError,
     signIn,
     signOut,
-    setRole: setRoleState,
+    // Unused legacy stubs
+    needsPasswordSet: false,
     updatePassword: () => {},
+    setRole: () => {},
   };
 }
