@@ -84,7 +84,7 @@ function BotanicalEmblem() {
   );
 }
 
-export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = {}, weather = null, warmth = 0, oracle = null }) {
+export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = {}, weather = null, warmth = 0, oracle = null, seasonOpenerText = null, isNight = false }) {
   const [hoveredId, setHoveredId]     = useState(null);
   const [showEnter, setShowEnter]     = useState(false);
   const [enterHover, setEnterHover]   = useState(false);
@@ -93,6 +93,10 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
     const t = setTimeout(() => setShowEnter(true), 1600);
     return () => clearTimeout(t);
   }, []);
+
+  const skyTop = isNight ? '#0a0e1a' : '#9aaebb';
+  const skyMid = isNight ? '#111b2e' : '#b0c2cc';
+  const skyBot = isNight ? '#1c2a42' : '#cdd8de';
 
   // Sort dko plants left-to-right and map to the 6 cane positions
   const dkoPlants = [...plants]
@@ -371,28 +375,30 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
         </div>
       </div>
 
-      {/* ── ORACLE — fades in with enter prompt ── */}
-      {oracle && (
+      {/* ── ORACLE / SEASON OPENER TEXT — fades in with enter prompt ── */}
+      {(oracle || seasonOpenerText) && (
         <div style={{
           position: 'absolute',
           bottom: selectedId ? 82 : 108, left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 10,
           textAlign: 'center',
-          maxWidth: 520,
+          maxWidth: seasonOpenerText ? 580 : 520,
           width: '80vw',
-          opacity: showEnter ? 0.82 : 0,
-          transition: showEnter ? 'opacity 2.2s ease-in' : 'none',
+          opacity: showEnter ? (seasonOpenerText ? 0.95 : 0.82) : 0,
+          transition: showEnter ? `opacity ${seasonOpenerText ? '3.2s' : '2.2s'} ease-in` : 'none',
           pointerEvents: 'none',
         }}>
           <div style={{
             fontFamily: '"Crimson Pro", Georgia, serif',
-            fontSize: 15, fontStyle: 'italic',
-            color: '#d8ccb0',
-            letterSpacing: 0.3,
-            lineHeight: 1.7,
+            fontSize: seasonOpenerText ? 18 : 15,
+            fontStyle: 'italic',
+            color: seasonOpenerText ? '#e8cc78' : '#d8ccb0',
+            letterSpacing: seasonOpenerText ? 0.5 : 0.3,
+            lineHeight: seasonOpenerText ? 1.9 : 1.7,
             textShadow: '0 1px 14px rgba(4,2,1,0.95)',
-          }}>{oracle}</div>
+            whiteSpace: 'pre-line',
+          }}>{seasonOpenerText || oracle}</div>
         </div>
       )}
 
@@ -421,7 +427,7 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
           letterSpacing: 1,
           textShadow: '0 1px 10px rgba(15,8,3,0.9)',
           transition: 'color 0.2s',
-        }}>step inside</div>
+        }}>{seasonOpenerText ? 'begin season 2' : isNight ? 'the fire is lit' : 'step inside'}</div>
         <div style={{
           color: enterHover ? '#e8c030' : '#c8a018',
           fontSize: 13, marginTop: 5,
@@ -455,12 +461,19 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
             <feDropShadow dx="0" dy="1" stdDeviation="3" floodColor="#0d0800" floodOpacity="0.8"/>
           </filter>
 
-          {/* Sky — soft watercolor overcast */}
+          {/* Sky */}
           <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor="#9aaebb"/>
-            <stop offset="35%"  stopColor="#b0c2cc"/>
-            <stop offset="100%" stopColor="#cdd8de"/>
+            <stop offset="0%"   stopColor={skyTop}/>
+            <stop offset="35%"  stopColor={skyMid}/>
+            <stop offset="100%" stopColor={skyBot}/>
           </linearGradient>
+          {/* Terrace fire glow — night only */}
+          {isNight && (
+            <radialGradient id="fireGlowG" cx="50%" cy="0%" r="60%">
+              <stop offset="0%"   stopColor="#f0a030" stopOpacity="0.32"/>
+              <stop offset="100%" stopColor="#f0a030" stopOpacity="0"/>
+            </radialGradient>
+          )}
 
           {/* Soil */}
           <linearGradient id="soilG" x1="0" y1="0" x2="0" y2="1">
@@ -510,6 +523,27 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
         </g>
 
         {/* ══════════════════════════════════════════════════════════════ */}
+        {/* NIGHT ELEMENTS                                                 */}
+        {/* ══════════════════════════════════════════════════════════════ */}
+        {isNight && (
+          <>
+            {/* Moon — crescent, upper right */}
+            <circle cx="1190" cy="78" r="36" fill="#e8e0c8" opacity="0.82"/>
+            <circle cx="1207" cy="68" r="30" fill={skyTop} opacity="0.97"/>
+            {/* Stars */}
+            {[
+              [180,52,1.8],[340,38,1.4],[510,28,1.6],[670,48,1.3],
+              [820,36,1.7],[990,52,1.4],[1060,30,1.8],[1290,58,1.5],
+              [430,68,1.2],[760,22,1.5],[260,18,1.3],[920,44,1.6],
+            ].map(([cx,cy,r],i) => (
+              <circle key={i} cx={cx} cy={cy} r={r} fill="#e8e8d8" opacity={0.55+i%3*0.1}/>
+            ))}
+            {/* Terrace fire glow — warm bloom from rooftop above */}
+            <rect x="0" y="0" width={VW} height="260" fill="url(#fireGlowG)"/>
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════ */}
         {/* LAYER 2 — BLURRY BROWNSTONE                                  */}
         {/* ══════════════════════════════════════════════════════════════ */}
         <g filter="url(#bgBlur)" opacity="0.87">
@@ -545,6 +579,23 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
           <circle cx="528" cy="358" r="54" fill="#f8e068" opacity="0.14"/>
           <circle cx="872" cy="358" r="54" fill="#f8e068" opacity="0.14"/>
         </g>
+
+        {/* Night window glows */}
+        {isNight && (
+          <g filter="url(#bgBlur)" opacity="0.78">
+            <rect x="50"  y="68"  width="130" height="118" fill="#f8b840" opacity="0.35" rx="2"/>
+            <rect x="218" y="68"  width="128" height="118" fill="#f8b840" opacity="0.22" rx="2"/>
+            <rect x="1020" y="68" width="130" height="118" fill="#f8b840" opacity="0.35" rx="2"/>
+            <rect x="1198" y="68" width="128" height="118" fill="#f8b840" opacity="0.22" rx="2"/>
+            <rect x="28"  y="250" width="210" height="200" fill="#f8b840" opacity="0.28" rx="2"/>
+            <rect x="1162" y="250" width="210" height="200" fill="#f8b840" opacity="0.28" rx="2"/>
+            {/* Sconce blooms — stronger at night */}
+            <circle cx="528" cy="358" r="70" fill="#f8d060" opacity="0.30"/>
+            <circle cx="872" cy="358" r="70" fill="#f8d060" opacity="0.30"/>
+            <circle cx="528" cy="358" r="140" fill="#f0c040" opacity="0.10"/>
+            <circle cx="872" cy="358" r="140" fill="#f0c040" opacity="0.10"/>
+          </g>
+        )}
 
         {/* 75 on the door arch — blurred, atmospheric */}
         <text x="700" y="398"

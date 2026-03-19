@@ -43,7 +43,7 @@ export async function cachedClaude(cacheKey, systemPrompt, userPrompt, maxTokens
 
 // ── ORACLE ────────────────────────────────────────────────────────────────
 // Daily garden greeting. Cached until midnight (busted when photo count changes).
-export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen, daysUntilSeason, photoContext = [], totalPhotos = 0 }) {
+export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen, seasonBlocking, daysUntilSeason, photoContext = [], totalPhotos = 0 }) {
   const today = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
   const cacheKey = `oracle_${new Date().toISOString().slice(0, 10)}_p${totalPhotos}`;
 
@@ -84,12 +84,19 @@ Speak directly and usefully. Tell Tucker one specific thing that's true right no
 
 Tone: warm but direct. Like a skilled friend who genuinely knows plants. Not poetic for its own sake. Not yearning. Grounded and specific. Say things like "the wisteria's buds set last fall — those swollen tips are 4–6 weeks from opening" not vague atmospheric observations.
 
-2–3 sentences. Start mid-thought — no greeting. Vary what you foreground: care urgency, something happening underground, a weather note, a timing observation. Don't always lead with what needs water.`;
+2–3 sentences. Start mid-thought — no greeting. Vary what you foreground: care urgency, something happening underground, a weather note, a timing observation. Don't always lead with what needs water.
+When the season isn't open yet because of the photo requirement, speak specifically about which plants haven't been seen yet and what it means to document them. Make the photo ritual feel meaningful — not like checking boxes, but like making contact with the garden after winter.`;
 
   const userPrompt = `Today is ${today}.
 ${seasonOpen
   ? `Day ${daysIntoSeason} of season 2. In Brooklyn, late March means soil temps climbing through 45–50°F, roots becoming active, break of dormancy for roses and wisteria.`
-  : `Season 2 opens in ${daysUntilSeason} days. Pre-season — plants are in late dormancy.`}
+  : seasonBlocking === 'readiness'
+  ? `Season 2 is not yet open — photo documentation is the gating condition. ${photoContext.filter(p=>p.count===0).length} of ${photoContext.length} active plants have not been visited yet. Still need photos: ${unphotographed.length > 0 ? unphotographed.join(', ') : 'none remaining'}. Once 75% of active plants have been photographed, the season can open. Guide Tucker toward going outside and documenting the remaining plants.`
+  : seasonBlocking === 'calendar'
+  ? `Season 2 is not yet open — still too early in the year for Zone 7b. Plants are in late dormancy.`
+  : seasonBlocking?.startsWith('rain')
+  ? `Season 2 is not yet open — blocked by rain in the forecast. Once there's a clear weather window the season can begin.`
+  : `Season 2 pre-season. Plants in late dormancy.`}
 Current warmth: ${warmth} points.
 Weather today: ${weatherDesc}.
 ${needsWater.length > 0 ? `Overdue for water: ${needsWater.join(', ')}.` : 'No plants overdue for water.'}

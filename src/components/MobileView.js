@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { OracleChat } from './OracleChat';
 import { ACTION_DEFS } from '../data/plants';
+import { PlantPortrait } from '../PlantPortraits';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO = '"Press Start 2P", monospace';
@@ -123,22 +124,34 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, seasonOpen })
       <div
         onClick={() => fileRef.current?.click()}
         style={{
-          height: lastPhoto ? 160 : 80,
-          background: lastPhoto ? 'transparent' : `${color}10`,
+          height: 160,
+          background: lastPhoto ? 'transparent' : `${color}08`,
           cursor: 'pointer', position: 'relative', overflow: 'hidden',
+          border: (!lastPhoto && !seasonOpen) ? '2px solid rgba(212,168,48,0.40)' : 'none',
+          boxSizing: 'border-box',
         }}>
         {lastPhoto ? (
           <img src={lastPhoto.dataUrl} alt={plant.name}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
         ) : (
-          <div style={{
-            height: '100%', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', flexDirection: 'column', gap: 6,
-          }}>
-            <div style={{ fontSize: 28, opacity: 0.4 }}>📷</div>
-            <div style={{ fontFamily: SERIF, fontSize: 12, color: '#b09070', fontStyle: 'italic' }}>
-              Tap to add first photo
-            </div>
+          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <PlantPortrait plant={plant}/>
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'rgba(4,2,1,0.30)',
+            }}/>
+            {!seasonOpen && (
+              <div style={{
+                position: 'absolute', top: 10, left: 10,
+                background: 'rgba(18,12,6,0.78)',
+                border: '1px solid rgba(212,168,48,0.40)',
+                borderRadius: 20, padding: '3px 10px',
+              }}>
+                <span style={{ fontFamily: MONO, fontSize: 6, color: 'rgba(212,168,48,0.85)', letterSpacing: .3 }}>
+                  unseen · tap to document
+                </span>
+              </div>
+            )}
           </div>
         )}
         {/* Camera overlay button */}

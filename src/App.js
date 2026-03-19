@@ -774,12 +774,14 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen }) {
   const color = plantColor(plant.type);
   const hColor = healthColor(plant.health);
   const poemLines = plant.poem ? plant.poem.split('\n') : [];
+  const hasPhoto = getPhotos(plant.id).length > 0;
+  const needsDoc = !seasonOpen && !hasPhoto && plant.health !== 'memorial' && plant.type !== 'empty-pot';
 
   return (
     <div onClick={() => onSelect(plant)}
       style={{
         background: C.cardBg,
-        border: isSelected ? `2px solid ${color}` : `1px solid ${C.cardBorder}`,
+        border: isSelected ? `2px solid ${color}` : needsDoc ? '1.5px solid rgba(212,168,48,0.50)' : `1px solid ${C.cardBorder}`,
         borderRadius: 12,
         overflow: 'hidden',
         cursor: 'pointer',
@@ -794,6 +796,13 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen }) {
       <div style={{height:164, background:`linear-gradient(170deg,${color}14 0%,${color}04 100%)`,
         position:'relative', overflow:'hidden'}}>
         <PlantPortrait plant={plant}/>
+
+        {needsDoc && (
+          <div style={{position:'absolute',top:8,left:8,background:'rgba(18,12,6,0.72)',
+            border:'1px solid rgba(212,168,48,0.40)',borderRadius:20,padding:'2px 8px'}}>
+            <span style={{fontSize:9,color:'rgba(212,168,48,0.80)',fontFamily:MONO,letterSpacing:.3}}>unseen</span>
+          </div>
+        )}
 
         {/* Health pill — bottom right, colored to match health state */}
         <div style={{position:'absolute',bottom:8,right:8,display:'flex',alignItems:'center',gap:4,
@@ -1384,6 +1393,12 @@ export default function App() {
       .catch(() => setSeasonOpener(null));
   }, []);
 
+  // Route to front scene for opening ceremony
+  useEffect(() => {
+    if (seasonOpener && seasonOpener !== 'loading' && !seasonOpenerDismissed) {
+      setScene('front');
+    }
+  }, [seasonOpener]);
 
   // Care action
   const doAction = useCallback(async (key, plant) => {
@@ -1419,6 +1434,7 @@ export default function App() {
 
   // ── FRONT SCENE (opening screen) ────────────────────────────────────────
   if (scene === 'front') {
+    const isOpener = seasonOpen && !seasonOpenerDismissed && seasonOpener && seasonOpener !== 'loading';
     return (
       <div style={{width:'100vw',height:'100vh',overflow:'hidden'}}>
         <FrontMap
@@ -1426,10 +1442,21 @@ export default function App() {
           growth={growth}
           weather={weather}
           warmth={warmth}
-          oracle={oracle}
-          selectedId={sel}
-          onSelect={(p) => setSel(p?.id ?? null)}
-          onEnter={() => { setScene('game'); setMode('garden'); setGardenView('map'); }}
+          oracle={isOpener ? null : oracle}
+          seasonOpenerText={isOpener ? seasonOpener : null}
+          isNight={warmth >= 1000}
+          selectedId={isOpener ? null : sel}
+          onSelect={isOpener ? () => {} : (p) => setSel(p?.id ?? null)}
+          onEnter={isOpener
+            ? () => {
+                localStorage.setItem('gp_season_opener_dismissed_2026', '1');
+                setSeasonOpenerDismissed(true);
+                setScene('game');
+                setMode('garden');
+                setGardenView('cards');
+              }
+            : () => { setScene('game'); setMode('garden'); setGardenView('map'); }
+          }
         />
       </div>
     );
@@ -1744,36 +1771,6 @@ export default function App() {
                 LOG EXPENSE
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── SEASON OPENER MODAL ── */}
-      {seasonOpen && !seasonOpenerDismissed && seasonOpener && seasonOpener !== 'loading' && (
-        <div style={{position:'fixed',inset:0,background:'rgba(4,2,1,0.92)',display:'flex',
-          alignItems:'center',justifyContent:'center',zIndex:400,
-          animation:'fadeInModal .8s ease'}}>
-          <div style={{maxWidth:480,padding:'52px 48px',textAlign:'center',position:'relative'}}>
-            <div style={{fontFamily:'"Press Start 2P", monospace',fontSize:7,color:'#d4a830',
-              letterSpacing:2,marginBottom:36,opacity:0.7}}>SEASON 2 · MARCH 20 2026</div>
-            <div style={{fontFamily:'"Crimson Pro", Georgia, serif',fontSize:22,lineHeight:2.0,
-              color:'rgba(240,228,200,0.92)',fontStyle:'italic',whiteSpace:'pre-line',
-              marginBottom:48}}>
-              {seasonOpener}
-            </div>
-            <button
-              onClick={() => {
-                localStorage.setItem('gp_season_opener_dismissed_2026', '1');
-                setSeasonOpenerDismissed(true);
-              }}
-              style={{fontFamily:'"Press Start 2P", monospace',fontSize:8,
-                background:'none',border:'1px solid rgba(212,168,48,0.5)',
-                color:'rgba(212,168,48,0.8)',padding:'12px 32px',borderRadius:3,
-                cursor:'pointer',letterSpacing:1,transition:'all .2s'}}
-              onMouseEnter={e => { e.target.style.background='rgba(212,168,48,0.12)'; e.target.style.color='#d4a830'; }}
-              onMouseLeave={e => { e.target.style.background='none'; e.target.style.color='rgba(212,168,48,0.8)'; }}>
-              BEGIN
-            </button>
           </div>
         </div>
       )}
