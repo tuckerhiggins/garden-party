@@ -13,6 +13,7 @@ import { useGardenData } from './hooks/useGardenData';
 import { useMigration } from './hooks/useMigration';
 import { OracleChat } from './components/OracleChat';
 import { MobileView } from './components/MobileView';
+import { PlantShopModal } from './components/PlantShopModal';
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 640);
@@ -262,7 +263,7 @@ const TERRACE_GROUPS = [
   { key:'hydrangea',      label:'Pinnacle Lime Hydrangeas', types:['hydrangea'] },
   { key:'gifts',          label:'The Gifts',             types:['serviceberry','maple'] },
   { key:'evergreen',      label:'Evergreens',            types:['evergreen','evergreen-xmas'] },
-  { key:'empty',          label:'Empty Pots',            types:['empty-pot'] },
+  { key:'additions',      label:'New Additions',         types:['custom','annual','herb','fern','succulent','grass'] },
 ];
 
 // ── STORAGE ───────────────────────────────────────────────────────────────
@@ -1351,6 +1352,22 @@ export default function App() {
       return next;
     });
   }, []);
+  const [customPlants, setCustomPlants] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('gp_custom_plants_v1') || '[]'); } catch { return []; }
+  });
+  const addCustomPlant = useCallback((plant) => {
+    setCustomPlants(prev => {
+      const next = [...prev, plant];
+      try { localStorage.setItem('gp_custom_plants_v1', JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setSel(plant);
+    setFlash('🌱 Added to garden · drag it to its spot on the map');
+    setTimeout(() => setFlash(null), 3500);
+    setShowShop(false);
+  }, []);
+  const [showShop, setShowShop] = useState(false);
+
   const [seasonOpener, setSeasonOpener] = useState(null); // null | 'loading' | string
   const [seasonOpenerDismissed, setSeasonOpenerDismissed] = useState(
     () => !!localStorage.getItem('gp_season_opener_dismissed_2026')
@@ -1358,13 +1375,34 @@ export default function App() {
   const weather = useWeather();
   const cookiePos = useCookie();
 
-  const ALL_PLANTS = [...TERRACE_PLANTS];
-
   const frontPlants = useMemo(() => FRONT_PLANTS, []);
 
   const terracePlants = useMemo(()=>
     TERRACE_PLANTS.map(p=>({...p, pos:positions[p.id]||p.pos, growth:growth[p.id]??p.growth??0})),
     [positions, growth]);
+
+  // Custom plants with positions/growth merged from localStorage
+  const customPlantsWithState = useMemo(() =>
+    customPlants.map(p => ({ ...p, pos: positions[p.id] || p.pos, growth: growth[p.id] ?? p.growth ?? 0 })),
+    [customPlants, positions, growth]);
+
+  // Containers occupied by custom plants
+  const occupiedContainerIds = useMemo(() =>
+    new Set(customPlants.map(p => p.containerId).filter(Boolean)),
+    [customPlants]);
+
+  // Available containers = empty pots not occupied by a custom plant
+  const availableContainers = useMemo(() =>
+    TERRACE_PLANTS.filter(p => p.type === 'empty-pot' && !occupiedContainerIds.has(p.id)),
+    [occupiedContainerIds]);
+
+  // Map plants = terrace plants without empty pots + custom plants
+  const mapPlants = useMemo(() => [
+    ...terracePlants.filter(p => p.type !== 'empty-pot'),
+    ...customPlantsWithState,
+  ], [terracePlants, customPlantsWithState]);
+
+  const ALL_PLANTS = useMemo(() => [...TERRACE_PLANTS, ...customPlants], [customPlants]);
 
   // ── SEASON READINESS ──────────────────────────────────────────────────────
   // Three gates — all must be true for the season to open:
@@ -1455,12 +1493,12 @@ export default function App() {
 
   const totalSpend = expenses.reduce((s,e)=>s+e.cents,0);
 
-  // Garden view plants
+  // Garden view plants (no empty pots — those become available containers in the UI)
   const gardenPlants = useMemo(()=>({
-    terrace: [...terracePlants],
-  }),[terracePlants]);
+    terrace: [...terracePlants.filter(p => p.type !== 'empty-pot'), ...customPlantsWithState],
+  }),[terracePlants, customPlantsWithState]);
 
-  const needsCareCount = ALL_PLANTS.filter(p=>
+  const needsCareCount = gardenPlants.terrace.filter(p=>
     seasonOpen && p.actions?.some(a=>actionStatus(p,a,careLog,seasonOpen).available&&!ACTION_DEFS[a]?.alwaysAvailable)
   ).length;
 
@@ -1627,6 +1665,15 @@ export default function App() {
                   {v.label}
                 </button>
               ))}
+              <div style={{flex:1}}/>
+              <button onClick={()=>setShowShop(true)}
+                style={{background:'rgba(212,168,48,0.12)',border:'1px solid rgba(212,168,48,0.35)',
+                  borderRadius:20,padding:'3px 14px',color:C.uiGold,
+                  fontFamily:SERIF,fontSize:12,cursor:'pointer',transition:'all .12s'}}
+                onMouseEnter={e=>e.target.style.background='rgba(212,168,48,0.22)'}
+                onMouseLeave={e=>e.target.style.background='rgba(212,168,48,0.12)'}>
+                + New Plant
+              </button>
             </div>
             <div style={{flex:1,display:'flex',overflow:'hidden'}}>
             {/* ── CARDS SUB-VIEW ── */}
@@ -1659,6 +1706,37 @@ export default function App() {
                   return (
                     <>
                       {gardenPlants.terrace.length>0&&renderGroups(gardenPlants.terrace, TERRACE_GROUPS, null)}
+                      {/* Available containers — empty pots that can receive a new plant */}
+                      {availableContainers.length > 0 && (
+                        <div style={{marginBottom:24}}>
+                          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                            <span style={{fontSize:10,color:'#a08060',fontFamily:MONO,letterSpacing:.5}}>
+                              AVAILABLE CONTAINERS
+                            </span>
+                            <div style={{height:1,flex:1,background:C.cardBorder}}/>
+                            <span style={{fontSize:9,color:C.uiDim,fontFamily:MONO}}>{availableContainers.length}</span>
+                          </div>
+                          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:8}}>
+                            {availableContainers.map(c => (
+                              <div key={c.id} onClick={()=>setShowShop(true)}
+                                style={{background:C.cardBg,border:`1px dashed rgba(160,130,80,0.30)`,
+                                  borderRadius:10,padding:'10px 12px',cursor:'pointer',
+                                  display:'flex',alignItems:'center',gap:10,
+                                  transition:'all .15s'}}
+                                onMouseEnter={e=>e.currentTarget.style.border='1px dashed rgba(212,168,48,0.55)'}
+                                onMouseLeave={e=>e.currentTarget.style.border='1px dashed rgba(160,130,80,0.30)'}>
+                                <span style={{fontSize:22,opacity:0.5}}>🪴</span>
+                                <div>
+                                  <div style={{fontSize:12,color:'#907050',fontFamily:SERIF}}>{c.container}</div>
+                                  <div style={{fontSize:10,color:'rgba(160,130,80,0.6)',fontFamily:SERIF,fontStyle:'italic'}}>
+                                    tap to add a plant
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </>
                   );
                 })()}
@@ -1683,7 +1761,7 @@ export default function App() {
                   justifyContent:'flex-start',padding:'0 0 0 20px',overflow:'hidden'}}>
                   <div style={{height:'100%',maxHeight:'100%',aspectRatio:'820 / 854',maxWidth:'58vw',flexShrink:0}}>
                     <TerraceMap
-                      plants={terracePlants}
+                      plants={mapPlants}
                       selectedId={sel?.id}
                       cookiePos={cookiePos}
                       onSelect={p=>{ if(p) setSel(p); else setSel(null); }}
@@ -1805,6 +1883,17 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── PLANT SHOP MODAL ── */}
+      {showShop && (
+        <PlantShopModal
+          onClose={() => setShowShop(false)}
+          onAdd={addCustomPlant}
+          availableContainers={availableContainers}
+          existingPlants={gardenPlants.terrace}
+          weather={weather?.poem}
+        />
       )}
 
       {/* ── FLASH ── */}

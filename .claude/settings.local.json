@@ -35,7 +35,8 @@
       "Bash(git push:*)",
       "Bash(which gh:*)",
       "Bash(git add:*)",
-      "Bash(vercel:*)"
+      "Bash(vercel:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
