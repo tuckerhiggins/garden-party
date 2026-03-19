@@ -261,7 +261,7 @@ const PLANTING_SUGGESTIONS = [
 const TERRACE_GROUPS = [
   { key:'wisteria',       label:'Wisteria',              types:['wisteria'] },
   { key:'climbing-rose',  label:'Zéphirine Drouhin',     types:['climbing-rose','lavender'] },
-  { key:'hydrangea',      label:'Pinnacle Lime Hydrangeas', types:['hydrangea'] },
+  { key:'hydrangea',      label:'Pinnacle Lime Hydrangeas (4)', types:['hydrangea'] },
   { key:'gifts',          label:'The Gifts',             types:['serviceberry','maple'] },
   { key:'evergreen',      label:'Evergreens',            types:['evergreen','evergreen-xmas'] },
   { key:'additions',      label:'New Additions',         types:['custom','annual','herb','fern','succulent','grass'] },
