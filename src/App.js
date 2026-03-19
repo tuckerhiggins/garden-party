@@ -14,6 +14,7 @@ import { useMigration } from './hooks/useMigration';
 import { OracleChat } from './components/OracleChat';
 import { MobileView } from './components/MobileView';
 import { PlantShopModal } from './components/PlantShopModal';
+import { MapInfoPanel } from './components/MapInfoPanel';
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 640);
@@ -1502,6 +1503,27 @@ export default function App() {
     seasonOpen && p.actions?.some(a=>actionStatus(p,a,careLog,seasonOpen).available&&!ACTION_DEFS[a]?.alwaysAvailable)
   ).length;
 
+  // Map info panel data
+  const attentionItems = useMemo(() =>
+    gardenPlants.terrace
+      .filter(p => p.health !== 'memorial')
+      .flatMap(p => (p.actions || [])
+        .filter(a => {
+          const def = ACTION_DEFS[a];
+          return def && !def.alwaysAvailable && actionStatus(p, a, careLog, seasonOpen).available;
+        })
+        .map(a => ({ plant: p, action: a, def: ACTION_DEFS[a] }))
+      )
+      .slice(0, 6),
+    [gardenPlants.terrace, careLog, seasonOpen]);
+
+  const recentCare = useMemo(() => {
+    const all = gardenPlants.terrace.flatMap(p =>
+      (careLog[p.id] || []).map(e => ({ ...e, plant: p }))
+    );
+    return all.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+  }, [gardenPlants.terrace, careLog]);
+
   // ── FRONT SCENE (opening screen) ────────────────────────────────────────
   if (scene === 'front') {
     const isOpener = seasonOpen && !seasonOpenerDismissed && seasonOpener && seasonOpener !== 'loading';
@@ -1665,6 +1687,19 @@ export default function App() {
                   {v.label}
                 </button>
               ))}
+              {gardenView==='map'&&(
+                <button onClick={()=>setScene('front')}
+                  style={{background:'transparent',
+                    border:`1px solid rgba(200,180,140,0.28)`,
+                    borderRadius:20,padding:'3px 14px',
+                    color:'#b09070',
+                    fontFamily:SERIF,fontSize:12,cursor:'pointer',transition:'all .12s',
+                    display:'flex',alignItems:'center',gap:4}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor='rgba(200,180,140,0.55)'}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor='rgba(200,180,140,0.28)'}>
+                  🌹 Emma's Garden
+                </button>
+              )}
               <div style={{flex:1}}/>
               <button onClick={()=>setShowShop(true)}
                 style={{background:'rgba(212,168,48,0.12)',border:'1px solid rgba(212,168,48,0.35)',
@@ -1770,31 +1805,33 @@ export default function App() {
                       onDescend={()=>setScene('front')}
                     />
                   </div>
-                  {weather && !hov && !sel && (
-                    <div style={{position:'absolute',bottom:14,left:26,background:'rgba(18,10,4,0.82)',
-                      border:`1px solid ${C.uiBorder}`,borderRadius:4,padding:'5px 12px',pointerEvents:'none'}}>
-                      <div style={{fontFamily:SERIF,fontSize:11,color:'rgba(240,228,200,0.80)',fontStyle:'italic'}}>
-                        {weather.poem}
-                      </div>
-                    </div>
-                  )}
-                  {!seasonOpen && !hov && !sel && (
-                    <div style={{position:'absolute',bottom:14,left:26,background:'rgba(20,30,50,.85)',
-                      border:'1px solid #3860a0',borderRadius:4,padding:'6px 14px',textAlign:'center'}}>
-                      <div style={{fontFamily:MONO,fontSize:7,color:'#6090c0'}}>{photoCount}/{activePlantCount} plants seen · Season 2 not yet open</div>
-                    </div>
-                  )}
                 </div>
+                {/* Right panel: info dash by default, plant panels when hov/sel */}
+                {!hov && !sel && (
+                  <MapInfoPanel
+                    plants={gardenPlants.terrace}
+                    careLog={careLog}
+                    warmth={warmth}
+                    weather={weather}
+                    seasonOpen={seasonOpen}
+                    seasonBlocking={seasonBlocking}
+                    photoCount={photoCount}
+                    activePlantCount={activePlantCount}
+                    attentionItems={attentionItems}
+                    recentCare={recentCare}
+                    onSelectPlant={p=>setSel(p)}
+                  />
+                )}
                 {hov && !sel && (
-                  <div style={{position:'relative',zIndex:2,width:400,flexShrink:0,
+                  <div style={{position:'relative',zIndex:2,width:294,flexShrink:0,
                     background:'rgba(10,6,3,0.93)',borderLeft:'1px solid rgba(160,130,80,0.18)',
                     overflowY:'auto'}}>
-                    <MapPlantCard hovPlant={hov} plants={terracePlants} careLog={careLog}
+                    <MapPlantCard hovPlant={hov} plants={mapPlants} careLog={careLog}
                       onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma} seasonOpen={seasonOpen}/>
                   </div>
                 )}
                 {sel && (
-                  <div style={{position:'relative',zIndex:2,width:340,flexShrink:0,
+                  <div style={{position:'relative',zIndex:2,width:320,flexShrink:0,
                     background:'rgba(250,246,238,0.97)',borderLeft:`1px solid ${C.cardBorder}`}}>
                     <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                       onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
