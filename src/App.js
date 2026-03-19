@@ -904,7 +904,7 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait 
 }
 
 // ── PHOTO SECTION ─────────────────────────────────────────────────────────
-function PhotoSection({ plant, color, onAnalyze }) {
+function PhotoSection({ plant, color, careLog, onAnalyze, portraits }) {
   const [photos, setPhotos] = useState(() => getPhotos(plant.id));
   const fileRef = useRef(null);
 
@@ -916,9 +916,12 @@ function PhotoSection({ plant, color, onAnalyze }) {
     savePhotos(plant.id, updated);
     setPhotos(updated);
     e.target.value = '';
-    // Trigger AI analysis in background
+    // Trigger AI analysis in background with full plant context
     if (onAnalyze) {
       onAnalyze(plant.id, { analyzing: true });
+      const plantEntries = (careLog[plant.id] || []).slice().reverse(); // recent-first
+      const portrait = portraits?.[plant.id] || {};
+      const plantHistory = (portrait.history || []).slice(-5); // last 5 observations
       const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
       fetch('/api/analyze-plant', {
         method: 'POST',
@@ -929,6 +932,15 @@ function PhotoSection({ plant, color, onAnalyze }) {
           plantType: plant.type,
           plantSpecies: plant.species || '',
           today: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+          careLog: plantEntries,
+          plantHistory,
+          plantContext: {
+            health: plant.health,
+            container: plant.container,
+            poem: plant.poem,
+            lore: plant.lore,
+            special: plant.special,
+          },
         }),
       })
         .then(r => r.json())
@@ -982,7 +994,7 @@ function PhotoSection({ plant, color, onAnalyze }) {
 }
 
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
-function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma, seasonOpen, onAnalyze }) {
+function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma, seasonOpen, onAnalyze, portraits }) {
   const [tab, setTab] = useState('history');
   const [showHowTo, setShowHowTo] = useState(null);
   const history = careLog[plant.id] || [];
@@ -1037,7 +1049,7 @@ function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma,
             </div>
             {/* Photo section */}
             {plant.type !== 'empty-pot' && plant.health !== 'memorial' && (
-              <PhotoSection plant={plant} color={color} onAnalyze={onAnalyze}/>
+              <PhotoSection plant={plant} color={color} careLog={careLog} onAnalyze={onAnalyze} portraits={portraits}/>
             )}
 
             {/* Badges */}
@@ -1327,7 +1339,14 @@ export default function App() {
   });
   const updatePortrait = useCallback((id, data) => {
     setPortraits(prev => {
-      const next = { ...prev, [id]: { ...prev[id], ...data } };
+      const existing = prev[id] || {};
+      // Append to history when a new completed analysis comes in
+      let history = existing.history || [];
+      if (!data.analyzing && data.visualNote && data.date) {
+        const newEntry = { visualNote: data.visualNote, growth: data.growth, date: data.date };
+        history = [...history, newEntry].slice(-10); // keep last 10
+      }
+      const next = { ...prev, [id]: { ...existing, ...data, history } };
       try { localStorage.setItem('gp_portraits_v1', JSON.stringify(next)); } catch {}
       return next;
     });
@@ -1649,7 +1668,7 @@ export default function App() {
               <div style={{position:'relative',width:320,flexShrink:0}}>
                 <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                   onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                  seasonOpen={seasonOpen} onAnalyze={updatePortrait}/>
+                  seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}/>
               </div>
             )}
             </>)}
@@ -1701,7 +1720,7 @@ export default function App() {
                     background:'rgba(250,246,238,0.97)',borderLeft:`1px solid ${C.cardBorder}`}}>
                     <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                       onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                      seasonOpen={seasonOpen} onAnalyze={updatePortrait}/>
+                      seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}/>
                   </div>
                 )}
               </div>

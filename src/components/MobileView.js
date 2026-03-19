@@ -104,42 +104,58 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, seasonOpen })
     if (plant.actions?.includes('photo')) {
       onAction('photo', plant);
     }
-    // Background AI analysis — updates growth in localStorage for map
-    const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
-    fetch('/api/analyze-plant', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageBase64: base64,
-        plantName: plant.name,
-        plantType: plant.type,
-        plantSpecies: plant.species || '',
-        today: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
-      }),
-    })
-      .then(r => r.json())
-      .then(({ analysis, svg }) => {
-        // Store portrait result for desktop to pick up
-        try {
-          const stored = JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}');
-          stored[plant.id] = {
-            ...stored[plant.id],
-            svg: svg || stored[plant.id]?.svg || null,
-            visualNote: analysis?.visualNote || stored[plant.id]?.visualNote || null,
-            growth: analysis?.growth ?? stored[plant.id]?.growth ?? null,
-            analyzing: false,
-            date: new Date().toISOString(),
-          };
-          localStorage.setItem('gp_portraits_v1', JSON.stringify(stored));
-          // Also update growth in existing gp_growth_v4
-          if (analysis?.growth != null) {
-            const growth = JSON.parse(localStorage.getItem('gp_growth_v4') || '{}');
-            growth[plant.id] = analysis.growth;
-            localStorage.setItem('gp_growth_v4', JSON.stringify(growth));
-          }
-        } catch {}
-      })
-      .catch(() => {});
+    // Background AI analysis — updates portrait store and growth for desktop to pick up
+    (() => {
+      try {
+        const stored = JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}');
+        const existingPortrait = stored[plant.id] || {};
+        const plantHistory = (existingPortrait.history || []).slice(-5);
+        const careStore = JSON.parse(localStorage.getItem('gp_care_v4') || '{}');
+        const plantEntries = (careStore[plant.id] || []).slice().reverse();
+        const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+
+        fetch('/api/analyze-plant', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: base64,
+            plantName: plant.name,
+            plantType: plant.type,
+            plantSpecies: plant.species || '',
+            today: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+            careLog: plantEntries,
+            plantHistory,
+            plantContext: {
+              health: plant.health,
+              container: plant.container,
+              poem: plant.poem,
+              lore: plant.lore,
+              special: plant.special,
+            },
+          }),
+        })
+          .then(r => r.json())
+          .then(({ analysis, svg }) => {
+            try {
+              const s = JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}');
+              const ex = s[plant.id] || {};
+              let history = ex.history || [];
+              const date = new Date().toISOString();
+              if (analysis?.visualNote) {
+                history = [...history, { visualNote: analysis.visualNote, growth: analysis.growth, date }].slice(-10);
+              }
+              s[plant.id] = { ...ex, svg: svg || ex.svg || null, visualNote: analysis?.visualNote || ex.visualNote || null, growth: analysis?.growth ?? ex.growth ?? null, analyzing: false, date, history };
+              localStorage.setItem('gp_portraits_v1', JSON.stringify(s));
+              if (analysis?.growth != null) {
+                const g = JSON.parse(localStorage.getItem('gp_growth_v4') || '{}');
+                g[plant.id] = analysis.growth;
+                localStorage.setItem('gp_growth_v4', JSON.stringify(g));
+              }
+            } catch {}
+          })
+          .catch(() => {});
+      } catch {}
+    })();
   }
 
   const waterStatus = actionStatus(plant, 'water', careLog, seasonOpen);
