@@ -101,7 +101,11 @@ export function useGardenData({ user }) {
     const earned = def.warmth * mult;
 
     if (supabase && user) {
-      const newWarmth = Math.min(1000, warmth + earned);
+      // Fetch current warmth from Supabase to avoid stale-closure race condition
+      // (can happen if action fires before loadFromSupabase completes after login)
+      const { data: gs } = await supabase.from('garden_state').select('warmth').eq('id', 1).single();
+      const currentWarmth = gs?.warmth ?? warmth;
+      const newWarmth = Math.min(1000, currentWarmth + earned);
       await Promise.all([
         supabase.from('care_log').insert({
           plant_id: plant.id, action: key, label: def.label, emoji: def.emoji,

@@ -85,7 +85,7 @@ async function compressImage(file, maxPx = 900, quality = 0.78) {
 }
 
 // ── MOBILE PLANT CARD ──────────────────────────────────────────────────────
-function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, seasonOpen }) {
+function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, seasonOpen }) {
   const [photos, setPhotos] = useState(() => getPhotos(plant.id));
   const fileRef = useRef(null);
   const color = plantColor(plant.type);
@@ -100,62 +100,60 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, seasonOpen })
     setPhotos(updated);
     e.target.value = '';
     onPhotoAdded?.();
-    // Log the photograph action
+    // Log the photograph action for warmth
     if (plant.actions?.includes('photo')) {
       onAction('photo', plant);
     }
-    // Background AI analysis — updates portrait store and growth for desktop to pick up
-    (() => {
-      try {
-        const stored = JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}');
-        const existingPortrait = stored[plant.id] || {};
-        const plantHistory = (existingPortrait.history || []).slice(-5);
-        const careStore = JSON.parse(localStorage.getItem('gp_care_v4') || '{}');
-        const plantEntries = (careStore[plant.id] || []).slice().reverse();
-        const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+    // Signal analysis start
+    onPortraitUpdate?.(plant.id, { analyzing: true });
+    // Background AI analysis — syncs to Supabase via onPortraitUpdate and onGrowthUpdate
+    try {
+      const stored = JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}');
+      const plantHistory = (stored[plant.id]?.history || []).slice(-5);
+      const careStore = JSON.parse(localStorage.getItem('gp_care_v4') || '{}');
+      const plantEntries = (careStore[plant.id] || []).slice().reverse();
+      const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
 
-        fetch('/api/analyze-plant', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageBase64: base64,
-            plantName: plant.name,
-            plantType: plant.type,
-            plantSpecies: plant.species || '',
-            today: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
-            careLog: plantEntries,
-            plantHistory,
-            plantContext: {
-              health: plant.health,
-              container: plant.container,
-              poem: plant.poem,
-              lore: plant.lore,
-              special: plant.special,
-            },
-          }),
+      fetch('/api/analyze-plant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: base64,
+          plantName: plant.name,
+          plantType: plant.type,
+          plantSpecies: plant.species || '',
+          today: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+          careLog: plantEntries,
+          plantHistory,
+          plantContext: {
+            health: plant.health,
+            container: plant.container,
+            poem: plant.poem,
+            lore: plant.lore,
+            special: plant.special,
+          },
+        }),
+      })
+        .then(r => r.json())
+        .then(({ analysis, svg }) => {
+          const date = new Date().toISOString();
+          onPortraitUpdate?.(plant.id, {
+            svg: svg || null,
+            visualNote: analysis?.visualNote || null,
+            growth: analysis?.growth ?? null,
+            bloomState: analysis?.bloomState || null,
+            foliageState: analysis?.foliageState || null,
+            analyzing: false,
+            date,
+          });
+          if (analysis?.growth != null) {
+            onGrowthUpdate?.(plant.id, analysis.growth);
+          }
         })
-          .then(r => r.json())
-          .then(({ analysis, svg }) => {
-            try {
-              const s = JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}');
-              const ex = s[plant.id] || {};
-              let history = ex.history || [];
-              const date = new Date().toISOString();
-              if (analysis?.visualNote) {
-                history = [...history, { visualNote: analysis.visualNote, growth: analysis.growth, date }].slice(-10);
-              }
-              s[plant.id] = { ...ex, svg: svg || ex.svg || null, visualNote: analysis?.visualNote || ex.visualNote || null, growth: analysis?.growth ?? ex.growth ?? null, analyzing: false, date, history };
-              localStorage.setItem('gp_portraits_v1', JSON.stringify(s));
-              if (analysis?.growth != null) {
-                const g = JSON.parse(localStorage.getItem('gp_growth_v4') || '{}');
-                g[plant.id] = analysis.growth;
-                localStorage.setItem('gp_growth_v4', JSON.stringify(g));
-              }
-            } catch {}
-          })
-          .catch(() => {});
-      } catch {}
-    })();
+        .catch(() => onPortraitUpdate?.(plant.id, { analyzing: false }));
+    } catch {
+      onPortraitUpdate?.(plant.id, { analyzing: false });
+    }
   }
 
   const waterStatus = actionStatus(plant, 'water', careLog, seasonOpen);
@@ -309,7 +307,7 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, seasonOpen })
 }
 
 // ── QUICK CARE TAB ─────────────────────────────────────────────────────────
-function QuickCareTab({ plants, careLog, onAction, seasonOpen }) {
+function QuickCareTab({ plants, careLog, onAction, onPortraitUpdate, onGrowthUpdate, seasonOpen }) {
   const actionable = plants.filter(p =>
     p.health !== 'memorial' && p.type !== 'empty-pot' &&
     (p.actions || []).some(a => actionStatus(p, a, careLog, seasonOpen).available && !ACTION_DEFS[a]?.alwaysAvailable)
@@ -354,7 +352,8 @@ function QuickCareTab({ plants, careLog, onAction, seasonOpen }) {
         {prioritized.length} NEED{prioritized.length !== 1 ? 'S' : ''} CARE
       </div>
       {prioritized.map(p => (
-        <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction} seasonOpen={seasonOpen}/>
+        <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction}
+          onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate} seasonOpen={seasonOpen}/>
       ))}
     </div>
   );
@@ -493,7 +492,8 @@ function MobileSignIn({ signIn }) {
 // ── MAIN MOBILE VIEW ───────────────────────────────────────────────────────
 export function MobileView({
   plants, careLog, warmth, weather,
-  onAction, role, signIn, signOut, seasonOpen,
+  onAction, onPortraitUpdate, onGrowthUpdate,
+  role, signIn, signOut, seasonOpen,
 }) {
   const [tab, setTab] = useState('care');
   const [flash, setFlash] = useState(null);
@@ -581,14 +581,16 @@ export function MobileView({
             {plants
               .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
               .map(p => (
-                <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction} seasonOpen={seasonOpen}/>
+                <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction}
+                  onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate} seasonOpen={seasonOpen}/>
               ))
             }
           </div>
         )}
 
         {tab === 'care' && (
-          <QuickCareTab plants={plants} careLog={careLog} onAction={handleAction} seasonOpen={seasonOpen}/>
+          <QuickCareTab plants={plants} careLog={careLog} onAction={handleAction}
+            onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate} seasonOpen={seasonOpen}/>
         )}
 
         {tab === 'oracle' && (

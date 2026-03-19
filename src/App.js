@@ -8,6 +8,7 @@ import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
 import { fetchOracle, fetchSeasonOpener, fetchMissedCareVoice } from './claude';
+import { usePortraits } from './hooks/usePortraits';
 import { useAuth } from './hooks/useAuth';
 import { useGardenData } from './hooks/useGardenData';
 import { useMigration } from './hooks/useMigration';
@@ -1336,23 +1337,7 @@ export default function App() {
   const [expInput, setExpInput] = useState({desc:'',amount:'',plantId:''});
   const [draggingId, setDraggingId] = useState(null);
   const [oracle, setOracle] = useState(null);
-  const [portraits, setPortraits] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}'); } catch { return {}; }
-  });
-  const updatePortrait = useCallback((id, data) => {
-    setPortraits(prev => {
-      const existing = prev[id] || {};
-      // Append to history when a new completed analysis comes in
-      let history = existing.history || [];
-      if (!data.analyzing && data.visualNote && data.date) {
-        const newEntry = { visualNote: data.visualNote, growth: data.growth, date: data.date };
-        history = [...history, newEntry].slice(-10); // keep last 10
-      }
-      const next = { ...prev, [id]: { ...existing, ...data, history } };
-      try { localStorage.setItem('gp_portraits_v1', JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }, []);
+  const { portraits, updatePortrait } = usePortraits({ user });
   const [customPlants, setCustomPlants] = useState(() => {
     try { return JSON.parse(localStorage.getItem('gp_custom_plants_v1') || '[]'); } catch { return []; }
   });
@@ -1563,6 +1548,8 @@ export default function App() {
         warmth={warmth}
         weather={weather}
         onAction={doAction}
+        onPortraitUpdate={updatePortrait}
+        onGrowthUpdate={updateGrowth}
         role={role}
         signIn={signIn}
         signOut={signOut}
