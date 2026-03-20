@@ -43,6 +43,39 @@ export function usePortraits({ user }) {
       .catch(() => {});
   }, [user]);
 
+  // Realtime: push portrait updates from the other device
+  useEffect(() => {
+    if (!supabase) return;
+    const channel = supabase.channel('portrait-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'plant_portraits' }, payload => {
+        const row = payload.new;
+        if (!row?.plant_id) return;
+        setPortraits(prev => {
+          const existing = prev[row.plant_id] || {};
+          const sbDate = row.updated_at ? new Date(row.updated_at).getTime() : 0;
+          const localDate = existing.date ? new Date(existing.date).getTime() : 0;
+          if (sbDate <= localDate && existing.svg) return prev; // already have newer
+          const merged = {
+            ...prev,
+            [row.plant_id]: {
+              svg: row.svg || existing.svg || null,
+              visualNote: row.visual_note || existing.visualNote || null,
+              growth: row.growth ?? existing.growth ?? null,
+              bloomState: row.bloom_state || existing.bloomState || null,
+              foliageState: row.foliage_state || existing.foliageState || null,
+              history: row.history || existing.history || [],
+              analyzing: false,
+              date: row.updated_at || existing.date,
+            },
+          };
+          try { localStorage.setItem('gp_portraits_v1', JSON.stringify(merged)); } catch {}
+          return merged;
+        });
+      })
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, []);
+
   const updatePortrait = useCallback((id, data) => {
     setPortraits(prev => {
       const existing = prev[id] || {};

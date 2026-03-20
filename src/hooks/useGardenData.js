@@ -46,6 +46,7 @@ export function useGardenData({ user }) {
           });
         });
         setCareLogState(log);
+        lsSave(LS.care, log); // write back so next cold load is instant + accurate
       }
 
       if (stateRows) {
@@ -54,15 +55,19 @@ export function useGardenData({ user }) {
           if (row.pos_x != null) pos[row.plant_id] = { x: row.pos_x, y: row.pos_y };
           if (row.growth != null) gr[row.plant_id] = row.growth;
         });
-        if (Object.keys(pos).length) setPositionsState(pos);
-        if (Object.keys(gr).length) setGrowthState(gr);
+        if (Object.keys(pos).length) { setPositionsState(pos); lsSave(LS.positions, pos); }
+        if (Object.keys(gr).length) { setGrowthState(gr); lsSave(LS.growth, gr); }
       }
 
-      if (gardenRow) setWarmthState(gardenRow.warmth);
-      if (expenseRows) setExpensesState(expenseRows.map(r => ({
-        id: r.id, desc: r.description, cents: r.cents,
-        plantId: r.plant_id, date: r.created_at,
-      })));
+      if (gardenRow) { setWarmthState(gardenRow.warmth); lsSave(LS.warmth, gardenRow.warmth); }
+      if (expenseRows) {
+        const exps = expenseRows.map(r => ({
+          id: r.id, desc: r.description, cents: r.cents,
+          plantId: r.plant_id, date: r.created_at,
+        }));
+        setExpensesState(exps);
+        lsSave(LS.expenses, exps);
+      }
 
       setDbLoading(false);
     }
@@ -77,17 +82,29 @@ export function useGardenData({ user }) {
     const channel = supabase.channel('garden-updates')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'care_log' }, payload => {
         const row = payload.new;
-        setCareLogState(prev => ({
-          ...prev,
-          [row.plant_id]: [...(prev[row.plant_id] || []), {
-            action: row.action, label: row.label, emoji: row.emoji,
-            earned: row.earned, withEmma: row.with_emma,
-            date: row.created_at, plantName: row.plant_name,
-          }],
-        }));
+        setCareLogState(prev => {
+          const u = {
+            ...prev,
+            [row.plant_id]: [...(prev[row.plant_id] || []), {
+              action: row.action, label: row.label, emoji: row.emoji,
+              earned: row.earned, withEmma: row.with_emma,
+              date: row.created_at, plantName: row.plant_name,
+            }],
+          };
+          lsSave(LS.care, u);
+          return u;
+        });
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'garden_state' }, payload => {
-        setWarmthState(payload.new.warmth);
+        const w = payload.new.warmth;
+        setWarmthState(w);
+        lsSave(LS.warmth, w);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'plant_state' }, payload => {
+        const row = payload.new;
+        if (row.growth != null) {
+          setGrowthState(prev => { const u = { ...prev, [row.plant_id]: row.growth }; lsSave(LS.growth, u); return u; });
+        }
       })
       .subscribe();
 
