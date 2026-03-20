@@ -866,8 +866,9 @@ function WallFourPlants({ plants, selectedId, hoveredId }) {
           case 'evergreen-xmas': plant = <WallFourEvergreen {...common} isXmas={true}/>; break;
           default: plant = null;
         }
+        const isCornerEvergreen = p.type === 'evergreen' || p.type === 'evergreen-xmas';
         return plant ? (
-          <g key={p.id} transform={`translate(${x},${y}) scale(1.5) translate(${-x},${-y})`}>
+          <g key={p.id} transform={isCornerEvergreen ? undefined : `translate(${x},${y}) scale(1.5) translate(${-x},${-y})`}>
             {plant}
           </g>
         ) : null;
@@ -998,7 +999,7 @@ function PlantToken({ plant, isSelected, isHovered }) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
-export function TerraceMap({ plants, selectedId, cookiePos, onSelect, onMove, onDescend, onHover }) {
+export function TerraceMap({ plants, selectedId, cookiePos, onSelect, onMove, onDescend, onHover, onCookieShoo }) {
   const [hovId, setHovId] = useState(null);
 
   useEffect(() => {
@@ -1078,9 +1079,17 @@ export function TerraceMap({ plants, selectedId, cookiePos, onSelect, onMove, on
     if (pt.y >= DB - 4 && pt.x >= DOOR_X - DOOR_W/2 && pt.x <= DOOR_X + DOOR_W/2) {
       onDescend?.(); return;
     }
+    // Cookie hit test — check before plants
+    if (cookiePos) {
+      const cx = DL + cookiePos.x * DW;
+      const cy = DT + cookiePos.y * DH;
+      if (Math.hypot(pt.x - cx, pt.y - cy) <= 24) {
+        onCookieShoo?.(); return;
+      }
+    }
     const hit = hitTest(pt);
     onSelect?.(hit ?? null);
-  }, [svgPt, hitTest, onSelect, onDescend]);
+  }, [svgPt, hitTest, onSelect, onDescend, cookiePos, onCookieShoo]);
 
   const onMouseUp = useCallback(() => setDragId(null), []);
 
@@ -1544,25 +1553,45 @@ export function TerraceMap({ plants, selectedId, cookiePos, onSelect, onMove, on
       {/* ── Vignette (depth) ── */}
       <rect x={0} y={0} width={VW} height={VH} fill="url(#vignette)" clipPath="url(#deckClip)"/>
 
-      {/* ── Cookie ── */}
+      {/* ── Cookie — white cat with black patches, bird's-eye view ── */}
       {cookiePos && (() => {
         const cx = DL + cookiePos.x * DW;
         const cy = DT + cookiePos.y * DH;
         return (
-          <g transform={`translate(${cx},${cy})`}>
-            <ellipse cx={4} cy={8} rx={22} ry={8} fill="url(#cookieglow)"/>
-            <rect x={-13} y={-7} width={27} height={14} rx={7} fill="#1e1e1e"/>
-            <rect x={-5} y={-5} width={13} height={9} rx={4} fill="#f0f0f0"/>
-            <circle cx={-9} cy={-11} r={11} fill="#1e1e1e"/>
-            <circle cx={-8} cy={-10} r={6} fill="#f0f0f0"/>
-            <polygon points="-18,-17 -13,-25 -8,-17" fill="#1e1e1e"/>
-            <polygon points="-9,-18 -4,-25 1,-17" fill="#1e1e1e"/>
-            <ellipse cx={-12} cy={-10} rx={3} ry={2} fill="#48c848"/>
-            <ellipse cx={-6}  cy={-10} rx={3} ry={2} fill="#48c848"/>
-            <circle cx={-12} cy={-10} r={1.5} fill="#000"/>
-            <circle cx={-6}  cy={-10} r={1.5} fill="#000"/>
-            <path d="M14,0 C25,-3 31,-11 26,-22"
-              fill="none" stroke="#1e1e1e" strokeWidth={3.5} strokeLinecap="round"/>
+          <g transform={`translate(${cx},${cy})`} style={{cursor:'pointer'}}>
+            {/* Soft glow */}
+            <ellipse cx={2} cy={9} rx={21} ry={8} fill="url(#cookieglow)"/>
+            {/* Body — white */}
+            <ellipse cx={2} cy={1} rx={13} ry={8.5} fill="#f2f2f2"/>
+            {/* Black back patch */}
+            <ellipse cx={5} cy={0} rx={8} ry={5.5} fill="#1c1c1c" opacity={0.90}/>
+            {/* Head — white, forward-left */}
+            <circle cx={-11} cy={0} r={8.5} fill="#f2f2f2"/>
+            {/* Black head patch (one side) */}
+            <ellipse cx={-13} cy={-2} rx={4.5} ry={3.5} fill="#1c1c1c" opacity={0.82}/>
+            {/* Ears */}
+            <polygon points="-17,-7 -15,-15 -10,-7" fill="#f2f2f2"/>
+            <polygon points="-11,-7 -8,-14 -5,-7" fill="#f2f2f2"/>
+            <polygon points="-16,-8 -14,-13 -11,-8" fill="#ffc8c8" opacity={0.65}/>
+            <polygon points="-10,-8 -8,-12 -6,-8" fill="#ffc8c8" opacity={0.65}/>
+            {/* Green eyes with pupils + highlight */}
+            <ellipse cx={-13} cy={0} rx={2.4} ry={2} fill="#44cc44"/>
+            <circle cx={-13} cy={0} r={1.3} fill="#0a0a0a"/>
+            <circle cx={-12.4} cy={-0.6} r={0.45} fill="rgba(255,255,255,0.75)"/>
+            <ellipse cx={-7} cy={0} rx={2.4} ry={2} fill="#44cc44"/>
+            <circle cx={-7} cy={0} r={1.3} fill="#0a0a0a"/>
+            <circle cx={-6.4} cy={-0.6} r={0.45} fill="rgba(255,255,255,0.75)"/>
+            {/* Pink nose */}
+            <ellipse cx={-10} cy={2.5} rx={1.8} ry={1.2} fill="#ffaaaa"/>
+            {/* Tail — black, curving right */}
+            <path d="M14,3 C23,1 27,-8 22,-18"
+              fill="none" stroke="#1c1c1c" strokeWidth={3.2} strokeLinecap="round"/>
+            {/* Shoo prompt — small label */}
+            <text x={0} y={22} textAnchor="middle"
+              fontFamily={SERIF} fontSize={7} fill="rgba(240,228,200,0.55)"
+              style={{pointerEvents:'none', filter:'drop-shadow(0 1px 2px rgba(0,0,0,1))'}}>
+              Cookie · tap to shoo
+            </text>
           </g>
         );
       })()}

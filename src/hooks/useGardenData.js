@@ -143,6 +143,17 @@ export function useGardenData({ user }) {
     }
   }, [user]);
 
+  const addWarmth = useCallback(async (amount) => {
+    if (supabase && user) {
+      const { data: gs } = await supabase.from('garden_state').select('warmth').eq('id', 1).single();
+      const currentWarmth = gs?.warmth ?? warmth;
+      const newWarmth = Math.min(1000, currentWarmth + amount);
+      await supabase.from('garden_state').update({ warmth: newWarmth }).eq('id', 1);
+    } else {
+      setWarmthState(w => { const nw = Math.min(1000, w + amount); lsSave(LS.warmth, nw); return nw; });
+    }
+  }, [user, warmth]);
+
   const addExpense = useCallback(async (desc, cents, plantId) => {
     const exp = { id: Date.now(), desc, cents, plantId: plantId || null, date: new Date().toISOString() };
     setExpensesState(prev => { const u = [...prev, exp]; lsSave(LS.expenses, u); return u; });
@@ -155,6 +166,6 @@ export function useGardenData({ user }) {
 
   return {
     warmth, careLog, expenses, positions, growth, dbLoading,
-    logAction, updateGrowth, movePosition, addExpense,
+    logAction, updateGrowth, movePosition, addExpense, addWarmth,
   };
 }

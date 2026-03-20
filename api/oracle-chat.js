@@ -11,7 +11,7 @@ function buildSystem(ctx) {
     if (p.container) parts.push(`container: ${p.container}`);
     if (p.lastWatered) parts.push(`last watered: ${p.lastWatered}`);
     if (p.growth != null) parts.push(`growth: ${Math.round(p.growth * 100)}%`);
-    if (p.poem) parts.push(`spirit: "${p.poem.slice(0, 60).replace(/\n/g, ' ')}..."`);
+    if (p.visualNote) parts.push(`seen ${p.lastAnalyzed || 'recently'}: "${p.visualNote}"`);
     return parts.join(', ');
   }).join('\n');
 

@@ -61,12 +61,6 @@ function actionStatus(plant, key, careLog, seasonOpen) {
 }
 
 // ── PHOTO helpers ──────────────────────────────────────────────────────────
-function getPhotos(plantId) {
-  try { return JSON.parse(localStorage.getItem('gp_photos_' + plantId) || '[]'); } catch { return []; }
-}
-function savePhotos(plantId, photos) {
-  try { localStorage.setItem('gp_photos_' + plantId, JSON.stringify(photos)); } catch {}
-}
 async function compressImage(file, maxPx = 900, quality = 0.78) {
   return new Promise(resolve => {
     const img = new Image();
@@ -85,8 +79,7 @@ async function compressImage(file, maxPx = 900, quality = 0.78) {
 }
 
 // ── MOBILE PLANT CARD ──────────────────────────────────────────────────────
-function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, seasonOpen }) {
-  const [photos, setPhotos] = useState(() => getPhotos(plant.id));
+function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, onAddPhoto, photos = [], seasonOpen }) {
   const fileRef = useRef(null);
   const color = plantColor(plant.type);
   const lastPhoto = photos[photos.length - 1];
@@ -94,10 +87,8 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
   async function handleFile(e) {
     const file = e.target.files[0]; if (!file) return;
     const dataUrl = await compressImage(file);
-    const newPhoto = { dataUrl, date: new Date().toISOString() };
-    const updated = [...photos, newPhoto].slice(-5);
-    savePhotos(plant.id, updated);
-    setPhotos(updated);
+    const date = new Date().toISOString();
+    onAddPhoto?.(plant.id, dataUrl, date);
     e.target.value = '';
     onPhotoAdded?.();
     // Log the photograph action for warmth
@@ -181,7 +172,7 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
           boxSizing: 'border-box',
         }}>
         {lastPhoto ? (
-          <img src={lastPhoto.dataUrl} alt={plant.name}
+          <img src={lastPhoto.dataUrl || lastPhoto.url} alt={plant.name}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
         ) : (
           <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -307,7 +298,7 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
 }
 
 // ── QUICK CARE TAB ─────────────────────────────────────────────────────────
-function QuickCareTab({ plants, careLog, onAction, onPortraitUpdate, onGrowthUpdate, seasonOpen }) {
+function QuickCareTab({ plants, careLog, onAction, onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos = {}, seasonOpen }) {
   const actionable = plants.filter(p =>
     p.health !== 'memorial' && p.type !== 'empty-pot' &&
     (p.actions || []).some(a => actionStatus(p, a, careLog, seasonOpen).available && !ACTION_DEFS[a]?.alwaysAvailable)
@@ -353,7 +344,8 @@ function QuickCareTab({ plants, careLog, onAction, onPortraitUpdate, onGrowthUpd
       </div>
       {prioritized.map(p => (
         <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction}
-          onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate} seasonOpen={seasonOpen}/>
+          onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
+          onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} seasonOpen={seasonOpen}/>
       ))}
     </div>
   );
@@ -492,7 +484,7 @@ function MobileSignIn({ signIn }) {
 // ── MAIN MOBILE VIEW ───────────────────────────────────────────────────────
 export function MobileView({
   plants, careLog, warmth, weather,
-  onAction, onPortraitUpdate, onGrowthUpdate,
+  onAction, onPortraitUpdate, onGrowthUpdate, allPhotos = {}, onAddPhoto,
   role, signIn, signOut, seasonOpen,
 }) {
   const [tab, setTab] = useState('care');
@@ -582,7 +574,8 @@ export function MobileView({
               .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
               .map(p => (
                 <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction}
-                  onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate} seasonOpen={seasonOpen}/>
+                  onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
+                  onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} seasonOpen={seasonOpen}/>
               ))
             }
           </div>
@@ -590,7 +583,8 @@ export function MobileView({
 
         {tab === 'care' && (
           <QuickCareTab plants={plants} careLog={careLog} onAction={handleAction}
-            onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate} seasonOpen={seasonOpen}/>
+            onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
+            onAddPhoto={onAddPhoto} allPhotos={allPhotos} seasonOpen={seasonOpen}/>
         )}
 
         {tab === 'oracle' && (

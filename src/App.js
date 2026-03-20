@@ -9,6 +9,7 @@ import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
 import { fetchOracle, fetchSeasonOpener, fetchMissedCareVoice } from './claude';
 import { usePortraits } from './hooks/usePortraits';
+import { usePhotos } from './hooks/usePhotos';
 import { useAuth } from './hooks/useAuth';
 import { useGardenData } from './hooks/useGardenData';
 import { useMigration } from './hooks/useMigration';
@@ -154,12 +155,6 @@ function fmtDate(iso) {
 }
 
 // ── PHOTO STORAGE ─────────────────────────────────────────────────────────
-function getPhotos(plantId) {
-  try { return JSON.parse(localStorage.getItem('gp_photos_' + plantId) || '[]'); } catch { return []; }
-}
-function savePhotos(plantId, photos) {
-  try { localStorage.setItem('gp_photos_' + plantId, JSON.stringify(photos)); } catch {}
-}
 async function compressImage(file, maxPx = 900, quality = 0.78) {
   return new Promise(resolve => {
     const img = new Image();
@@ -561,8 +556,18 @@ function drawCookieSprite(ctx,cx,cy,f){
 const WAYPOINTS=[{x:.32,y:.55},{x:.42,y:.65},{x:.50,y:.50},{x:.44,y:.42},{x:.36,y:.58},{x:.48,y:.72},{x:.38,y:.62}];
 function useCookie(){
   const [pos,setPos]=useState({x:.40,y:.60});
+  const [shooed,setShooed]=useState(false);
   const ref=useRef({wp:0,t:0});
+  const timerRef=useRef(null);
+
+  const shoo=useCallback(()=>{
+    setShooed(true);
+    clearTimeout(timerRef.current);
+    timerRef.current=setTimeout(()=>setShooed(false), 10*60*1000); // returns in 10 min
+  },[]);
+
   useEffect(()=>{
+    if(shooed) return;
     let last=null,raf;
     const step=ts=>{
       if(last!==null){const dt=Math.min(ts-last,50);ref.current.t+=dt*.00007;
@@ -571,7 +576,8 @@ function useCookie(){
         const st=ease(ref.current.t);setPos({x:fr.x+(to.x-fr.x)*st,y:fr.y+(to.y-fr.y)*st});}
       last=ts;raf=requestAnimationFrame(step);};
     raf=requestAnimationFrame(step);return()=>cancelAnimationFrame(raf);
-  },[]);return pos;
+  },[shooed]);
+  return {pos: shooed ? null : pos, shoo};
 }
 
 // ── MAP HOVER CARD ────────────────────────────────────────────────────────
@@ -770,14 +776,14 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma
 }
 
 // ── PLANT CARD ────────────────────────────────────────────────────────────
-function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait }) {
+function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait, photos = [] }) {
   const history = careLog[plant.id] || [];
   const lastAction = history.length > 0 ? history[history.length-1] : null;
   const needsCare = seasonOpen && plant.actions?.some(a => actionStatus(plant, a, careLog, seasonOpen).available && !ACTION_DEFS[a]?.alwaysAvailable);
   const color = plantColor(plant.type);
   const hColor = healthColor(plant.health);
   const poemLines = plant.poem ? plant.poem.split('\n') : [];
-  const hasPhoto = getPhotos(plant.id).length > 0;
+  const hasPhoto = photos.length > 0;
   const needsDoc = !seasonOpen && !hasPhoto && plant.health !== 'memorial' && plant.type !== 'empty-pot';
 
   return (
@@ -907,17 +913,14 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait 
 }
 
 // ── PHOTO SECTION ─────────────────────────────────────────────────────────
-function PhotoSection({ plant, color, careLog, onAnalyze, portraits }) {
-  const [photos, setPhotos] = useState(() => getPhotos(plant.id));
+function PhotoSection({ plant, color, careLog, onAnalyze, portraits, photos = [], onAddPhoto, onGrowthUpdate }) {
   const fileRef = useRef(null);
 
   async function handleFile(e) {
     const file = e.target.files[0]; if (!file) return;
     const dataUrl = await compressImage(file);
-    const newPhoto = { dataUrl, date: new Date().toISOString() };
-    const updated = [...photos, newPhoto].slice(-5); // keep last 5
-    savePhotos(plant.id, updated);
-    setPhotos(updated);
+    const date = new Date().toISOString();
+    onAddPhoto?.(plant.id, dataUrl, date);
     e.target.value = '';
     // Trigger AI analysis in background with full plant context
     if (onAnalyze) {
@@ -958,7 +961,7 @@ function PhotoSection({ plant, color, careLog, onAnalyze, portraits }) {
             date: new Date().toISOString(),
           });
           if (analysis?.growth != null) {
-            updateGrowth(plant.id, analysis.growth);
+            onGrowthUpdate?.(plant.id, analysis.growth);
           }
         })
         .catch(() => onAnalyze(plant.id, { analyzing: false }));
@@ -969,7 +972,7 @@ function PhotoSection({ plant, color, careLog, onAnalyze, portraits }) {
   return (
     <div style={{marginBottom:14,borderRadius:8,overflow:'hidden',border:`1px solid ${color}22`}}>
       {lastPhoto ? (
-        <img src={lastPhoto.dataUrl} alt={plant.name}
+        <img src={lastPhoto.dataUrl || lastPhoto.url} alt={plant.name}
           style={{width:'100%',maxHeight:200,objectFit:'cover',display:'block'}}/>
       ) : (
         <div style={{height:72,display:'flex',alignItems:'center',justifyContent:'center',
@@ -997,7 +1000,7 @@ function PhotoSection({ plant, color, careLog, onAnalyze, portraits }) {
 }
 
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
-function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma, seasonOpen, onAnalyze, portraits }) {
+function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate }) {
   const [tab, setTab] = useState('history');
   const [showHowTo, setShowHowTo] = useState(null);
   const history = careLog[plant.id] || [];
@@ -1052,7 +1055,8 @@ function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma,
             </div>
             {/* Photo section */}
             {plant.type !== 'empty-pot' && plant.health !== 'memorial' && (
-              <PhotoSection plant={plant} color={color} careLog={careLog} onAnalyze={onAnalyze} portraits={portraits}/>
+              <PhotoSection plant={plant} color={color} careLog={careLog} onAnalyze={onAnalyze}
+                portraits={portraits} photos={photos} onAddPhoto={onAddPhoto} onGrowthUpdate={onGrowthUpdate}/>
             )}
 
             {/* Badges */}
@@ -1329,7 +1333,7 @@ export default function App() {
   const [hov, setHov] = useState(null);
   const [withEmma, setWithEmma] = useState(false);
   const { user, role, signIn, signOut, checking, authError } = useAuth();
-  const { warmth, careLog, expenses, positions, growth, logAction, updateGrowth, movePosition, addExpense: addExpenseDb } = useGardenData({ user });
+  const { warmth, careLog, expenses, positions, growth, logAction, updateGrowth, movePosition, addExpense: addExpenseDb, addWarmth } = useGardenData({ user });
   useMigration({ user });
   const isMobile = useIsMobile();
   const [flash, setFlash] = useState(null);
@@ -1338,6 +1342,7 @@ export default function App() {
   const [draggingId, setDraggingId] = useState(null);
   const [oracle, setOracle] = useState(null);
   const { portraits, updatePortrait } = usePortraits({ user });
+  const { allPhotos, addPhoto } = usePhotos({ user });
   const [customPlants, setCustomPlants] = useState(() => {
     try { return JSON.parse(localStorage.getItem('gp_custom_plants_v1') || '[]'); } catch { return []; }
   });
@@ -1359,7 +1364,7 @@ export default function App() {
     () => !!localStorage.getItem('gp_season_opener_dismissed_2026')
   );
   const weather = useWeather();
-  const cookiePos = useCookie();
+  const { pos: cookiePos, shoo: shooСookie } = useCookie();
 
   const frontPlants = useMemo(() => FRONT_PLANTS, []);
 
@@ -1397,7 +1402,7 @@ export default function App() {
   //   3. Weather: not raining today, <60% rain chance tomorrow
   const { seasonOpen, seasonReadiness, plantsNeedingPhotos, photoCount, activePlantCount, seasonBlocking } = useMemo(() => {
     const active = terracePlants.filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
-    const withPhotos = active.filter(p => getPhotos(p.id).length > 0);
+    const withPhotos = active.filter(p => (allPhotos[p.id] || []).length > 0);
     const score = active.length > 0 ? withPhotos.length / active.length : 0;
     const readinessOk = score >= 0.75;
 
@@ -1417,12 +1422,12 @@ export default function App() {
     return {
       seasonOpen: readinessOk && calendarOk && weatherOk,
       seasonReadiness: score,
-      plantsNeedingPhotos: active.filter(p => getPhotos(p.id).length === 0).map(p => p.name),
+      plantsNeedingPhotos: active.filter(p => (allPhotos[p.id] || []).length === 0).map(p => p.name),
       photoCount: withPhotos.length,
       activePlantCount: active.length,
       seasonBlocking: blocking,
     };
-  }, [terracePlants, weather]);
+  }, [terracePlants, weather, allPhotos]);
 
   // Oracle — fetch once per day on mount, after weather loads
   useEffect(() => {
@@ -1430,11 +1435,11 @@ export default function App() {
     const photoContext = TERRACE_PLANTS
       .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
       .map(p => {
-        const all = getPhotos(p.id);
+        const all = allPhotos[p.id] || [];
         return { name: p.name, count: all.length, lastDate: all[all.length - 1]?.date ?? null };
       });
     const totalPhotos = photoContext.reduce((s, p) => s + p.count, 0);
-    fetchOracle({ weather, warmth, plants: TERRACE_PLANTS, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos })
+    fetchOracle({ weather, warmth, plants: TERRACE_PLANTS, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits })
       .then(setOracle)
       .catch(() => {}); // fail silently in local dev
   }, [weather]);
@@ -1550,6 +1555,8 @@ export default function App() {
         onAction={doAction}
         onPortraitUpdate={updatePortrait}
         onGrowthUpdate={updateGrowth}
+        allPhotos={allPhotos}
+        onAddPhoto={addPhoto}
         role={role}
         signIn={signIn}
         signOut={signOut}
@@ -1719,7 +1726,7 @@ export default function App() {
                           {ps.map(p=>(
                             <PlantCard key={p.id} plant={p} careLog={careLog}
                               onSelect={p=>{setSel(p);}} isSelected={sel?.id===p.id} seasonOpen={seasonOpen}
-                              portrait={portraits[p.id]}/>
+                              portrait={portraits[p.id]} photos={allPhotos[p.id] || []}/>
                           ))}
                         </div>
                       </div>
@@ -1768,7 +1775,8 @@ export default function App() {
               <div style={{position:'relative',width:320,flexShrink:0}}>
                 <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                   onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                  seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}/>
+                  seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}
+                  photos={allPhotos[sel.id] || []} onAddPhoto={addPhoto} onGrowthUpdate={updateGrowth}/>
               </div>
             )}
             </>)}
@@ -1786,6 +1794,12 @@ export default function App() {
                       plants={mapPlants}
                       selectedId={sel?.id}
                       cookiePos={cookiePos}
+                      onCookieShoo={() => {
+                        shooСookie();
+                        setFlash('🐱 Cookie shooed! +5♥');
+                        setTimeout(() => setFlash(null), 2500);
+                        addWarmth(5);
+                      }}
                       onSelect={p=>{ if(p) setSel(p); else setSel(null); }}
                       onMove={(id,pos)=>movePosition(id,pos)}
                       onHover={setHov}
@@ -1822,7 +1836,8 @@ export default function App() {
                     background:'rgba(250,246,238,0.97)',borderLeft:`1px solid ${C.cardBorder}`}}>
                     <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                       onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                      seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}/>
+                      seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}
+                      photos={allPhotos[sel.id] || []} onAddPhoto={addPhoto} onGrowthUpdate={updateGrowth}/>
                   </div>
                 )}
               </div>
@@ -1847,6 +1862,7 @@ export default function App() {
             weather={weather}
             seasonOpen={seasonOpen}
             seasonBlocking={seasonBlocking}
+            portraits={portraits}
             style={{flex:1}}
           />
         )}

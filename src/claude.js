@@ -43,9 +43,17 @@ export async function cachedClaude(cacheKey, systemPrompt, userPrompt, maxTokens
 
 // ── ORACLE ────────────────────────────────────────────────────────────────
 // Daily garden greeting. Cached until midnight (busted when photo count changes).
-export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen, seasonBlocking, daysUntilSeason, photoContext = [], totalPhotos = 0 }) {
+export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen, seasonBlocking, daysUntilSeason, photoContext = [], totalPhotos = 0, portraits = {} }) {
   const today = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
-  const cacheKey = `oracle_${new Date().toISOString().slice(0, 10)}_p${totalPhotos}`;
+
+  // Find most recent portrait analysis date so cache busts when new photos are analyzed
+  const lastPortraitDate = Object.values(portraits)
+    .filter(p => p?.date && !p.analyzing)
+    .map(p => p.date)
+    .sort()
+    .pop() ?? '';
+  const portraitCacheToken = lastPortraitDate ? lastPortraitDate.slice(0, 16).replace(/\D/g, '') : '0';
+  const cacheKey = `oracle_${new Date().toISOString().slice(0, 10)}_p${totalPhotos}_v${portraitCacheToken}`;
 
   const needsWater = plants.filter(p => {
     if (!p.actions?.includes('water')) return false;
@@ -67,6 +75,17 @@ export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen
   const weatherDesc = weather
     ? `${Math.round(weather.temp)}°F, ${weather.poem}`
     : 'weather unknown';
+
+  // Build visual notes from portrait analyses (what the oracle has actually seen)
+  const visualNotes = plants
+    .filter(p => portraits[p.id]?.visualNote && !portraits[p.id]?.analyzing)
+    .map(p => {
+      const port = portraits[p.id];
+      const dateStr = port.date
+        ? new Date(port.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : 'recently';
+      return `• ${p.name} (seen ${dateStr}): ${port.visualNote}`;
+    });
 
   const unphotographed = photoContext.filter(p => p.count === 0).map(p => p.name);
   const photographed = photoContext.filter(p => p.count > 0).map(p => {
@@ -101,7 +120,7 @@ Current warmth: ${warmth} points.
 Weather today: ${weatherDesc}.
 ${needsWater.length > 0 ? `Overdue for water: ${needsWater.join(', ')}.` : 'No plants overdue for water.'}
 ${recentCare.length > 0 ? `Cared for in past 48h: ${recentCare.join(', ')}.` : ''}
-
+${visualNotes.length > 0 ? `\nRECENT PHOTO OBSERVATIONS:\n${visualNotes.join('\n')}` : ''}
 Give Tucker one specific, useful observation about what's happening right now.`;
 
   return cachedClaude(cacheKey, systemPrompt, userPrompt, 160);
