@@ -7,7 +7,7 @@ import { TERRACE_PLANTS, FRONT_PLANTS, ACTION_DEFS, ACTION_HOWTO } from './data/
 import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
-import { fetchOracle, fetchSeasonOpener, fetchMissedCareVoice } from './claude';
+import { fetchOracle, fetchSeasonOpener, fetchMissedCareVoice, fetchPlantBriefing } from './claude';
 import { usePortraits } from './hooks/usePortraits';
 import { usePhotos } from './hooks/usePhotos';
 import { useAuth } from './hooks/useAuth';
@@ -569,7 +569,25 @@ function MissedCareVoice({ plant, daysSinceWater }) {
   );
 }
 
-function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma, setWithEmma, seasonOpen }) {
+function PlantBriefing({ plant, careLog, weather, portraits }) {
+  const [note, setNote] = useState(null);
+  useEffect(() => {
+    setNote(null);
+    fetchPlantBriefing(plant, careLog, weather, portraits)
+      .then(setNote)
+      .catch(() => {});
+  }, [plant.id, plant.health]);
+  if (!note) return null;
+  return (
+    <div style={{ padding:'12px 22px', borderBottom:'1px solid rgba(160,130,80,0.10)',
+      fontStyle:'italic', fontSize:12.5, lineHeight:1.6,
+      color:'rgba(212,190,140,0.78)' }}>
+      {note}
+    </div>
+  );
+}
+
+function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma, setWithEmma, seasonOpen, portraits, weather }) {
   const [confirmed, setConfirmed] = useState({}); // plantId → action key just logged
   const group = TERRACE_GROUPS.find(g => g.types.includes(hovPlant.type)) ||
     { key: hovPlant.type, label: hovPlant.name, types: [hovPlant.type] };
@@ -587,16 +605,24 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma
 
   return (
     <div style={{ height:'100%', overflowY:'auto', fontFamily:SERIF, display:'flex', flexDirection:'column' }}>
-      {/* Portrait — large */}
+      {/* Portrait — AI if available, static fallback */}
       <div style={{ width:'100%', flexShrink:0, background:'rgba(14,8,3,0.9)', overflow:'hidden',
         borderBottom:'1px solid rgba(160,130,80,0.15)' }}>
         <div style={{ width:'100%', aspectRatio:'4/3' }}>
-          <PlantPortrait plant={primaryPlant}/>
+          <PlantPortrait plant={primaryPlant} aiSvg={portraits?.[primaryPlant.id]?.svg}/>
         </div>
       </div>
 
+      {/* Visual note from photo analysis */}
+      {portraits?.[primaryPlant.id]?.visualNote && !portraits?.[primaryPlant.id]?.analyzing && (
+        <div style={{ padding:'10px 22px 10px', borderBottom:'1px solid rgba(160,130,80,0.10)',
+          fontStyle:'italic', fontSize:11.5, color:'rgba(200,170,110,0.65)', lineHeight:1.5 }}>
+          {portraits[primaryPlant.id].visualNote}
+        </div>
+      )}
+
       {/* Header */}
-      <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid rgba(160,130,80,0.13)' }}>
+      <div style={{ padding:'14px 22px 12px', borderBottom:'1px solid rgba(160,130,80,0.13)' }}>
         <div style={{ fontSize:22, fontWeight:300, color:'#f0e4cc', letterSpacing:'0.01em', lineHeight:1.2 }}>
           {group.label}
         </div>
@@ -606,6 +632,9 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma
           </div>
         )}
       </div>
+
+      {/* Per-plant oracle note */}
+      <PlantBriefing plant={primaryPlant} careLog={careLog} weather={weather} portraits={portraits}/>
 
       {/* Per-plant care rows */}
       {groupPlants.map(p => {
@@ -1792,7 +1821,8 @@ export default function App() {
                     background:'rgba(10,6,3,0.93)',borderLeft:'1px solid rgba(160,130,80,0.18)',
                     overflowY:'auto'}}>
                     <MapPlantCard hovPlant={hov} plants={mapPlants} careLog={careLog}
-                      onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma} seasonOpen={seasonOpen}/>
+                      onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma} seasonOpen={seasonOpen}
+                      portraits={portraits} weather={weather}/>
                   </div>
                 )}
                 {sel && (
