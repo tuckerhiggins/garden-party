@@ -1247,6 +1247,24 @@ export function TerraceMap({ plants, selectedId, cookiePos, onSelect, onMove, on
       {/* ── Wall 3 rose trellises + cedar planters ── */}
       <WallThreePlanters plants={wall3} selectedId={selectedId} hoveredId={hovId}/>
 
+      {/* ── Jute rug (drawn here so wisteria barrels sit on top of it) ── */}
+      {(() => {
+        const rw = SCALE * 13, rh = SCALE * 12;
+        const rx = DL + 2, ry = DT + W3_PLANTER_H + 24;
+        return (
+          <g>
+            <rect x={rx} y={ry} width={rw} height={rh}
+              fill="rgba(185,162,108,0.72)" rx={3}/>
+            <rect x={rx+4} y={ry+4} width={rw-8} height={rh-8}
+              fill="none" stroke="rgba(140,110,55,0.55)" strokeWidth={1.5} rx={2}/>
+            {Array.from({ length: Math.floor(rh/8) }, (_, i) => (
+              <line key={i} x1={rx+5} y1={ry+9+i*8} x2={rx+rw-5} y2={ry+9+i*8}
+                stroke="rgba(140,110,55,0.18)" strokeWidth={0.6}/>
+            ))}
+          </g>
+        );
+      })()}
+
       {/* ── Wisteria fence (THE focal piece) ── */}
       <WisteriaFence wisteriaPlants={wisteria}
         selectedId={selectedId} hoveredId={hovId}/>
@@ -1335,23 +1353,6 @@ export function TerraceMap({ plants, selectedId, cookiePos, onSelect, onMove, on
         );
       })}
 
-      {/* ── Jute rug: entirely under couch + fire pit zone ── */}
-      {(() => {
-        const rw = SCALE * 13, rh = SCALE * 12;
-        const rx = DL + 2, ry = DT + W3_PLANTER_H + 24;
-        return (
-          <g>
-            <rect x={rx} y={ry} width={rw} height={rh}
-              fill="rgba(185,162,108,0.72)" rx={3}/>
-            <rect x={rx+4} y={ry+4} width={rw-8} height={rh-8}
-              fill="none" stroke="rgba(140,110,55,0.55)" strokeWidth={1.5} rx={2}/>
-            {Array.from({ length: Math.floor(rh/8) }, (_, i) => (
-              <line key={i} x1={rx+5} y1={ry+9+i*8} x2={rx+rw-5} y2={ry+9+i*8}
-                stroke="rgba(140,110,55,0.18)" strokeWidth={0.6}/>
-            ))}
-          </g>
-        );
-      })()}
 
       {/* ── L-shaped sectional couch ── */}
       {(() => {
@@ -1559,8 +1560,10 @@ export function TerraceMap({ plants, selectedId, cookiePos, onSelect, onMove, on
         const cy = DT + cookiePos.y * DH;
         return (
           <g transform={`translate(${cx},${cy})`} style={{cursor:'pointer'}}>
+            {/* Ground shadow — anchors cat to deck surface */}
+            <ellipse cx={2} cy={8} rx={15} ry={5} fill="rgba(0,0,0,0.22)"/>
             {/* Soft glow */}
-            <ellipse cx={2} cy={9} rx={21} ry={8} fill="url(#cookieglow)"/>
+            <ellipse cx={2} cy={4} rx={18} ry={7} fill="url(#cookieglow)"/>
             {/* Body — white */}
             <ellipse cx={2} cy={1} rx={13} ry={8.5} fill="#f2f2f2"/>
             {/* Black back patch */}
