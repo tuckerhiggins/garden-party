@@ -552,65 +552,6 @@ function drawCookieSprite(ctx,cx,cy,f){
   ctx.strokeStyle='#1e1e1e';ctx.lineWidth=3.5;ctx.beginPath();ctx.moveTo(cx+14,cy);ctx.bezierCurveTo(cx+25,cy-3,cx+31,cy-11-tw,cx+26,cy-22-tw);ctx.stroke();
 }
 
-// ── COOKIE WANDER ─────────────────────────────────────────────────────────
-// Cat behavior: walk to a spot, sit for a few seconds, walk again
-const WAYPOINTS=[{x:.32,y:.55},{x:.42,y:.65},{x:.50,y:.50},{x:.44,y:.42},{x:.36,y:.58},{x:.48,y:.72},{x:.38,y:.62}];
-function useCookie(){
-  const [pos,setPos]=useState({x:.40,y:.60});
-  const [shooed,setShooed]=useState(false);
-  const timerRef=useRef(null);
-  const s=useRef({
-    phase:'sitting', // 'sitting' | 'walking'
-    from:{x:.40,y:.60}, to:{x:.40,y:.60},
-    wp:0, elapsed:0, sitDuration:4000, walkDuration:2500,
-  });
-
-  const shoo=useCallback(()=>{
-    setShooed(true);
-    clearTimeout(timerRef.current);
-    timerRef.current=setTimeout(()=>setShooed(false), 10*60*1000);
-  },[]);
-
-  useEffect(()=>{
-    if(shooed) return;
-    let last=null,raf;
-    const step=ts=>{
-      if(last!==null){
-        const dt=Math.min(ts-last,100);
-        s.current.elapsed+=dt;
-        if(s.current.phase==='sitting'){
-          if(s.current.elapsed>=s.current.sitDuration){
-            // pick next waypoint and start walking
-            const nextWp=(s.current.wp+1)%WAYPOINTS.length;
-            s.current.from=WAYPOINTS[s.current.wp];
-            s.current.to=WAYPOINTS[nextWp];
-            const dx=s.current.to.x-s.current.from.x, dy=s.current.to.y-s.current.from.y;
-            s.current.walkDuration=Math.max(1500,Math.sqrt(dx*dx+dy*dy)*9000);
-            s.current.wp=nextWp;
-            s.current.phase='walking';
-            s.current.elapsed=0;
-          }
-        } else {
-          const t=Math.min(s.current.elapsed/s.current.walkDuration,1);
-          const st=ease(t);
-          setPos({
-            x:s.current.from.x+(s.current.to.x-s.current.from.x)*st,
-            y:s.current.from.y+(s.current.to.y-s.current.from.y)*st,
-          });
-          if(t>=1){
-            s.current.sitDuration=3000+Math.random()*5000; // sit 3–8s
-            s.current.phase='sitting';
-            s.current.elapsed=0;
-          }
-        }
-      }
-      last=ts;raf=requestAnimationFrame(step);
-    };
-    raf=requestAnimationFrame(step);return()=>cancelAnimationFrame(raf);
-  },[shooed]);
-
-  return {pos: shooed ? null : pos, shoo};
-}
 
 // ── MAP HOVER CARD ────────────────────────────────────────────────────────
 function MissedCareVoice({ plant, daysSinceWater }) {
@@ -1396,8 +1337,6 @@ export default function App() {
     () => !!localStorage.getItem('gp_season_opener_dismissed_2026')
   );
   const weather = useWeather();
-  const { pos: cookiePos, shoo: shooСookie } = useCookie();
-
   const frontPlants = useMemo(() => FRONT_PLANTS, []);
 
   const terracePlants = useMemo(()=>
@@ -1825,13 +1764,6 @@ export default function App() {
                     <TerraceMap
                       plants={mapPlants}
                       selectedId={sel?.id}
-                      cookiePos={cookiePos}
-                      onCookieShoo={() => {
-                        shooСookie();
-                        setFlash('🐱 Cookie shooed! +5♥');
-                        setTimeout(() => setFlash(null), 2500);
-                        addWarmth(5);
-                      }}
                       onSelect={p=>{ if(p) setSel(p); else setSel(null); }}
                       onMove={(id,pos)=>movePosition(id,pos)}
                       onHover={setHov}
