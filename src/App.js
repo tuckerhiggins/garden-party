@@ -553,30 +553,62 @@ function drawCookieSprite(ctx,cx,cy,f){
 }
 
 // ── COOKIE WANDER ─────────────────────────────────────────────────────────
+// Cat behavior: walk to a spot, sit for a few seconds, walk again
 const WAYPOINTS=[{x:.32,y:.55},{x:.42,y:.65},{x:.50,y:.50},{x:.44,y:.42},{x:.36,y:.58},{x:.48,y:.72},{x:.38,y:.62}];
 function useCookie(){
   const [pos,setPos]=useState({x:.40,y:.60});
   const [shooed,setShooed]=useState(false);
-  const ref=useRef({wp:0,t:0});
   const timerRef=useRef(null);
+  const s=useRef({
+    phase:'sitting', // 'sitting' | 'walking'
+    from:{x:.40,y:.60}, to:{x:.40,y:.60},
+    wp:0, elapsed:0, sitDuration:4000, walkDuration:2500,
+  });
 
   const shoo=useCallback(()=>{
     setShooed(true);
     clearTimeout(timerRef.current);
-    timerRef.current=setTimeout(()=>setShooed(false), 10*60*1000); // returns in 10 min
+    timerRef.current=setTimeout(()=>setShooed(false), 10*60*1000);
   },[]);
 
   useEffect(()=>{
     if(shooed) return;
     let last=null,raf;
     const step=ts=>{
-      if(last!==null){const dt=Math.min(ts-last,50);ref.current.t+=dt*.00007;
-        if(ref.current.t>=1){ref.current.t=0;ref.current.wp=(ref.current.wp+1)%WAYPOINTS.length;}
-        const fr=WAYPOINTS[ref.current.wp],to=WAYPOINTS[(ref.current.wp+1)%WAYPOINTS.length];
-        const st=ease(ref.current.t);setPos({x:fr.x+(to.x-fr.x)*st,y:fr.y+(to.y-fr.y)*st});}
-      last=ts;raf=requestAnimationFrame(step);};
+      if(last!==null){
+        const dt=Math.min(ts-last,100);
+        s.current.elapsed+=dt;
+        if(s.current.phase==='sitting'){
+          if(s.current.elapsed>=s.current.sitDuration){
+            // pick next waypoint and start walking
+            const nextWp=(s.current.wp+1)%WAYPOINTS.length;
+            s.current.from=WAYPOINTS[s.current.wp];
+            s.current.to=WAYPOINTS[nextWp];
+            const dx=s.current.to.x-s.current.from.x, dy=s.current.to.y-s.current.from.y;
+            s.current.walkDuration=Math.max(1500,Math.sqrt(dx*dx+dy*dy)*9000);
+            s.current.wp=nextWp;
+            s.current.phase='walking';
+            s.current.elapsed=0;
+          }
+        } else {
+          const t=Math.min(s.current.elapsed/s.current.walkDuration,1);
+          const st=ease(t);
+          setPos({
+            x:s.current.from.x+(s.current.to.x-s.current.from.x)*st,
+            y:s.current.from.y+(s.current.to.y-s.current.from.y)*st,
+          });
+          if(t>=1){
+            s.current.sitDuration=3000+Math.random()*5000; // sit 3–8s
+            s.current.phase='sitting';
+            s.current.elapsed=0;
+          }
+        }
+      }
+      last=ts;raf=requestAnimationFrame(step);
+    };
     raf=requestAnimationFrame(step);return()=>cancelAnimationFrame(raf);
   },[shooed]);
+
   return {pos: shooed ? null : pos, shoo};
 }
 
