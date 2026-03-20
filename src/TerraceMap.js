@@ -998,9 +998,95 @@ function PlantToken({ plant, isSelected, isHovered }) {
   );
 }
 
+// ── COOKIE POSES (bird's-eye SVG fragments) ───────────────────────────────
+function CookieSVG({ pose }) {
+  const W = '#f5f5f5', B = '#1a1a1a', PINK = '#ffaaaa', EAR = '#ffc8c8';
+  if (pose === 0) return ( // sitting upright
+    <>
+      <ellipse cx={0} cy={9} rx={12} ry={4} fill="rgba(0,0,0,0.18)"/>
+      <ellipse cx={0} cy={2} rx={10} ry={8} fill={W}/>
+      <ellipse cx={1} cy={0} rx={7} ry={6} fill={B} opacity={0.82}/>
+      <circle cx={0} cy={-8} r={7} fill={W}/>
+      <ellipse cx={0} cy={-12} rx={5.5} ry={4} fill={B} opacity={0.88}/>
+      <polygon points="-6,-14 -5,-21 -1,-14" fill={W}/>
+      <polygon points="1,-14 5,-21 6,-14" fill={W}/>
+      <polygon points="-5,-15 -4,-19 -2,-15" fill={EAR} opacity={0.65}/>
+      <polygon points="2,-15 4,-19 5,-15" fill={EAR} opacity={0.65}/>
+      <ellipse cx={-2.5} cy={-8} rx={2} ry={1.7} fill="#33aa33"/>
+      <circle cx={-2.5} cy={-8} r={1.1} fill={B}/>
+      <circle cx={-2.0} cy={-8.5} r={0.35} fill="rgba(255,255,255,0.75)"/>
+      <ellipse cx={2.5} cy={-8} rx={2} ry={1.7} fill="#33aa33"/>
+      <circle cx={2.5} cy={-8} r={1.1} fill={B}/>
+      <circle cx={3.0} cy={-8.5} r={0.35} fill="rgba(255,255,255,0.75)"/>
+      <ellipse cx={0} cy={-5.5} rx={1.4} ry={1} fill={PINK}/>
+      <path d="M10,4 C14,6 14,11 8,11" fill="none" stroke={W} strokeWidth={2.8} strokeLinecap="round"/>
+    </>
+  );
+  if (pose === 1) return ( // loaf — wide, compact, head peeking right
+    <>
+      <ellipse cx={0} cy={8} rx={14} ry={5} fill="rgba(0,0,0,0.18)"/>
+      <ellipse cx={0} cy={0} rx={13} ry={7} fill={W}/>
+      <ellipse cx={1} cy={-1} rx={9} ry={5} fill={B} opacity={0.85}/>
+      <circle cx={11} cy={-1} r={5.5} fill={W}/>
+      <ellipse cx={12} cy={-4} rx={4} ry={3} fill={B} opacity={0.85}/>
+      <polygon points="8,-5 10,-11 14,-5" fill={W}/>
+      <polygon points="9,-5.5 10.5,-9.5 13,-5.5" fill={EAR} opacity={0.6}/>
+      <ellipse cx={12} cy={0} rx={2} ry={1.7} fill="#33aa33"/>
+      <circle cx={12} cy={0} r={1.1} fill={B}/>
+      <circle cx={12.5} cy={-0.5} r={0.35} fill="rgba(255,255,255,0.75)"/>
+      <ellipse cx={14} cy={1.5} rx={1.2} ry={0.9} fill={PINK}/>
+      <ellipse cx={-5} cy={5.5} rx={4} ry={2.5} fill="rgba(245,245,245,0.8)"/>
+      <ellipse cx={3} cy={6.5} rx={4} ry={2.5} fill="rgba(245,245,245,0.8)"/>
+    </>
+  );
+  if (pose === 2) return ( // sprawled — stretched diagonally, legs out
+    <g transform="rotate(-18)">
+      <ellipse cx={0} cy={8} rx={17} ry={5} fill="rgba(0,0,0,0.18)"/>
+      <ellipse cx={0} cy={0} rx={16} ry={7} fill={W}/>
+      <ellipse cx={2} cy={-2} rx={11} ry={5} fill={B} opacity={0.85}/>
+      <circle cx={-14} cy={1} r={6} fill={W}/>
+      <ellipse cx={-14} cy={-2} rx={4.5} ry={3.5} fill={B} opacity={0.85}/>
+      <polygon points="-18,-3 -17,-10 -13,-3" fill={W}/>
+      <polygon points="-13,-3 -11,-9 -9,-3" fill={W}/>
+      <polygon points="-17,-4 -16,-8 -14,-4" fill={EAR} opacity={0.6}/>
+      <polygon points="-12,-4 -11,-7.5 -10,-4" fill={EAR} opacity={0.6}/>
+      <ellipse cx={-15} cy={2} rx={2} ry={1.7} fill="#33aa33"/>
+      <circle cx={-15} cy={2} r={1.1} fill={B}/>
+      <ellipse cx={-10} cy={2} rx={2} ry={1.7} fill="#33aa33"/>
+      <circle cx={-10} cy={2} r={1.1} fill={B}/>
+      <ellipse cx={-12.5} cy={4} rx={1.4} ry={1} fill={PINK}/>
+      <ellipse cx={11} cy={5} rx={5} ry={2.5} fill="rgba(245,245,245,0.85)"/>
+      <ellipse cx={9} cy={-5} rx={3.5} ry={2} fill="rgba(245,245,245,0.85)"/>
+      <path d="M16,3 C22,2 24,-5 19,-9" fill="none" stroke={B} strokeWidth={2.5} strokeLinecap="round"/>
+    </g>
+  );
+  return ( // pose 3: curled sleeping — tight donut
+    <>
+      <ellipse cx={0} cy={8} rx={13} ry={5} fill="rgba(0,0,0,0.18)"/>
+      <ellipse cx={0} cy={0} rx={11} ry={9} fill={W}/>
+      <ellipse cx={1} cy={-2} rx={8} ry={6.5} fill={B} opacity={0.88}/>
+      <ellipse cx={-1} cy={2} rx={5.5} ry={4.5} fill={W}/>
+      <circle cx={3} cy={5} r={4.5} fill={W}/>
+      <ellipse cx={4} cy={3} rx={3.5} ry={2.5} fill={B} opacity={0.85}/>
+      <path d="M1,5.5 C2,4.5 3.5,4.5 4.5,5.5" fill="none" stroke={B} strokeWidth={0.9} strokeLinecap="round"/>
+      <ellipse cx={3} cy={7} rx={1.2} ry={0.9} fill={PINK}/>
+      <path d="M11,3 C15,-1 13,-9 5,-11 C-1,-13 -9,-8 -11,-2"
+        fill="none" stroke={B} strokeWidth={2.8} strokeLinecap="round"/>
+    </>
+  );
+}
+
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover }) {
   const [hovId, setHovId] = useState(null);
+  const cookieRef = useRef(null);
+  if (!cookieRef.current) {
+    cookieRef.current = {
+      pose: Math.floor(Math.random() * 4),
+      yFrac: 0.15 + Math.random() * 0.60,
+      xOff: 38 + Math.floor(Math.random() * 22),
+    };
+  }
 
   useEffect(() => {
     const p = hovId ? plants.find(pl => pl.id === hovId) : null;
@@ -1546,37 +1632,13 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
       {/* ── Vignette (depth) ── */}
       <rect x={0} y={0} width={VW} height={VH} fill="url(#vignette)" clipPath="url(#deckClip)"/>
 
-      {/* ── Cookie — seated on couch cushion ── */}
+      {/* ── Cookie — random pose, random spot on couch ── */}
       {(() => {
-        const cx = couchX + 48;
-        const cy = couchMainTop + Math.round(couchMainLen * 0.38);
+        const cx = couchX + cookieRef.current.xOff;
+        const cy = couchMainTop + Math.round(couchMainLen * cookieRef.current.yFrac);
         return (
           <g transform={`translate(${cx},${cy})`} style={{pointerEvents:'none'}}>
-            {/* Shadow */}
-            <ellipse cx={0} cy={9} rx={12} ry={4} fill="rgba(0,0,0,0.18)"/>
-            {/* Body — white */}
-            <ellipse cx={0} cy={2} rx={10} ry={8} fill="#f5f5f5"/>
-            {/* Head — white */}
-            <circle cx={0} cy={-8} r={7} fill="#f5f5f5"/>
-            {/* Black crown patch — top of head only */}
-            <ellipse cx={0} cy={-12} rx={5.5} ry={4} fill="#1a1a1a" opacity={0.88}/>
-            {/* Ears (render after crown so they show white) */}
-            <polygon points="-6,-14 -5,-21 -1,-14" fill="#f5f5f5"/>
-            <polygon points="1,-14 5,-21 6,-14" fill="#f5f5f5"/>
-            <polygon points="-5,-15 -4,-19 -2,-15" fill="#ffc8c8" opacity={0.65}/>
-            <polygon points="2,-15 4,-19 5,-15" fill="#ffc8c8" opacity={0.65}/>
-            {/* Green eyes */}
-            <ellipse cx={-2.5} cy={-8} rx={2} ry={1.7} fill="#33aa33"/>
-            <circle cx={-2.5} cy={-8} r={1.1} fill="#0a0a0a"/>
-            <circle cx={-2.0} cy={-8.5} r={0.4} fill="rgba(255,255,255,0.75)"/>
-            <ellipse cx={2.5} cy={-8} rx={2} ry={1.7} fill="#33aa33"/>
-            <circle cx={2.5} cy={-8} r={1.1} fill="#0a0a0a"/>
-            <circle cx={3.0} cy={-8.5} r={0.4} fill="rgba(255,255,255,0.75)"/>
-            {/* Pink nose */}
-            <ellipse cx={0} cy={-5.5} rx={1.4} ry={1} fill="#ffaaaa"/>
-            {/* Tail tucked around */}
-            <path d="M10,4 C14,6 14,11 8,11"
-              fill="none" stroke="#f5f5f5" strokeWidth={2.8} strokeLinecap="round"/>
+            <CookieSVG pose={cookieRef.current.pose}/>
           </g>
         );
       })()}
