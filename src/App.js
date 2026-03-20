@@ -1289,7 +1289,9 @@ function JournalView({ careLog, plants }) {
                       width:3, alignSelf:'stretch', borderRadius:2,
                       background:color, flexShrink:0, marginTop:2,
                     }}/>
-                    <span style={{fontSize:18, flexShrink:0, lineHeight:1}}>{e.emoji}</span>
+                    <span style={{fontSize:16, flexShrink:0, lineHeight:1, marginTop:1}}>
+                      {e.withEmma ? '🌹' : '🌿'}
+                    </span>
                     <div style={{flex:1, minWidth:0}}>
                       <div style={{display:'flex', alignItems:'baseline', gap:6, flexWrap:'wrap'}}>
                         <span style={{fontSize:13, color:'#2a1808', fontFamily:SERIF, fontWeight:600}}>
@@ -1300,11 +1302,6 @@ function JournalView({ careLog, plants }) {
                           {e.plant.subtitle ? ` · ${e.plant.subtitle}` : ''}
                         </span>
                       </div>
-                      {e.withEmma && (
-                        <div style={{fontSize:11, color:'#a07030', fontFamily:SERIF, marginTop:2}}>
-                          ♥ with Emma
-                        </div>
-                      )}
                     </div>
                     <div style={{textAlign:'right', flexShrink:0}}>
                       <div style={{fontSize:10, color:'#b09070', fontFamily:SERIF}}>
@@ -1439,10 +1436,10 @@ export default function App() {
         return { name: p.name, count: all.length, lastDate: all[all.length - 1]?.date ?? null };
       });
     const totalPhotos = photoContext.reduce((s, p) => s + p.count, 0);
-    fetchOracle({ weather, warmth, plants: TERRACE_PLANTS, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits })
+    fetchOracle({ weather, warmth, plants: TERRACE_PLANTS, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits, role })
       .then(setOracle)
       .catch(() => {}); // fail silently in local dev
-  }, [weather]);
+  }, [weather, role]);
 
   // Season opener — show once when season first opens
   useEffect(() => {
@@ -1599,7 +1596,10 @@ export default function App() {
           <div style={{width:64,height:6,background:C.uiLight,borderRadius:3,border:`1px solid ${C.uiBorder}`,overflow:'hidden'}}>
             <div style={{width:`${warmth/10}%`,height:'100%',background:warmth>=1000?'#f0d040':C.uiGold,borderRadius:3,transition:'width .4s'}}/>
           </div>
-          <span style={{fontFamily:MONO,fontSize:8,color:C.uiGold,minWidth:40}}>{warmth}/1k</span>
+          {role === 'emma'
+            ? <span style={{fontFamily:MONO,fontSize:7,color:C.uiGold,minWidth:40}}>you & Tucker · {warmth}♥</span>
+            : <span style={{fontFamily:MONO,fontSize:8,color:C.uiGold,minWidth:40}}>{warmth}/1k</span>
+          }
         </div>
 
         {/* Expense */}

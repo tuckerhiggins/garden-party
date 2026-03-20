@@ -43,7 +43,7 @@ export async function cachedClaude(cacheKey, systemPrompt, userPrompt, maxTokens
 
 // ── ORACLE ────────────────────────────────────────────────────────────────
 // Daily garden greeting. Cached until midnight (busted when photo count or weather events change).
-export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen, seasonBlocking, daysUntilSeason, photoContext = [], totalPhotos = 0, portraits = {} }) {
+export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen, seasonBlocking, daysUntilSeason, photoContext = [], totalPhotos = 0, portraits = {}, role = 'tucker' }) {
   const today = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
 
   // Find most recent portrait analysis date so cache busts when new photos are analyzed
@@ -66,7 +66,7 @@ export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen
     });
   }
   const weatherToken = weatherEvents.length > 0 ? weatherEvents.map(e => e.slice(0, 10)).join('').replace(/\W/g, '') : 'clear';
-  const cacheKey = `oracle_${new Date().toISOString().slice(0, 10)}_p${totalPhotos}_v${portraitCacheToken}_w${weatherToken.slice(0, 12)}`;
+  const cacheKey = `oracle_${new Date().toISOString().slice(0, 10)}_p${totalPhotos}_v${portraitCacheToken}_w${weatherToken.slice(0, 12)}_r${role}`;
 
   const needsWater = plants.filter(p => {
     if (!p.actions?.includes('water')) return false;
@@ -111,8 +111,18 @@ export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen
     : null;
 
   const hasBriefing = weatherEvents.length > 0;
+  const isEmma = role === 'emma';
 
-  const systemPrompt = `You are a knowledgeable garden companion for Tucker's Brooklyn rooftop terrace — part botanist, part mission control. You know these specific plants by name and exactly where they are in the season.
+  const systemPrompt = isEmma
+    ? `You are a knowledgeable garden companion for a Brooklyn rooftop terrace — part botanist, part mission control. You are speaking to Emma, Tucker's partner, who tends this garden with him.
+
+Speak to Emma directly and warmly. She and Tucker have been building this garden together. You know both of them care deeply about it. Acknowledge her presence when it feels right — she's not a visitor, she's a co-steward.
+
+Tone: warm, specific, a little more personal than with Tucker. Like a friend who knows them both and the garden well.
+
+2–3 sentences. Start mid-thought — no greeting.${hasBriefing ? ' A weather event is coming — lead with the specific care action needed.' : ''}
+When the season isn't open yet, speak to Emma about the photo documentation ritual with the same care and meaning you would with Tucker.`
+    : `You are a knowledgeable garden companion for Tucker's Brooklyn rooftop terrace — part botanist, part mission control. You know these specific plants by name and exactly where they are in the season.
 
 Speak directly and usefully. Tell Tucker one specific thing that's true right now — in the soil, in the roots, in the buds, or about the week ahead. Be precise about timing and plant biology. Say what he might not notice on his own.
 
@@ -121,7 +131,7 @@ Tone: warm but direct. Like a skilled friend who genuinely knows plants. Not poe
 2–3 sentences. Start mid-thought — no greeting.${hasBriefing ? ' A weather event is coming that requires action — lead with the specific care decision Tucker needs to make because of it. Be concrete: skip watering, bring something inside, check ties.' : ' Vary what you foreground: care urgency, something happening underground, a weather note, a timing observation. Don\'t always lead with what needs water.'}
 When the season isn't open yet because of the photo requirement, speak specifically about which plants haven't been seen yet and what it means to document them. Make the photo ritual feel meaningful — not like checking boxes, but like making contact with the garden after winter.`;
 
-  const userPrompt = `Today is ${today}.
+  const userPrompt = `Today is ${today}. ${isEmma ? 'Emma is checking in on the garden.' : ''}
 ${seasonOpen
   ? `Day ${daysIntoSeason} of season 2. In Brooklyn, late March means soil temps climbing through 45–50°F, roots becoming active, break of dormancy for roses and wisteria.`
   : seasonBlocking === 'readiness'
