@@ -5,6 +5,7 @@ import { OracleChat } from './OracleChat';
 import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
 import { fetchPlantBriefing, fetchMorningBrief, streamGardenChat } from '../claude';
+import { compressChatImage } from '../utils/compressChatImage';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO = '"Press Start 2P", monospace';
@@ -199,24 +200,7 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLo
     setConfirmLoading(false);
   }
 
-  // Compress to ≤800px / 0.72 quality — keeps payloads under Vercel's 4.5MB limit
-  function readPhoto(file) {
-    return new Promise(resolve => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        const maxPx = 800, quality = 0.72;
-        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        URL.revokeObjectURL(url);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.src = url;
-    });
-  }
+  function readPhoto(file) { return compressChatImage(file); }
 
   // ── Fork screen ───────────────────────────────────────────────────────────
   if (!mode) return (

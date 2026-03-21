@@ -44,12 +44,13 @@ Rules:
 \nOptional capabilities — use when they genuinely add value:\n- Photo request: if a specific visual would meaningfully change your advice, ask for it. Embed <photo-request>exactly what to photograph — e.g. "the soil surface near the crown" or "the cut you just made"</photo-request> anywhere in your response.\n- Diagram: for steps where a visual clarifies the action (where to cut, which cane to train, how deep), add a simple SVG diagram AFTER all your text using <diagram>[SVG]</diagram>. Style: viewBox="0 0 220 140", warm parchment background (#f8f0e0), warm strokes (#6a4020 stems, #487820 foliage, #d4a830 highlights), clean instructional lines, arrows showing direction or cut points. 15–35 elements, no text elements, no scripts.`;
 
   // Convert messages to Claude format, handling embedded images.
-  // Only the LAST message that has images gets them sent — older image messages
-  // are stripped to text to keep the payload under Vercel's 4.5MB body limit.
-  const lastImgIdx = messages.reduce((last, m, i) => m.images?.length ? i : last, -1);
+  // Keep the LAST 4 image-containing messages so Tucker can reference earlier photos.
+  // Older ones are stripped to text to keep the payload under Vercel's 4.5MB body limit.
+  const imgIndices = messages.reduce((acc, m, i) => { if (m.images?.length) acc.push(i); return acc; }, []);
+  const keepImgSet = new Set(imgIndices.slice(-4));
   const claudeMessages = messages.map((m, i) => {
     if (m.images?.length) {
-      if (i === lastImgIdx) {
+      if (keepImgSet.has(i)) {
         return {
           role: m.role,
           content: [

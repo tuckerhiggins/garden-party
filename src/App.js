@@ -15,6 +15,7 @@ import { useGardenData } from './hooks/useGardenData';
 import { useMigration } from './hooks/useMigration';
 import { OracleChat } from './components/OracleChat';
 import { MobileView } from './components/MobileView';
+import { compressChatImage } from './utils/compressChatImage';
 import { PlantShopModal } from './components/PlantShopModal';
 import { MapInfoPanel } from './components/MapInfoPanel';
 
@@ -1135,8 +1136,7 @@ function ActionModal({ plant, actionKey, careLog, portraits, weather, onLog, onC
     setConfirmLoading(false);
   }
 
-  // Compress to ≤800px / 0.72 quality — keeps oracle chat payloads well under Vercel's 4.5MB limit
-  function readPhoto(file) { return compressImage(file, 800, 0.72); }
+  function readPhoto(file) { return compressChatImage(file); }
 
   // ── Mode chooser ──────────────────────────────────────────────────────────
   if (!mode) return (
