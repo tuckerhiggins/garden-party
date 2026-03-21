@@ -1008,7 +1008,7 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
 }
 
 function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seasonOpen,
-  morningBrief, onStartAction, portraits, completedThisSession, onMarkDone, onOpenAsk }) {
+  totalActivePlants = 0, morningBrief, onStartAction, portraits, completedThisSession, onMarkDone, onOpenAsk }) {
 
   // Merge deterministic items with AI-enriched agenda (reason + priority + order)
   const items = useMemo(() => {
@@ -1156,9 +1156,8 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
 
       {/* Resting plants count */}
       {(() => {
-        const allActive = [...plants, ...frontPlants].filter(p => p.type !== 'empty-pot' && p.health !== 'memorial');
         const activePlantIds = new Set(items.map(i => i.plantId));
-        const restingCount = allActive.filter(p => !activePlantIds.has(p.id)).length;
+        const restingCount = totalActivePlants - activePlantIds.size;
         return restingCount > 0 ? (
           <div style={{ fontFamily: SERIF, fontSize: 12, color: '#b09070', fontStyle: 'italic',
             textAlign: 'center', marginTop: 16, paddingTop: 16,
@@ -1389,6 +1388,12 @@ export function MobileView({
       });
   }, [careVersion, weather]); // intentional: portraits/careLog refs change too often
 
+  // Total active plants — passed to TodayAgenda for "N plants resting" count
+  const totalActivePlants = useMemo(
+    () => [...plants, ...frontPlants].filter(p => p.type !== 'empty-pot' && p.health !== 'memorial').length,
+    [plants, frontPlants]
+  );
+
   // Compute today's agenda deterministically (instant, no API needed)
   const { items: rawAgendaItems, isWeekend: agendaIsWeekend } = useMemo(
     () => computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen }),
@@ -1523,6 +1528,7 @@ export function MobileView({
           <TodayAgenda
             rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
             agendaData={agendaData} seasonOpen={seasonOpen}
+            totalActivePlants={totalActivePlants}
             morningBrief={morningBrief} onStartAction={handleStartAction}
             portraits={portraits} completedThisSession={completedThisSession}
             onMarkDone={handleMarkDone}
