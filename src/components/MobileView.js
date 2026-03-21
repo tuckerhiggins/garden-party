@@ -993,7 +993,7 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
       {/* Done button */}
       {!completed && (
         <button
-          onClick={e => { e.stopPropagation(); onDone(item.key); }}
+          onClick={e => { e.stopPropagation(); onDone(item); }}
           style={{
             background: 'none', border: '1px solid rgba(160,130,80,0.32)',
             borderRadius: 6, padding: '5px 10px', color: '#907050',
@@ -1345,8 +1345,9 @@ export function MobileView({
   const prevAnalyzingRef = useRef({});
   const [completedThisSession, setCompletedThisSession] = useState(() => new Set());
 
-  function handleMarkDone(key) {
-    setCompletedThisSession(prev => new Set([...prev, key]));
+  function handleMarkDone(item) {
+    setCompletedThisSession(prev => new Set([...prev, item.key]));
+    handleAction(item.actionKey, item.plant);
   }
 
   // Version string that changes when any plant's last care action changes
