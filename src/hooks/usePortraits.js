@@ -5,6 +5,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase';
 
+function sanitizeSvg(svg) {
+  if (!svg) return null;
+  return svg
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/\son\w+\s*=["'][^"']*["']/gi, '')
+    .replace(/\son\w+\s*=[^\s>]*/gi, '');
+}
+
 export function usePortraits({ user }) {
   const [portraits, setPortraits] = useState(() => {
     try { return JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}'); } catch { return {}; }
@@ -25,7 +33,7 @@ export function usePortraits({ user }) {
             const localDate = existing.date ? new Date(existing.date).getTime() : 0;
             if (sbDate >= localDate || !existing.svg) {
               merged[row.plant_id] = {
-                svg: row.svg || existing.svg || null,
+                svg: sanitizeSvg(row.svg) || existing.svg || null,
                 visualNote: row.visual_note || existing.visualNote || null,
                 growth: row.growth ?? existing.growth ?? null,
                 bloomState: row.bloom_state || existing.bloomState || null,
@@ -58,7 +66,7 @@ export function usePortraits({ user }) {
           const merged = {
             ...prev,
             [row.plant_id]: {
-              svg: row.svg || existing.svg || null,
+              svg: sanitizeSvg(row.svg) || existing.svg || null,
               visualNote: row.visual_note || existing.visualNote || null,
               growth: row.growth ?? existing.growth ?? null,
               bloomState: row.bloom_state || existing.bloomState || null,
@@ -84,6 +92,7 @@ export function usePortraits({ user }) {
         const newEntry = { visualNote: data.visualNote, growth: data.growth, date: data.date };
         history = [...history, newEntry].slice(-10);
       }
+      if (data.svg) data = { ...data, svg: sanitizeSvg(data.svg) };
       const next = { ...prev, [id]: { ...existing, ...data, history } };
       try { localStorage.setItem('gp_portraits_v1', JSON.stringify(next)); } catch {}
 

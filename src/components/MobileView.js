@@ -89,24 +89,28 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
     const dataUrl = await compressImage(file);
     const date = new Date().toISOString();
     onAddPhoto?.(plant.id, dataUrl, date);
-    e.target.value = '';
-    onPhotoAdded?.();
+    // iOS-safe input reset
+    try { fileRef.current.value = null; } catch { fileRef.current.value = ''; }
     // Log the photograph action for warmth
     if (plant.actions?.includes('photo')) {
       onAction('photo', plant);
     }
     // Signal analysis start
     onPortraitUpdate?.(plant.id, { analyzing: true });
-    // Background AI analysis — syncs to Supabase via onPortraitUpdate and onGrowthUpdate
+    // Background AI analysis with 55s timeout (just under Vercel's 60s limit)
     try {
       const stored = JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}');
       const plantHistory = (stored[plant.id]?.history || []).slice(-5);
       const careStore = JSON.parse(localStorage.getItem('gp_care_v4') || '{}');
-      const plantEntries = (careStore[plant.id] || []).slice().reverse();
+      const plantEntries = (careStore[plant.id] || []).slice(-20).reverse(); // cap at 20
       const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 55000);
 
       fetch('/api/analyze-plant', {
         method: 'POST',
+        signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64: base64,
@@ -125,23 +129,24 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
           },
         }),
       })
-        .then(r => r.json())
+        .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
         .then(({ analysis, svg }) => {
-          const date = new Date().toISOString();
+          clearTimeout(timeout);
+          const analysisDate = new Date().toISOString();
+          const growth = typeof analysis?.growth === 'number' && isFinite(analysis.growth)
+            ? Math.max(0, Math.min(1, analysis.growth)) : null;
           onPortraitUpdate?.(plant.id, {
             svg: svg || null,
             visualNote: analysis?.visualNote || null,
-            growth: analysis?.growth ?? null,
+            growth,
             bloomState: analysis?.bloomState || null,
             foliageState: analysis?.foliageState || null,
             analyzing: false,
-            date,
+            date: analysisDate,
           });
-          if (analysis?.growth != null) {
-            onGrowthUpdate?.(plant.id, analysis.growth);
-          }
+          if (growth != null) onGrowthUpdate?.(plant.id, growth);
         })
-        .catch(() => onPortraitUpdate?.(plant.id, { analyzing: false }));
+        .catch(() => { clearTimeout(timeout); onPortraitUpdate?.(plant.id, { analyzing: false }); });
     } catch {
       onPortraitUpdate?.(plant.id, { analyzing: false });
     }
