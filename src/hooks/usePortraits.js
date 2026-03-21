@@ -56,6 +56,7 @@ export function usePortraits({ user }) {
     if (!supabase) return;
     supabase.from('plant_portraits').select('*')
       .then(({ data, error }) => {
+        console.log('[portraits] initial load:', data?.length ?? 0, 'rows', error?.message ?? 'ok');
         if (error || !data || data.length === 0) return;
         setPortraitsRef.current(prev => {
           const merged = mergeSupabaseRows(data, prev);
@@ -188,11 +189,16 @@ export function usePortraits({ user }) {
         supabase.from('plant_portraits').upsert(withStages, { onConflict: 'plant_id' })
           .then(({ error }) => {
             if (error) {
-              // stages_data column not yet migrated — sync portrait data without it
-              supabase.from('plant_portraits').upsert(basePayload, { onConflict: 'plant_id' }).catch(() => {});
+              console.warn('[portraits] upsert w/stages failed:', error.message, error.code);
+              supabase.from('plant_portraits').upsert(basePayload, { onConflict: 'plant_id' })
+                .then(({ error: e2 }) => { if (e2) console.error('[portraits] base upsert also failed:', e2.message, e2.code); })
+                .catch(e2 => console.error('[portraits] base upsert threw:', e2));
+            } else {
+              console.log('[portraits] upsert ok for', id);
             }
           })
-          .catch(() => {
+          .catch(e => {
+            console.error('[portraits] upsert threw:', e);
             supabase.from('plant_portraits').upsert(basePayload, { onConflict: 'plant_id' }).catch(() => {});
           });
       }
