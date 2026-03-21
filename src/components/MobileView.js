@@ -1016,9 +1016,12 @@ function TodayAgenda({ plants, frontPlants, careLog, briefings, weather, seasonO
   );
 
   const urgentRec = items.filter(i => i.priority !== 'routine');
+  const routineItems = items.filter(i => i.priority === 'routine');
   const doneCount = items.filter(i => completedThisSession.has(i.key)).length;
   const totalCount = items.length;
+  const allDone = totalCount > 0 && doneCount === totalCount;
   const urgentRecAllDone = urgentRec.length > 0 && urgentRec.every(i => completedThisSession.has(i.key));
+  const hasRemainingRoutine = routineItems.some(i => !completedThisSession.has(i.key));
 
   if (!seasonOpen) {
     return (
@@ -1031,11 +1034,9 @@ function TodayAgenda({ plants, frontPlants, careLog, briefings, weather, seasonO
     );
   }
 
-  // Completion moment — all urgent/recommended done
-  if (urgentRecAllDone) {
-    const donePlants = [...new Set(
-      items.filter(i => completedThisSession.has(i.key)).map(i => i.plantName)
-    )];
+  // Full completion moment — only when every task is done
+  if (allDone) {
+    const donePlants = [...new Set(items.map(i => i.plantName))];
     return (
       <div style={{ padding: '32px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '70vh', justifyContent: 'center' }}>
         <div style={{ fontSize: 36, marginBottom: 16 }}>✦</div>
@@ -1043,16 +1044,11 @@ function TodayAgenda({ plants, frontPlants, careLog, briefings, weather, seasonO
           Garden tended.
         </div>
         <div style={{ fontFamily: SERIF, fontSize: 14, color: '#907050', fontStyle: 'italic', textAlign: 'center', marginBottom: 6, lineHeight: 1.6 }}>
-          {doneCount} of {totalCount} task{totalCount !== 1 ? 's' : ''} complete.
+          All {totalCount} task{totalCount !== 1 ? 's' : ''} complete.
         </div>
         {donePlants.length > 0 && (
           <div style={{ fontFamily: SERIF, fontSize: 13, color: '#7a5c30', textAlign: 'center', lineHeight: 1.7, marginBottom: 28, fontStyle: 'italic' }}>
             {donePlants.join(', ')} {donePlants.length === 1 ? 'is' : 'are'} tended to.
-          </div>
-        )}
-        {items.filter(i => !completedThisSession.has(i.key)).length > 0 && (
-          <div style={{ fontFamily: SERIF, fontSize: 12, color: '#b09070', fontStyle: 'italic', marginBottom: 20, textAlign: 'center' }}>
-            {items.filter(i => !completedThisSession.has(i.key)).length} optional task{items.filter(i => !completedThisSession.has(i.key)).length !== 1 ? 's' : ''} remaining for the weekend.
           </div>
         )}
         <button onClick={onOpenAsk} style={{
@@ -1097,6 +1093,18 @@ function TodayAgenda({ plants, frontPlants, careLog, briefings, weather, seasonO
           borderRadius: 9, padding: '10px 13px', marginBottom: 16 }}>
           <div style={{ fontFamily: SERIF, fontSize: 13, color: '#5a3c18', fontStyle: 'italic', lineHeight: 1.5 }}>
             {morningBrief}
+          </div>
+        </div>
+      )}
+
+      {/* Essential tasks done — routine tasks still available */}
+      {urgentRecAllDone && hasRemainingRoutine && (
+        <div style={{ background: 'rgba(72,120,32,0.07)', border: '1px solid rgba(72,120,32,0.22)',
+          borderRadius: 9, padding: '10px 14px', marginBottom: 14,
+          display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 16 }}>✦</span>
+          <div style={{ fontFamily: SERIF, fontSize: 13, color: '#3a6818', fontStyle: 'italic', lineHeight: 1.4 }}>
+            Essential tasks done. Optional tasks below.
           </div>
         </div>
       )}
