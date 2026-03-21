@@ -570,13 +570,14 @@ function MissedCareVoice({ plant, daysSinceWater }) {
 }
 
 function PlantBriefing({ plant, careLog, weather, portraits }) {
-  const [note, setNote] = useState(null);
+  const [briefing, setBriefing] = useState(null);
   useEffect(() => {
-    setNote(null);
+    setBriefing(null);
     fetchPlantBriefing(plant, careLog, weather, portraits)
-      .then(setNote)
+      .then(setBriefing)
       .catch(() => {});
   }, [plant.id, plant.health]);
+  const note = briefing?.note || (typeof briefing === 'string' ? briefing : null);
   if (!note) return null;
   return (
     <div style={{ padding:'12px 22px', borderBottom:'1px solid rgba(160,130,80,0.10)',

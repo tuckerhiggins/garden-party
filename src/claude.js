@@ -154,31 +154,67 @@ ${hasBriefing ? 'Lead with the specific action Tucker needs to take because of t
 
 // ── PLANT BRIEFING ────────────────────────────────────────────────────────
 // One-sentence oracle note about a specific plant right now. Shown in map hover card.
+// Actions the oracle can recommend (water is always shown separately)
+const RECOMMENDABLE_ACTIONS = new Set(['neem', 'prune', 'train', 'fertilize', 'worms']);
+const ACTION_DESCRIPTIONS = {
+  neem:      'neem oil spray — prevents aphids and fungal disease on foliage',
+  prune:     'prune — remove dead, damaged, or crossing growth',
+  train:     'train — tie and guide new growth along its support structure',
+  fertilize: 'fertilize — apply slow-release or bloom-booster fertilizer',
+  worms:     'worms — add worms to improve soil aeration and nutrients',
+};
+
 export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
   const today = new Date().toISOString().slice(0, 10);
-  const cacheKey = `plantbrief_${plant.id}_${plant.health}_${today}`;
-
   const entries = careLog[plant.id] || [];
-  const lastWater = [...entries].reverse().find(e => e.action === 'water');
-  const daysSince = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
-  const recentActions = entries.slice(-5).map(e => `${e.label} on ${new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`).join(', ');
-  const visualNote = portraits?.[plant.id]?.visualNote;
+  // Cache busts when last action changes (so recommendations update after you care for a plant)
+  const lastActionDate = entries.length ? entries[entries.length - 1].date.slice(0, 10) : 'none';
+  const cacheKey = `plantbrief2_${plant.id}_${plant.health}_${today}_${lastActionDate}`;
 
+  const lastWater = [...entries].reverse().find(e => e.action === 'water');
+  const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
+  const recentActions = entries.slice(-5).map(e =>
+    `${e.label} on ${new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`
+  ).join(', ');
+  const visualNote = portraits?.[plant.id]?.visualNote;
   const next3 = weather?.forecast?.slice(0, 3).map(d =>
     `${d.date}: ${d.label} ${d.high}°/${d.low}°F, ${d.precipChance}% rain`
   ).join('; ') ?? '';
 
-  const systemPrompt = `You are a garden companion giving a single pointed observation about one plant. Be specific to this plant's biology and current moment in the season. One sentence, 25 words or fewer. No greeting. Pure observation or actionable note.`;
+  // Build action menu — only actions relevant to this plant type
+  const recommendable = (plant.actions || []).filter(a => RECOMMENDABLE_ACTIONS.has(a));
+  const actionMenu = recommendable.map(a => {
+    const last = [...entries].reverse().find(e => e.action === a);
+    const daysAgo = last ? Math.floor((Date.now() - new Date(last.date).getTime()) / 86400000) : null;
+    const when = daysAgo !== null ? `last done ${daysAgo}d ago` : 'not done this season';
+    return `  ${a}: ${ACTION_DESCRIPTIONS[a]} (${when})`;
+  }).join('\n');
 
-  const userPrompt = `Plant: ${plant.name}${plant.species ? ` (${plant.species})` : ''}, type: ${plant.type}.
-Health: ${plant.health}. Today: ${today}. Brooklyn Zone 7b, early spring.
-${daysSince !== null ? `Last watered ${daysSince} day${daysSince !== 1 ? 's' : ''} ago.` : 'No water logged.'}
+  const systemPrompt = `You are a knowledgeable plant care advisor for Tucker and Emma's Brooklyn rooftop garden (Zone 7b). You give a brief specific observation about a plant's current state AND decide which care actions — if any — genuinely make sense right now. You are selective: don't recommend something just done, don't recommend more than is needed, don't recommend if nothing is needed.`;
+
+  const userPrompt = `Plant: ${plant.name}${plant.species ? ` (${plant.species})` : ''}, ${plant.type}.
+Health: ${plant.health}. Today: ${today}. Early spring, Zone 7b.
+${daysSinceWater !== null ? `Last watered ${daysSinceWater} day${daysSinceWater !== 1 ? 's' : ''} ago.` : 'No water logged.'}
 ${recentActions ? `Recent care: ${recentActions}.` : ''}
 ${visualNote ? `Last photo observation: "${visualNote}"` : ''}
 ${next3 ? `3-day forecast: ${next3}` : ''}
-One sentence about this plant right now.`;
+${recommendable.length > 0 ? `\nCare actions available for this plant:\n${actionMenu}\n\nRecommend 0–2 of the above that genuinely make sense RIGHT NOW given the plant's state, season, and what's already been done.` : ''}
+Respond as JSON only — no other text:
+{"note": "one specific observation, max 20 words", "actions": []}`;
 
-  return cachedClaude(cacheKey, systemPrompt, userPrompt, 60, 24 * 60 * 60 * 1000);
+  const raw = await cachedClaude(cacheKey, systemPrompt, userPrompt, 120, 24 * 60 * 60 * 1000);
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      note: typeof parsed.note === 'string' ? parsed.note : '',
+      actions: Array.isArray(parsed.actions)
+        ? parsed.actions.filter(a => RECOMMENDABLE_ACTIONS.has(a))
+        : [],
+    };
+  } catch {
+    // Old cached plain-text values fall back gracefully
+    return { note: raw || '', actions: [] };
+  }
 }
 
 // ── MISSED CARE VOICE ─────────────────────────────────────────────────────

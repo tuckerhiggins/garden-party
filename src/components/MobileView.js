@@ -1,9 +1,10 @@
 // Mobile view — optimized for use while actually in the garden
 // Hero features: photo upload, quick care, oracle chat
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { OracleChat } from './OracleChat';
 import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
+import { fetchPlantBriefing } from '../claude';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO = '"Press Start 2P", monospace';
@@ -80,7 +81,7 @@ async function compressImage(file, maxPx = 800, quality = 0.72) {
 }
 
 // ── MOBILE PLANT CARD ──────────────────────────────────────────────────────
-function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, onAddPhoto, photos = [], portraits, seasonOpen }) {
+function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, onAddPhoto, photos = [], portraits, briefing, seasonOpen }) {
   const fileRef = useRef(null);
   const color = plantColor(plant.type);
   const lastPhoto = photos[photos.length - 1];
@@ -161,10 +162,13 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
   }
 
   const waterStatus = actionStatus(plant, 'water', careLog, seasonOpen);
-  const availableActions = (plant.actions || [])
-    .filter(a => a !== 'water' && a !== 'photo' && a !== 'visit')
+  // Oracle-recommended actions, filtered through cooldown check
+  const oracleActions = (briefing?.actions || [])
+    .filter(a => ACTION_DEFS[a])
     .filter(a => actionStatus(plant, a, careLog, seasonOpen).available)
-    .slice(0, 1); // show one extra action max
+    .slice(0, 2);
+  // Fall back to Visit when oracle hasn't loaded or recommends nothing
+  const showVisit = !briefing || oracleActions.length === 0;
 
   if (plant.health === 'memorial' || plant.type === 'empty-pot') return null;
 
@@ -260,7 +264,7 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
 
         {/* Quick action row */}
         <div style={{ display: 'flex', gap: 8 }}>
-          {/* Water */}
+          {/* Water — always shown */}
           <button
             onClick={() => waterStatus.available && onAction('water', plant)}
             disabled={!waterStatus.available}
@@ -277,15 +281,15 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
             </span>
           </button>
 
-          {/* Top seasonal action */}
-          {availableActions.map(a => {
+          {/* Oracle-recommended actions */}
+          {oracleActions.map(a => {
             const def = ACTION_DEFS[a];
             return (
               <button key={a} onClick={() => onAction(a, plant)}
                 style={{
                   flex: 1, padding: '10px 8px',
                   background: `${color}10`,
-                  border: `1px solid ${color}30`,
+                  border: `1px solid ${color}40`,
                   borderRadius: 8, cursor: 'pointer',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                 }}>
@@ -297,19 +301,24 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
             );
           })}
 
-          {/* Visit */}
-          <button
-            onClick={() => onAction('visit', plant)}
-            style={{
-              flex: 1, padding: '10px 8px',
-              background: 'rgba(0,0,0,.03)',
-              border: '1px solid rgba(160,130,80,.15)',
-              borderRadius: 8, cursor: 'pointer',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-            }}>
-            <span style={{ fontSize: 18 }}>👀</span>
-            <span style={{ fontFamily: MONO, fontSize: 6, color: '#a08060' }}>VISIT</span>
-          </button>
+          {/* Visit — shown while oracle loads or when nothing is recommended */}
+          {showVisit && (
+            <button
+              onClick={() => onAction('visit', plant)}
+              style={{
+                flex: 1, padding: '10px 8px',
+                background: briefing ? 'rgba(0,0,0,.03)' : 'rgba(0,0,0,.02)',
+                border: '1px solid rgba(160,130,80,.15)',
+                borderRadius: 8, cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                opacity: briefing ? 1 : 0.5,
+              }}>
+              <span style={{ fontSize: 18 }}>{briefing ? '👀' : '·'}</span>
+              <span style={{ fontFamily: MONO, fontSize: 6, color: '#a08060' }}>
+                {briefing ? 'VISIT' : '···'}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Last photo date if exists */}
@@ -324,17 +333,22 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
 }
 
 // ── QUICK CARE TAB ─────────────────────────────────────────────────────────
-function QuickCareTab({ plants, careLog, onAction, onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos = {}, portraits, seasonOpen }) {
-  const actionable = plants.filter(p =>
-    p.health !== 'memorial' && p.type !== 'empty-pot' &&
-    (p.actions || []).some(a => actionStatus(p, a, careLog, seasonOpen).available && !ACTION_DEFS[a]?.alwaysAvailable)
-  );
+function QuickCareTab({ plants, careLog, onAction, onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos = {}, portraits, briefings = {}, seasonOpen }) {
+  // Show plants that need water OR have oracle-recommended actions
   const needsWater = plants.filter(p => {
+    if (p.health === 'memorial' || p.type === 'empty-pot') return false;
     if (!p.actions?.includes('water')) return false;
     const entries = (careLog[p.id] || []).filter(e => e.action === 'water');
     if (!entries.length) return true;
     return (Date.now() - new Date(entries[entries.length - 1].date).getTime()) / 86400000 > 1;
   });
+  const hasOracleActions = plants.filter(p =>
+    p.health !== 'memorial' && p.type !== 'empty-pot' &&
+    (briefings[p.id]?.actions || []).length > 0
+  );
+  const actionable = [...new Map(
+    [...needsWater, ...hasOracleActions].map(p => [p.id, p])
+  ).values()];
 
   if (!seasonOpen) {
     return (
@@ -371,7 +385,8 @@ function QuickCareTab({ plants, careLog, onAction, onPortraitUpdate, onGrowthUpd
       {prioritized.map(p => (
         <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction}
           onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-          onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits} seasonOpen={seasonOpen}/>
+          onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
+          briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
       ))}
     </div>
   );
@@ -515,6 +530,26 @@ export function MobileView({
 }) {
   const [tab, setTab] = useState('care');
   const [flash, setFlash] = useState(null);
+  const [briefings, setBriefings] = useState({});
+
+  // Version string that changes when any plant's last care action changes
+  const careVersion = useMemo(() =>
+    [...plants, ...frontPlants].map(p => {
+      const e = careLog[p.id] || [];
+      return e.length ? e[e.length - 1].date : '';
+    }).join('|'),
+  [plants, frontPlants, careLog]);
+
+  useEffect(() => {
+    if (!weather) return;
+    [...plants, ...frontPlants]
+      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
+      .forEach(p => {
+        fetchPlantBriefing(p, careLog, weather, portraits)
+          .then(b => setBriefings(prev => ({ ...prev, [p.id]: b })))
+          .catch(() => {});
+      });
+  }, [careVersion, weather]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleAction(key, plant) {
     onAction(key, plant);
@@ -609,7 +644,8 @@ export function MobileView({
               .map(p => (
                 <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction}
                   onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-                  onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits} seasonOpen={seasonOpen}/>
+                  onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
+                  briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
               ))
             }
             {frontPlants.length > 0 && <>
@@ -621,7 +657,8 @@ export function MobileView({
                 .map(p => (
                   <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction}
                     onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-                    onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits} seasonOpen={seasonOpen}/>
+                    onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
+                    briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
                 ))
               }
             </>}
@@ -631,7 +668,8 @@ export function MobileView({
         {tab === 'care' && (
           <QuickCareTab plants={[...plants, ...frontPlants]} careLog={careLog} onAction={handleAction}
             onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-            onAddPhoto={onAddPhoto} allPhotos={allPhotos} portraits={portraits} seasonOpen={seasonOpen}/>
+            onAddPhoto={onAddPhoto} allPhotos={allPhotos} portraits={portraits}
+            briefings={briefings} seasonOpen={seasonOpen}/>
         )}
 
         {tab === 'oracle' && (
