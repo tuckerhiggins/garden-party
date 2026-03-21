@@ -1021,10 +1021,339 @@ function PhotoSection({ plant, color, careLog, onAnalyze, portraits, photos = []
   );
 }
 
+// ── ACTION MODAL — "help me do it" / "I did it" ───────────────────────────
+const AFFIRMATIONS = {
+  fertilize: ['Feeding logged. Watch for new growth in 7–10 days.', 'Nutrients in. Good timing.'],
+  neem:      ['Pest prevention logged. Let it dry before any rain.', 'Logged — good preventive care.'],
+  prune:     ['Logged. Clean cuts mean strong growth.', 'Pruning directs the plant\'s energy. Good work.'],
+  train:     ['Training logged. Directional growth shapes the whole season.', 'Logged — patience pays off.'],
+  repot:     ['Logged. Keep water consistent for the next few weeks.', 'Big move. New roots incoming.'],
+  worms:     ['Soil biology logged.', 'Worm castings noted — good long-term investment.'],
+};
+function getAffirmation(key) {
+  const arr = AFFIRMATIONS[key] || ['Logged.'];
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+async function streamGardenChat({ messages, plantContext, action, onChunk }) {
+  const res = await fetch('/api/garden-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages, plantContext, action }),
+  });
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (raw === '[DONE]') continue;
+      try { const { text } = JSON.parse(raw); if (text) onChunk(text); } catch {}
+    }
+  }
+}
+
+function ActionModal({ plant, actionKey, careLog, portraits, onLog, onClose }) {
+  const def = ACTION_DEFS[actionKey];
+  const color = plantColor(plant.type);
+  const [mode, setMode] = useState(null); // null | 'confirm' | 'help'
+
+  // confirm mode
+  const [confirmPhoto, setConfirmPhoto] = useState(null);
+  const [confirmFeedback, setConfirmFeedback] = useState(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const confirmFileRef = useRef(null);
+
+  // help/chat mode
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [chatPhoto, setChatPhoto] = useState(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [logged, setLogged] = useState(false);
+  const chatFileRef = useRef(null);
+  const chatEndRef = useRef(null);
+
+  function buildContext() {
+    const portrait = portraits?.[plant.id] || {};
+    return {
+      name: plant.name, species: plant.species, type: plant.type,
+      health: plant.health, container: plant.container,
+      visualNote: portrait.visualNote, stage: portrait.currentStage,
+      careHistory: (careLog[plant.id] || []).slice(-5),
+    };
+  }
+
+  useEffect(() => {
+    if (mode === 'help' && messages.length === 0) {
+      sendChat(`I'm about to ${def.label.toLowerCase()} my ${plant.name} right now. Walk me through exactly what to do.`);
+    }
+  }, [mode]); // eslint-disable-line
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  async function sendChat(text, images = []) {
+    const userMsg = { role: 'user', content: text, ...(images.length ? { images } : {}) };
+    const nextMsgs = [...messages, userMsg];
+    setMessages([...nextMsgs, { role: 'assistant', content: '' }]);
+    setInput(''); setChatPhoto(null); setChatLoading(true);
+    try {
+      await streamGardenChat({
+        messages: nextMsgs, plantContext: buildContext(), action: def.label,
+        onChunk: chunk => setMessages(m => {
+          const c = [...m];
+          c[c.length - 1] = { ...c[c.length - 1], content: c[c.length - 1].content + chunk };
+          return c;
+        }),
+      });
+    } catch {
+      setMessages(m => { const c=[...m]; c[c.length-1]={...c[c.length-1],content:'Could not reach the oracle.'}; return c; });
+    }
+    setChatLoading(false);
+  }
+
+  async function sendConfirmPhoto(dataUrl) {
+    setConfirmPhoto(dataUrl); setConfirmLoading(true);
+    let feedback = '';
+    try {
+      await streamGardenChat({
+        messages: [{ role: 'user', content: `I just ${def.label.toLowerCase()}d my ${plant.name}. Here's a photo — did I do it right? One or two sentences.`, images: [dataUrl] }],
+        plantContext: buildContext(), action: def.label,
+        onChunk: chunk => { feedback += chunk; setConfirmFeedback(feedback); },
+      });
+    } catch { setConfirmFeedback(getAffirmation(actionKey)); }
+    if (!feedback) setConfirmFeedback(getAffirmation(actionKey));
+    setConfirmLoading(false);
+  }
+
+  function readPhoto(file) {
+    return new Promise(resolve => { const r = new FileReader(); r.onload = e => resolve(e.target.result); r.readAsDataURL(file); });
+  }
+
+  // ── Mode chooser ──────────────────────────────────────────────────────────
+  if (!mode) return (
+    <div style={{ position:'absolute', inset:0, background:'#faf6ee', zIndex:20,
+      display:'flex', flexDirection:'column', fontFamily:SERIF, padding:'18px 16px', overflowY:'auto' }}>
+      <button onClick={onClose} style={{ alignSelf:'flex-start', background:'none', border:'none',
+        color:'#b09070', cursor:'pointer', fontSize:13, fontFamily:SERIF, marginBottom:14, padding:0 }}>
+        ← back
+      </button>
+      <div style={{ fontSize:26, marginBottom:4 }}>{def.emoji}</div>
+      <div style={{ fontSize:18, color:'#2a1808', fontWeight:600, fontFamily:SERIF }}>{def.label}</div>
+      <div style={{ fontSize:12, color:'#907050', fontStyle:'italic', fontFamily:SERIF, marginBottom:22 }}>{plant.name}</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        <button onClick={() => setMode('help')}
+          style={{ display:'flex', alignItems:'flex-start', gap:12, background:'#fff',
+            border:`1.5px solid ${color}45`, borderRadius:10, padding:'13px 13px',
+            cursor:'pointer', textAlign:'left', boxShadow:`0 2px 8px ${color}12`, transition:'all .12s' }}>
+          <span style={{ fontSize:22, marginTop:2 }}>🌿</span>
+          <div>
+            <div style={{ fontSize:14, color:'#2a1808', fontFamily:SERIF, fontWeight:600, marginBottom:3 }}>
+              Walk me through it
+            </div>
+            <div style={{ fontSize:11.5, color:'#907050', fontFamily:SERIF, lineHeight:1.5 }}>
+              Step-by-step guidance. Ask questions, share photos while you work.
+            </div>
+          </div>
+        </button>
+        <button onClick={() => setMode('confirm')}
+          style={{ display:'flex', alignItems:'flex-start', gap:12, background:'#fff',
+            border:`1px solid rgba(160,130,80,0.28)`, borderRadius:10, padding:'13px 13px',
+            cursor:'pointer', textAlign:'left', transition:'all .12s' }}>
+          <span style={{ fontSize:22, marginTop:2 }}>✓</span>
+          <div>
+            <div style={{ fontSize:14, color:'#2a1808', fontFamily:SERIF, fontWeight:600, marginBottom:3 }}>
+              I already did it
+            </div>
+            <div style={{ fontSize:11.5, color:'#907050', fontFamily:SERIF, lineHeight:1.5 }}>
+              Log it now. Add a photo if you want feedback.
+            </div>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Confirm mode ──────────────────────────────────────────────────────────
+  if (mode === 'confirm') {
+    if (confirmed) return (
+      <div style={{ position:'absolute', inset:0, background:'#faf6ee', zIndex:20,
+        display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+        fontFamily:SERIF, padding:24, textAlign:'center' }}>
+        <div style={{ fontSize:36, marginBottom:10 }}>✓</div>
+        <div style={{ fontSize:16, color:'#2a1808', fontWeight:600, marginBottom:8 }}>
+          {def.label} logged
+        </div>
+        {confirmFeedback && (
+          <div style={{ fontSize:13, color:'#605040', fontStyle:'italic', lineHeight:1.75,
+            maxWidth:250, marginBottom:22, fontFamily:SERIF }}>{confirmFeedback}</div>
+        )}
+        <button onClick={onClose}
+          style={{ background:color, border:'none', borderRadius:6, padding:'8px 24px',
+            color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:8 }}>DONE</button>
+      </div>
+    );
+    return (
+      <div style={{ position:'absolute', inset:0, background:'#faf6ee', zIndex:20,
+        display:'flex', flexDirection:'column', fontFamily:SERIF, padding:'18px 16px', overflowY:'auto' }}>
+        <button onClick={() => setMode(null)} style={{ alignSelf:'flex-start', background:'none', border:'none',
+          color:'#b09070', cursor:'pointer', fontSize:13, fontFamily:SERIF, marginBottom:14, padding:0 }}>
+          ← back
+        </button>
+        <div style={{ fontSize:14, color:'#2a1808', fontWeight:600, marginBottom:4, fontFamily:SERIF }}>
+          {def.emoji} {def.label} — {plant.name}
+        </div>
+        <div style={{ fontSize:12, color:'#907050', marginBottom:18, fontFamily:SERIF }}>
+          Add a photo for feedback, or log it directly.
+        </div>
+        {confirmPhoto ? (
+          <div style={{ marginBottom:14 }}>
+            <img src={confirmPhoto} alt="" style={{ width:'100%', borderRadius:8, marginBottom:10,
+              maxHeight:160, objectFit:'cover' }}/>
+            {confirmLoading ? (
+              <div style={{ fontSize:12, color:'#c0a880', fontStyle:'italic', fontFamily:SERIF }}>Reviewing…</div>
+            ) : confirmFeedback ? (
+              <div style={{ fontSize:13, color:'#4a2c10', fontStyle:'italic', lineHeight:1.75,
+                fontFamily:SERIF, marginBottom:14 }}>{confirmFeedback}</div>
+            ) : null}
+          </div>
+        ) : (
+          <button onClick={() => confirmFileRef.current?.click()}
+            style={{ display:'flex', alignItems:'center', gap:10, background:'#fff',
+              border:`1px solid ${color}40`, borderRadius:8, padding:'11px 13px',
+              cursor:'pointer', marginBottom:10, textAlign:'left' }}>
+            <span style={{ fontSize:20 }}>📷</span>
+            <div>
+              <div style={{ fontSize:13, color:'#2a1808', fontFamily:SERIF, fontWeight:600 }}>Add a photo</div>
+              <div style={{ fontSize:11, color:'#907050', fontFamily:SERIF }}>Get feedback from the oracle</div>
+            </div>
+          </button>
+        )}
+        <input ref={confirmFileRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }}
+          onChange={async e => { const f = e.target.files?.[0]; if (f) sendConfirmPhoto(await readPhoto(f)); }}/>
+        <button
+          onClick={() => { onLog(); if (!confirmPhoto) setConfirmFeedback(getAffirmation(actionKey)); setConfirmed(true); }}
+          disabled={confirmPhoto && !confirmFeedback}
+          style={{ background:color, border:'none', borderRadius:6, padding:'10px',
+            color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:8,
+            opacity:(confirmPhoto && !confirmFeedback) ? 0.4 : 1, marginBottom:8 }}>
+          ✓ LOG IT
+        </button>
+        {!confirmPhoto && (
+          <button onClick={() => { onLog(); setConfirmed(true); setConfirmFeedback(getAffirmation(actionKey)); }}
+            style={{ background:'none', border:'none', color:'#b09070', cursor:'pointer',
+              fontSize:12, fontFamily:SERIF, padding:'2px 0' }}>
+            Skip photo — log now
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // ── Help / chat mode ──────────────────────────────────────────────────────
+  return (
+    <div style={{ position:'absolute', inset:0, background:'#f5ede0', zIndex:20,
+      display:'flex', flexDirection:'column', fontFamily:SERIF }}>
+
+      {/* Header bar */}
+      <div style={{ padding:'9px 13px', borderBottom:`1px solid rgba(160,130,80,0.22)`,
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        background:'rgba(245,237,224,0.98)', flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center' }}>
+          <button onClick={() => setMode(null)} style={{ background:'none', border:'none',
+            color:'#b09070', cursor:'pointer', fontSize:13, fontFamily:SERIF, padding:'0 10px 0 0' }}>←</button>
+          <span style={{ fontSize:13, color:'#4a2c10', fontWeight:600 }}>{def.emoji} {def.label}</span>
+          <span style={{ fontSize:11, color:'#a08060', marginLeft:7, fontStyle:'italic' }}>{plant.name}</span>
+        </div>
+        {!logged ? (
+          <button onClick={() => { onLog(); setLogged(true); }}
+            style={{ background:color, border:'none', borderRadius:6, padding:'5px 10px',
+              color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:7, letterSpacing:.3 }}>
+            ✓ DONE
+          </button>
+        ) : (
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:11, color:'#5a9040', fontFamily:SERIF }}>✓ Logged</span>
+            <button onClick={onClose} style={{ background:'none', border:'none',
+              color:'#b09070', cursor:'pointer', fontSize:20, padding:'0 2px', lineHeight:1 }}>&times;</button>
+          </div>
+        )}
+      </div>
+
+      {/* Message thread */}
+      <div style={{ flex:1, overflowY:'auto', padding:'14px 13px 6px', display:'flex', flexDirection:'column', gap:10 }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ display:'flex', flexDirection:'column',
+            alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            {m.images?.length > 0 && (
+              <img src={m.images[0]} alt="" style={{ width:110, height:82, borderRadius:6,
+                marginBottom:4, objectFit:'cover', alignSelf:'flex-end' }}/>
+            )}
+            <div style={{
+              maxWidth:'90%', padding:'8px 11px',
+              borderRadius: m.role === 'user' ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
+              background: m.role === 'user' ? color+'1e' : '#fff',
+              border: m.role === 'user' ? `1px solid ${color}38` : '1px solid rgba(160,130,80,0.18)',
+              fontSize:13, color:'#2a1808', lineHeight:1.65,
+              fontStyle: m.role === 'assistant' ? 'italic' : 'normal',
+            }}>
+              {m.content || (chatLoading && i === messages.length - 1 ? '…' : '')}
+            </div>
+          </div>
+        ))}
+        <div ref={chatEndRef}/>
+      </div>
+
+      {/* Input row */}
+      <div style={{ padding:'8px 10px', borderTop:`1px solid rgba(160,130,80,0.18)`,
+        background:'rgba(245,237,224,0.98)', flexShrink:0 }}>
+        {chatPhoto && (
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+            <img src={chatPhoto} alt="" style={{ width:44, height:44, borderRadius:4, objectFit:'cover' }}/>
+            <button onClick={() => setChatPhoto(null)}
+              style={{ background:'none', border:'none', color:'#b09070', cursor:'pointer', fontSize:18 }}>×</button>
+          </div>
+        )}
+        <div style={{ display:'flex', gap:6, alignItems:'flex-end' }}>
+          <button onClick={() => chatFileRef.current?.click()}
+            style={{ background:'#fff', border:`1px solid rgba(160,130,80,0.28)`, borderRadius:6,
+              padding:'7px 8px', cursor:'pointer', fontSize:17, flexShrink:0, lineHeight:1 }}>📷</button>
+          <textarea
+            value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if ((input.trim() || chatPhoto) && !chatLoading) sendChat(input.trim(), chatPhoto ? [chatPhoto] : []);
+              }
+            }}
+            placeholder="Ask anything…" rows={1}
+            style={{ flex:1, border:`1px solid rgba(160,130,80,0.25)`, borderRadius:6,
+              padding:'8px 10px', fontSize:13, fontFamily:SERIF, background:'#fff',
+              resize:'none', color:'#2a1808', outline:'none', lineHeight:1.5 }}/>
+          <button
+            onClick={() => { if ((input.trim() || chatPhoto) && !chatLoading) sendChat(input.trim(), chatPhoto ? [chatPhoto] : []); }}
+            disabled={chatLoading || (!input.trim() && !chatPhoto)}
+            style={{ background:color, border:'none', borderRadius:6, padding:'8px 12px',
+              color:'#fff', cursor:'pointer', fontFamily:SERIF, fontSize:14, flexShrink:0,
+              opacity:(chatLoading || (!input.trim() && !chatPhoto)) ? 0.4 : 1 }}>→</button>
+        </div>
+        <input ref={chatFileRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }}
+          onChange={async e => { const f = e.target.files?.[0]; if (f) setChatPhoto(await readPhoto(f)); }}/>
+      </div>
+    </div>
+  );
+}
+
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
 function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate, weather }) {
   const [tab, setTab] = useState('care');
-  const [showHowTo, setShowHowTo] = useState(null);
+  const [actionModal, setActionModal] = useState(null); // key string or null
   const [briefing, setBriefing] = useState(null);
   const history = careLog[plant.id] || [];
   const color = plantColor(plant.type);
@@ -1039,12 +1368,8 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
   const handleAction = (key) => {
     const st = actionStatus(plant, key, careLog, seasonOpen);
     if (!st.available) return;
-    const howto = ACTION_HOWTO[key];
-    if (howto) {
-      const text = howto[plant.type] || howto['default'];
-      if (text) { setShowHowTo({ key, text }); return; }
-    }
-    onAction(key, plant);
+    if (key === 'water') { onAction(key, plant); return; }
+    setActionModal(key);
   };
 
   return (
@@ -1265,29 +1590,16 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
         )}
       </div>
 
-      {/* How-to overlay */}
-      {showHowTo && (
-        <div style={{position:'absolute',inset:0,background:'rgba(245,238,225,0.97)',display:'flex',flexDirection:'column',zIndex:10,padding:16}}>
-          <div style={{fontFamily:MONO,fontSize:8,color:color,marginBottom:4}}>HOW TO</div>
-          <div style={{fontSize:17,color:'#2a1808',fontWeight:600,fontFamily:SERIF,marginBottom:12}}>
-            {ACTION_DEFS[showHowTo.key]?.emoji} {ACTION_DEFS[showHowTo.key]?.label}
-          </div>
-          <div style={{fontSize:13,color:'#4a2c10',lineHeight:1.85,whiteSpace:'pre-line',fontFamily:SERIF,flex:1,overflowY:'auto'}}>
-            {showHowTo.text}
-          </div>
-          <div style={{display:'flex',gap:8,marginTop:14}}>
-            <button onClick={()=>setShowHowTo(null)}
-              style={{flex:1,background:'none',border:`1px solid ${C.cardBorder}`,borderRadius:6,
-                padding:'8px',color:'#907050',cursor:'pointer',fontSize:13,fontFamily:SERIF}}>
-              Not now
-            </button>
-            <button onClick={()=>{setShowHowTo(null);onAction(showHowTo.key,plant);}}
-              style={{flex:2,background:color,border:'none',borderRadius:6,
-                padding:'8px',color:'#fff',cursor:'pointer',fontFamily:MONO,fontSize:8}}>
-              I DID IT ✓
-            </button>
-          </div>
-        </div>
+      {/* Action modal — "walk me through it" / "I already did it" */}
+      {actionModal && (
+        <ActionModal
+          plant={plant}
+          actionKey={actionModal}
+          careLog={careLog}
+          portraits={portraits}
+          onLog={() => onAction(actionModal, plant)}
+          onClose={() => setActionModal(null)}
+        />
       )}
     </div>
   );

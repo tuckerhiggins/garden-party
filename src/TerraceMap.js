@@ -1079,6 +1079,7 @@ function CookieSVG({ pose }) {
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, seasonOpen, portraits = {}, careLog = {} }) {
   const [hovId, setHovId] = useState(null);
+  const leaveTimerRef = useRef(null);
   const cookieRef = useRef(null);
   if (!cookieRef.current) {
     cookieRef.current = {
@@ -1149,7 +1150,15 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
     }
     const onDoor = pt.y >= DB - 4 && pt.x >= DOOR_X - DOOR_W/2 && pt.x <= DOOR_X + DOOR_W/2;
     setDoorHover(onDoor);
-    setHovId(onDoor ? null : (hitTest(pt)?.id ?? null));
+    const hit = hitTest(pt);
+    if (onDoor || hit) {
+      if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
+      setHovId(onDoor ? null : hit.id);
+    } else {
+      if (!leaveTimerRef.current) {
+        leaveTimerRef.current = setTimeout(() => { setHovId(null); leaveTimerRef.current = null; }, 220);
+      }
+    }
   }, [dragId, svgPt, hitTest, onMove]);
 
   const onMouseDown = useCallback((e) => {
@@ -1655,7 +1664,6 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000)
           : null;
         const stage = portrait.currentStage;
-        const note = portrait.visualNote;
         const waterUrgent = daysSinceWater === null || daysSinceWater > 3;
         const showWaterBtn = seasonOpen && onAction;
 
@@ -1671,27 +1679,11 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           py = pt.y;
         }
 
-        // Word-wrap note to ~28 chars/line, max 2 lines
-        const noteLines = [];
-        if (note) {
-          const words = note.split(' ');
-          let line = '';
-          for (const w of words) {
-            if ((line + ' ' + w).trim().length > 28) { noteLines.push(line.trim()); line = w; }
-            else line = (line + ' ' + w).trim();
-          }
-          if (line) noteLines.push(line);
-          noteLines.splice(2);
-        }
-
         const PAD = 12;
-        const boxW = 188;
+        const boxW = 178;
         const ROW = 15;
-        // Layout: name row + divider + water row + note rows + optional button
-        let contentH = ROW; // name
-        contentH += 5; // divider gap
-        contentH += ROW; // water status
-        if (noteLines.length) contentH += noteLines.length * ROW + 2;
+        // Layout: name row + divider + water row + optional button
+        let contentH = ROW + 5 + ROW; // name + divider + water
         if (showWaterBtn) contentH += ROW + 8;
         const boxH = PAD + contentH + PAD;
 
@@ -1742,13 +1734,6 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
               {daysSinceWater === null ? '💧 No water logged' : daysSinceWater === 0 ? '💧 Watered today' : `💧 ${daysSinceWater}d since water`}
             </text>
             {(() => { cy += ROW + 2; return null; })()}
-
-            {/* Visual note — italic */}
-            {noteLines.map((l, i) => (
-              <text key={i} x={bx+PAD} y={cy + i*ROW + 9}
-                fontFamily="'Crimson Pro', Georgia, serif" fontSize={10} fontStyle="italic"
-                fill="rgba(240,228,200,0.52)">{l}</text>
-            ))}
 
             {/* Quick water button */}
             {showWaterBtn && (
