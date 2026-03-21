@@ -85,6 +85,8 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
   const color = plantColor(plant.type);
   const lastPhoto = photos[photos.length - 1];
   const analyzing = portraits?.[plant.id]?.analyzing;
+  const photoSrc = lastPhoto?.dataUrl || lastPhoto?.url || null;
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   async function handleFile(e) {
     const file = e.target.files[0]; if (!file) return;
@@ -179,8 +181,9 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
           border: (!lastPhoto && !seasonOpen) ? '2px solid rgba(212,168,48,0.40)' : 'none',
           boxSizing: 'border-box',
         }}>
-        {lastPhoto ? (
-          <img src={lastPhoto.dataUrl || lastPhoto.url} alt={plant.name}
+        {photoSrc && !photoFailed ? (
+          <img src={photoSrc} alt={plant.name}
+            onError={() => setPhotoFailed(true)}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
         ) : (
           <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -189,7 +192,7 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
               position: 'absolute', inset: 0,
               background: 'rgba(4,2,1,0.30)',
             }}/>
-            {!seasonOpen && (
+            {!seasonOpen && !lastPhoto && (
               <div style={{
                 position: 'absolute', top: 10, left: 10,
                 background: 'rgba(18,12,6,0.78)',
