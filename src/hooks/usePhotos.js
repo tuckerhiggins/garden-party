@@ -36,8 +36,10 @@ function dataUrlToBlob(dataUrl) {
 async function uploadPhoto(supabase, plantId, dataUrl, date) {
   const storagePath = `${plantId}/${Date.now()}.jpg`;
   const blob = dataUrlToBlob(dataUrl);
-  await supabase.storage.from('plant-photos').upload(storagePath, blob, { contentType: 'image/jpeg' });
-  await supabase.from('plant_photos').insert({ plant_id: plantId, storage_path: storagePath, taken_at: date });
+  const { error: uploadError } = await supabase.storage.from('plant-photos').upload(storagePath, blob, { contentType: 'image/jpeg' });
+  if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
+  const { error: dbError } = await supabase.from('plant_photos').insert({ plant_id: plantId, storage_path: storagePath, taken_at: date });
+  if (dbError) console.warn('[photos] DB insert failed (photo still saved to storage):', dbError.message);
   const { data: urlData } = supabase.storage.from('plant-photos').getPublicUrl(storagePath);
   return { storagePath, publicUrl: urlData?.publicUrl };
 }

@@ -589,13 +589,22 @@ function PlantBriefing({ plant, careLog, weather, portraits }) {
 }
 
 function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOpen, portraits, weather }) {
-  const [confirmed, setConfirmed] = useState({}); // plantId → action key just logged
+  const [confirmed, setConfirmed] = useState({});
+  const [briefing, setBriefing] = useState(null);
+
   const group = TERRACE_GROUPS.find(g => g.types.includes(hovPlant.type)) ||
     { key: hovPlant.type, label: hovPlant.name, types: [hovPlant.type] };
   const groupPlants = allPlants.filter(p => group.types.includes(p.type) && p.health !== 'memorial');
   const primaryPlant = groupPlants[0] || hovPlant;
 
   const URGENT_HEALTH = new Set(['thirsty','overlooked','struggling']);
+
+  useEffect(() => {
+    setBriefing(null);
+    fetchPlantBriefing(primaryPlant, careLog, weather, portraits)
+      .then(setBriefing)
+      .catch(() => {});
+  }, [primaryPlant.id, primaryPlant.health]);
 
   function handleAction(p, k) {
     if (!onAction) return;
@@ -604,9 +613,12 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOp
     setTimeout(() => setConfirmed(prev => { const n = {...prev}; delete n[p.id]; return n; }), 2000);
   }
 
+  const recommendedActions = (briefing?.actions || []).filter(a => ACTION_DEFS[a]);
+
   return (
     <div style={{ height:'100%', overflowY:'auto', fontFamily:SERIF, display:'flex', flexDirection:'column' }}>
-      {/* Portrait — AI if available, static fallback */}
+
+      {/* Portrait */}
       <div style={{ width:'100%', flexShrink:0, background:'rgba(14,8,3,0.9)', overflow:'hidden',
         borderBottom:'1px solid rgba(160,130,80,0.15)' }}>
         <div style={{ width:'100%', aspectRatio:'4/3' }}>
@@ -614,7 +626,7 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOp
         </div>
       </div>
 
-      {/* Visual note from photo analysis */}
+      {/* Visual note */}
       {portraits?.[primaryPlant.id]?.visualNote && !portraits?.[primaryPlant.id]?.analyzing && (
         <div style={{ padding:'10px 22px 10px', borderBottom:'1px solid rgba(160,130,80,0.10)',
           fontStyle:'italic', fontSize:11.5, color:'rgba(200,170,110,0.65)', lineHeight:1.5 }}>
@@ -634,124 +646,161 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOp
         )}
       </div>
 
-      {/* Per-plant oracle note */}
-      <PlantBriefing plant={primaryPlant} careLog={careLog} weather={weather} portraits={portraits}/>
+      {/* Oracle recommendation */}
+      {briefing?.note && (
+        <div style={{ padding:'10px 22px', borderBottom:'1px solid rgba(160,130,80,0.10)',
+          fontStyle:'italic', fontSize:12.5, lineHeight:1.6, color:'rgba(212,190,140,0.78)' }}>
+          {briefing.note}
+        </div>
+      )}
+      {!briefing && (
+        <div style={{ padding:'10px 22px', borderBottom:'1px solid rgba(160,130,80,0.08)',
+          fontSize:11, color:'rgba(240,228,200,0.20)', fontStyle:'italic' }}>
+          Reading the garden…
+        </div>
+      )}
 
-      {/* Per-plant care rows */}
+      {/* Per-plant rows */}
       {groupPlants.map(p => {
         const entries = careLog[p.id] || [];
         const lastWater = [...entries].reverse().find(e => e.action === 'water');
         const daysSinceWater = lastWater
           ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000)
           : null;
-        const alwaysAvailActions = (p.actions || []).filter(k => ACTION_DEFS[k]?.alwaysAvailable);
-        const availableNonTrivial = (p.actions || []).filter(k => {
-          const def = ACTION_DEFS[k];
-          if (!def || def.alwaysAvailable) return false;
-          return actionStatus(p, k, careLog, seasonOpen).available;
+        const needsWater = actionStatus(p,'water',careLog,seasonOpen).available && URGENT_HEALTH.has(p.health);
+        const justLogged = confirmed[p.id];
+        const color = plantColor(p.type);
+
+        // All non-trivial available actions
+        const allAvailable = Object.keys(ACTION_DEFS).filter(a => {
+          const def = ACTION_DEFS[a];
+          if (!def || def.alwaysAvailable || ['photo','visit','note','plant'].includes(a)) return false;
+          return actionStatus(p, a, careLog, seasonOpen).available;
         });
-        const cooldownActions = (p.actions || []).filter(k => {
-          const def = ACTION_DEFS[k];
-          if (!def || def.alwaysAvailable) return false;
-          const s = actionStatus(p, k, careLog, seasonOpen);
+        const recommended = allAvailable.filter(a => recommendedActions.includes(a));
+        const other = allAvailable.filter(a => !recommendedActions.includes(a));
+
+        // Cooldown actions across all non-trivial
+        const onCooldown = Object.keys(ACTION_DEFS).filter(a => {
+          const def = ACTION_DEFS[a];
+          if (!def || def.alwaysAvailable || ['photo','visit','note','plant'].includes(a)) return false;
+          const s = actionStatus(p, a, careLog, seasonOpen);
           return !s.available && s.reason && !s.reason.startsWith('Not yet') && s.reason !== 'Done for season';
         });
-        const needsWater = p.actions?.includes('water') && actionStatus(p,'water',careLog,seasonOpen).available && URGENT_HEALTH.has(p.health);
-        const justLogged = confirmed[p.id];
 
         return (
           <div key={p.id} style={{ padding:'14px 22px', borderBottom:'1px solid rgba(160,130,80,0.09)' }}>
+
+            {/* Plant name + health */}
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
               <div>
                 <span style={{ fontSize:14, color:'#f0e4cc' }}>{p.name}</span>
-                {p.subtitle && (
-                  <span style={{ fontSize:11, color:'rgba(240,228,200,0.38)', marginLeft:8 }}>{p.subtitle}</span>
-                )}
+                {p.subtitle && <span style={{ fontSize:11, color:'rgba(240,228,200,0.38)', marginLeft:8 }}>{p.subtitle}</span>}
               </div>
               <div style={{ fontSize:10, padding:'2px 8px', borderRadius:10,
-                background: healthColor(p.health) + '28',
-                color: healthColor(p.health),
+                background: healthColor(p.health) + '28', color: healthColor(p.health),
                 border: `1px solid ${healthColor(p.health)}44` }}>
                 {healthLabel(p.health)}
               </div>
             </div>
 
-            {/* Last watered / missed care voice */}
+            {/* Last watered */}
             {daysSinceWater !== null && needsWater && URGENT_HEALTH.has(p.health) ? (
               <MissedCareVoice plant={p} daysSinceWater={daysSinceWater}/>
             ) : daysSinceWater !== null ? (
-              <div style={{ fontSize:11, color: daysSinceWater > 2 ? '#e09060' : 'rgba(240,228,200,0.4)',
-                marginBottom:8 }}>
+              <div style={{ fontSize:11, color: daysSinceWater > 2 ? '#e09060' : 'rgba(240,228,200,0.4)', marginBottom:8 }}>
                 Watered {daysSinceWater === 0 ? 'today' : `${daysSinceWater}d ago`}
               </div>
             ) : (
-              <div style={{ fontSize:11, color:'rgba(240,228,200,0.3)', marginBottom:8 }}>
-                No water logged yet
-              </div>
+              <div style={{ fontSize:11, color:'rgba(240,228,200,0.3)', marginBottom:8 }}>No water logged yet</div>
             )}
 
-            {/* Confirmation flash */}
             {justLogged && (
-              <div style={{ fontSize:11, color:'#88cc48', marginBottom:8, fontStyle:'italic',
-                animation:'fadeConfirm 2s forwards' }}>
+              <div style={{ fontSize:11, color:'#88cc48', marginBottom:8, fontStyle:'italic', animation:'fadeConfirm 2s forwards' }}>
                 ✓ {ACTION_DEFS[justLogged]?.label} logged
               </div>
             )}
 
-            {/* Quick-tap action buttons */}
             {!justLogged && (
-              <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:6 }}>
-                {/* Always-available: water, visit */}
-                {alwaysAvailActions.filter(k => k !== 'photo').map(k => {
-                  const def = ACTION_DEFS[k];
-                  const urgent = k === 'water' && needsWater;
-                  return (
-                    <button key={k} onClick={() => handleAction(p, k)}
-                      style={{ fontSize:11, padding:'5px 11px', borderRadius:8, cursor:'pointer', border:'none',
-                        background: urgent ? 'rgba(200,80,20,0.35)' : 'rgba(255,255,255,0.08)',
-                        color: urgent ? '#f0a070' : 'rgba(240,228,200,0.75)',
-                        transition:'all .12s' }}
-                      onMouseEnter={e => e.target.style.background = urgent ? 'rgba(200,80,20,0.55)' : 'rgba(255,255,255,0.16)'}
-                      onMouseLeave={e => e.target.style.background = urgent ? 'rgba(200,80,20,0.35)' : 'rgba(255,255,255,0.08)'}>
-                      {def?.emoji} {def?.label}
-                    </button>
-                  );
-                })}
-                {/* Seasonal: prune, train, fertilize, etc. */}
-                {availableNonTrivial.map(k => {
-                  const def = ACTION_DEFS[k];
-                  return (
-                    <button key={k} onClick={() => handleAction(p, k)}
-                      style={{ fontSize:11, padding:'5px 11px', borderRadius:8, cursor:'pointer', border:'none',
-                        background:'rgba(80,180,40,0.18)', color:'#88cc48',
-                        transition:'all .12s' }}
-                      onMouseEnter={e => e.target.style.background = 'rgba(80,180,40,0.32)'}
-                      onMouseLeave={e => e.target.style.background = 'rgba(80,180,40,0.18)'}>
-                      {def?.emoji} {def?.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+              <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
 
-            {/* Cooldown actions */}
-            {cooldownActions.length > 0 && (
-              <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
-                {cooldownActions.map(k => {
-                  const def = ACTION_DEFS[k];
-                  const s = actionStatus(p, k, careLog, seasonOpen);
+                {/* Water — always shown */}
+                {seasonOpen && (() => {
+                  const urgent = needsWater;
                   return (
-                    <span key={k} style={{ fontSize:10, color:'rgba(240,228,200,0.32)' }}>
-                      {def?.emoji} {def?.label} in {s.reason}
-                    </span>
+                    <button onClick={() => handleAction(p, 'water')}
+                      style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:8,
+                        cursor:'pointer', border:'none', textAlign:'left',
+                        background: urgent ? 'rgba(200,80,20,0.30)' : 'rgba(255,255,255,0.06)',
+                        color: urgent ? '#f0a070' : 'rgba(240,228,200,0.60)',
+                        transition:'all .12s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = urgent ? 'rgba(200,80,20,0.50)' : 'rgba(255,255,255,0.14)'}
+                      onMouseLeave={e => e.currentTarget.style.background = urgent ? 'rgba(200,80,20,0.30)' : 'rgba(255,255,255,0.06)'}>
+                      <span style={{ fontSize:14 }}>💧</span>
+                      <span style={{ fontSize:12, fontFamily:SERIF }}>Water</span>
+                    </button>
+                  );
+                })()}
+
+                {/* Oracle-recommended actions — highlighted */}
+                {recommended.length > 0 && (
+                  <>
+                    {recommended.map(a => {
+                      const def = ACTION_DEFS[a];
+                      return (
+                        <button key={a} onClick={() => handleAction(p, a)}
+                          style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:8,
+                            cursor:'pointer', textAlign:'left',
+                            background:'rgba(212,168,48,0.14)',
+                            border:'1px solid rgba(212,168,48,0.35)',
+                            color:'#d4a830', transition:'all .12s' }}
+                          onMouseEnter={e => { e.currentTarget.style.background='rgba(212,168,48,0.26)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background='rgba(212,168,48,0.14)'; }}>
+                          <span style={{ fontSize:14 }}>{def.emoji}</span>
+                          <span style={{ flex:1, fontSize:12, fontFamily:SERIF }}>{def.label}</span>
+                          <span style={{ fontSize:9, fontFamily:'"Press Start 2P", monospace', color:'rgba(212,168,48,0.60)', letterSpacing:.2 }}>NOW</span>
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+
+                {/* Other available actions — subdued */}
+                {other.map(a => {
+                  const def = ACTION_DEFS[a];
+                  return (
+                    <button key={a} onClick={() => handleAction(p, a)}
+                      style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:8,
+                        cursor:'pointer', border:'none', textAlign:'left',
+                        background:'rgba(255,255,255,0.05)',
+                        color:'rgba(240,228,200,0.55)', transition:'all .12s' }}
+                      onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.12)'}
+                      onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.05)'}>
+                      <span style={{ fontSize:14 }}>{def.emoji}</span>
+                      <span style={{ fontSize:12, fontFamily:SERIF }}>{def.label}</span>
+                    </button>
                   );
                 })}
+
+                {/* Cooldown */}
+                {onCooldown.length > 0 && (
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:2 }}>
+                    {onCooldown.map(a => {
+                      const def = ACTION_DEFS[a];
+                      const s = actionStatus(p, a, careLog, seasonOpen);
+                      return (
+                        <span key={a} style={{ fontSize:10, color:'rgba(240,228,200,0.28)', fontFamily:SERIF }}>
+                          {def?.emoji} {def?.label} in {s.reason}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
         );
       })}
-
     </div>
   );
 }
@@ -809,7 +858,6 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait,
             <span style={{fontSize:9,color:'#fff',fontFamily:MONO}}>needs care</span>
           </div>
         )}
-        <PlantBriefing plant={plant} careLog={careLog} weather={null} portraits={portrait ? {[plant.id]: portrait} : {}}/>
 
         {portrait?.analyzing && (
           <div style={{position:'absolute',top:8,left:8,background:'rgba(18,12,6,0.72)',
@@ -879,6 +927,7 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait,
             <span style={{fontSize:10,color:color,fontFamily:SERIF,opacity:0.8}}>{history.length}×</span>
           )}
         </div>
+        <PlantBriefing plant={plant} careLog={careLog} weather={null} portraits={portrait ? {[plant.id]: portrait} : {}}/>
       </div>
     </div>
   );
@@ -1715,6 +1764,7 @@ export default function App() {
                       onHover={setHov}
                       onDescend={()=>setScene('front')}
                       portraits={portraits}
+                      careLog={careLog}
                     />
                   </div>
                 </div>

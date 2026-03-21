@@ -1077,7 +1077,7 @@ function CookieSVG({ pose }) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
-export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, portraits = {} }) {
+export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, portraits = {}, careLog = {} }) {
   const [hovId, setHovId] = useState(null);
   const cookieRef = useRef(null);
   if (!cookieRef.current) {
@@ -1643,11 +1643,19 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         );
       })()}
 
-      {/* ── Floating visual note on hover ── */}
+      {/* ── Hover tooltip ── */}
       {hovId && (() => {
         const hp = plants.find(p => p.id === hovId);
-        const note = portraits[hp?.id]?.visualNote;
-        if (!note) return null;
+        if (!hp || hp.type === 'empty-pot') return null;
+
+        const portrait = portraits[hp.id] || {};
+        const entries = careLog[hp.id] || [];
+        const lastWater = [...entries].reverse().find(e => e.action === 'water');
+        const daysSinceWater = lastWater
+          ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000)
+          : null;
+        const stage = portrait.currentStage;
+        const note = portrait.visualNote;
 
         let px, py;
         if (hp.wall === 3) {
@@ -1661,18 +1669,26 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           py = pt.y;
         }
 
-        const words = note.split(' ');
-        const lines = [];
-        let line = '';
-        for (const w of words) {
-          if ((line + ' ' + w).trim().length > 28) { lines.push(line.trim()); line = w; }
-          else line = (line + ' ' + w).trim();
+        const boxW = 170;
+        const rows = [];
+        if (stage) rows.push({ type: 'stage', text: stage });
+        if (daysSinceWater !== null) rows.push({ type: 'water', text: daysSinceWater === 0 ? 'Watered today' : `Watered ${daysSinceWater}d ago` });
+        else rows.push({ type: 'water', text: 'No water logged' });
+        if (note) {
+          const words = note.split(' ');
+          let line = '';
+          const noteLines = [];
+          for (const w of words) {
+            if ((line + ' ' + w).trim().length > 26) { noteLines.push(line.trim()); line = w; }
+            else line = (line + ' ' + w).trim();
+          }
+          if (line) noteLines.push(line);
+          rows.push({ type: 'note', lines: noteLines.slice(0, 2) });
         }
-        if (line) lines.push(line);
-        const displayLines = lines.slice(0, 3);
 
-        const boxW = 160;
-        const boxH = displayLines.length * 15 + 18;
+        const rowH = 14;
+        const noteExtra = note ? (Math.min(2, note.split(' ').length > 13 ? 2 : 1) - 1) * rowH : 0;
+        const boxH = 28 + rows.length * rowH + noteExtra + 4;
 
         let bx = px + 18;
         let by = py - boxH - 12;
@@ -1681,22 +1697,39 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         if (by + boxH > DB - 4) by = DB - boxH - 8;
         if (bx < DL + 4) bx = DL + 6;
 
+        const accentColor = hp.color || '#d4a830';
+
+        let rowY = by + 22;
         return (
-          <g opacity={0.94}>
-            <rect x={bx + 2} y={by + 2} width={boxW} height={boxH}
-              fill="rgba(0,0,0,0.35)" rx={4}/>
-            <rect x={bx} y={by} width={boxW} height={boxH}
-              fill="rgba(20,12,4,0.92)" rx={4}
-              stroke="rgba(160,130,80,0.28)" strokeWidth={0.8}/>
-            <rect x={bx} y={by} width={3} height={boxH}
-              fill={hp.color || '#d4a830'} rx={2} opacity={0.80}/>
-            {displayLines.map((l, i) => (
-              <text key={i} x={bx + 11} y={by + 14 + i * 15}
-                fontFamily="'Crimson Pro', Georgia, serif" fontSize={10} fontStyle="italic"
-                fill="rgba(240,228,200,0.90)">
-                {l}
-              </text>
-            ))}
+          <g>
+            {/* shadow */}
+            <rect x={bx+2} y={by+2} width={boxW} height={boxH} fill="rgba(0,0,0,0.30)" rx={5}/>
+            {/* bg */}
+            <rect x={bx} y={by} width={boxW} height={boxH} fill="rgba(14,8,3,0.95)" rx={5}
+              stroke="rgba(160,130,80,0.22)" strokeWidth={0.8}/>
+            {/* accent bar */}
+            <rect x={bx} y={by} width={3} height={boxH} fill={accentColor} rx={2} opacity={0.85}/>
+            {/* plant name */}
+            <text x={bx+11} y={by+15} fontFamily="'Press Start 2P', monospace" fontSize={7}
+              fill={accentColor} letterSpacing={0.3}>{hp.name.toUpperCase()}</text>
+            {/* rows */}
+            {rows.map((row, i) => {
+              const y = rowY + i * rowH;
+              if (row.type === 'note') {
+                return row.lines.map((l, j) => (
+                  <text key={`n${j}`} x={bx+11} y={y + j*rowH}
+                    fontFamily="'Crimson Pro', Georgia, serif" fontSize={9.5} fontStyle="italic"
+                    fill="rgba(240,228,200,0.65)">{l}</text>
+                ));
+              }
+              return (
+                <text key={i} x={bx+11} y={y}
+                  fontFamily="'Crimson Pro', Georgia, serif" fontSize={10}
+                  fill={row.type === 'water' && daysSinceWater > 3 ? '#e09060' : 'rgba(240,228,200,0.80)'}>
+                  {row.text}
+                </text>
+              );
+            })}
           </g>
         );
       })()}
