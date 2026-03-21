@@ -873,6 +873,185 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
   );
 }
 
+// ── GARDEN TAB ACCORDION ───────────────────────────────────────────────────
+
+function PlantAccordionRow({
+  plant, isExpanded, onToggle, needsAttention,
+  portrait, photos, lastWateredDate,
+  careLog, onAction, onStartAction, onPortraitUpdate, onGrowthUpdate, onAddPhoto,
+  briefing, seasonOpen, portraits,
+}) {
+  const color = plantColor(plant.type);
+  const expandedRef = useRef(null);
+
+  useEffect(() => {
+    if (isExpanded) expandedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [isExpanded]);
+
+  const waterLabel = lastWateredDate == null
+    ? 'not yet this season'
+    : (() => {
+        const days = Math.floor((Date.now() - new Date(lastWateredDate).getTime()) / 86400000);
+        if (days === 0) return 'today';
+        if (days === 1) return '1 day ago';
+        return `${days}d ago`;
+      })();
+
+  const { currentStage } = portrait || {};
+
+  return (
+    <div style={{ marginBottom: 6 }}>
+      {/* Compact row */}
+      <div
+        onClick={() => onToggle(plant.id)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '9px 12px',
+          background: isExpanded ? 'rgba(212,168,48,0.07)' : '#faf6ee',
+          border: `1px solid ${isExpanded ? 'rgba(160,130,80,0.35)' : 'rgba(160,130,80,0.18)'}`,
+          borderRadius: isExpanded ? '10px 10px 0 0' : 10,
+          cursor: 'pointer', transition: 'border-color .15s',
+        }}
+      >
+        {/* Attention dot */}
+        <div style={{
+          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+          background: needsAttention ? '#d4a830' : 'rgba(160,130,80,0.25)',
+        }}/>
+
+        {/* Portrait thumbnail */}
+        <div style={{
+          width: 44, height: 44, borderRadius: 8, overflow: 'hidden', flexShrink: 0,
+          border: '1px solid rgba(160,130,80,0.18)', background: '#f0e8d8',
+        }}>
+          <PlantPortrait plant={plant} aiSvg={portrait?.svg}/>
+        </div>
+
+        {/* Name + status */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: SERIF, fontSize: 15, fontWeight: 600, color: '#2a1808',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {plant.name}
+          </div>
+          <div style={{ fontFamily: SERIF, fontSize: 11, color: '#907050', marginTop: 2 }}>
+            {currentStage
+              ? <span style={{ color, fontStyle: 'italic' }}>{currentStage}</span>
+              : <span style={{ color: healthColor(plant.health) }}>{healthLabel(plant.health)}</span>
+            }
+            <span style={{ color: '#c0a080' }}> · 💧 {waterLabel}</span>
+          </div>
+        </div>
+
+        {/* 📷 quick access — tapping expands to show full card with photo strip */}
+        <div
+          onClick={e => { e.stopPropagation(); onToggle(plant.id); }}
+          style={{
+            padding: '6px 9px', borderRadius: 8,
+            border: '1px solid rgba(160,130,80,0.22)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+            background: 'rgba(255,255,255,0.5)', flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: 14 }}>📷</span>
+          <span style={{ fontFamily: MONO, fontSize: 5, color: '#a08060' }}>OPEN</span>
+        </div>
+
+        {/* Chevron */}
+        <span style={{
+          fontSize: 10, color: '#c0a080', flexShrink: 0,
+          transform: isExpanded ? 'rotate(180deg)' : 'none',
+          transition: 'transform .2s',
+        }}>▼</span>
+      </div>
+
+      {/* Expanded: full plant card */}
+      {isExpanded && (
+        <div ref={expandedRef} style={{
+          border: '1px solid rgba(160,130,80,0.18)', borderTop: 'none',
+          borderRadius: '0 0 10px 10px', overflow: 'hidden',
+        }}>
+          <MobilePlantCard
+            plant={plant} careLog={careLog} onAction={onAction}
+            onStartAction={onStartAction} onPortraitUpdate={onPortraitUpdate}
+            onGrowthUpdate={onGrowthUpdate} onAddPhoto={onAddPhoto}
+            photos={photos} portraits={portraits} briefing={briefing}
+            seasonOpen={seasonOpen}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GardenAccordion({
+  plants, frontPlants, careLog, onAction, onStartAction,
+  onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos,
+  portraits, briefings, seasonOpen, frozenAgendaItems,
+}) {
+  const [expandedId, setExpandedId] = useState(null);
+  const attentionIds = useMemo(
+    () => new Set((frozenAgendaItems || []).map(i => i.plantId)),
+    [frozenAgendaItems]
+  );
+
+  function toggle(id) {
+    setExpandedId(prev => prev === id ? null : id);
+  }
+
+  function lastWatered(plantId) {
+    const entries = (careLog[plantId] || []).filter(e => e.action === 'water');
+    return entries.length ? entries[entries.length - 1].date : null;
+  }
+
+  function sortedByAttention(list) {
+    return [...list].sort((a, b) => {
+      const diff = (attentionIds.has(a.id) ? 0 : 1) - (attentionIds.has(b.id) ? 0 : 1);
+      return diff !== 0 ? diff : a.name.localeCompare(b.name);
+    });
+  }
+
+  function renderSection(list, title, titleColor) {
+    if (!list.length) return null;
+    const sorted = sortedByAttention(list);
+    return (
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ fontFamily: MONO, fontSize: 7, color: titleColor,
+          marginBottom: 10, letterSpacing: .5 }}>
+          {title}
+        </div>
+        {sorted.map(p => (
+          <PlantAccordionRow
+            key={p.id}
+            plant={p}
+            isExpanded={expandedId === p.id}
+            onToggle={toggle}
+            needsAttention={attentionIds.has(p.id)}
+            portrait={portraits?.[p.id] || {}}
+            photos={allPhotos[p.id] || []}
+            lastWateredDate={lastWatered(p.id)}
+            careLog={careLog}
+            onAction={onAction}
+            onStartAction={onStartAction}
+            onPortraitUpdate={onPortraitUpdate}
+            onGrowthUpdate={onGrowthUpdate}
+            onAddPhoto={onAddPhoto}
+            briefing={briefings[p.id]}
+            seasonOpen={seasonOpen}
+            portraits={portraits}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '16px 16px 32px' }}>
+      {renderSection(plants, 'TERRACE', C.uiGold)}
+      {frontPlants.length > 0 && renderSection(frontPlants, '🌹 EMMA\'S ROSE GARDEN', '#e84070')}
+    </div>
+  );
+}
+
 // ── AGENDA ─────────────────────────────────────────────────────────────────
 const AGENDA_SKIP_ACTIONS = new Set(['photo', 'visit', 'note', 'plant']);
 const AGENDA_URGENT_HEALTH = new Set(['struggling', 'thirsty', 'overlooked']);
@@ -1567,36 +1746,21 @@ export function MobileView({
         )}
 
         {tab === 'garden' && (
-          <div style={{ padding: '16px' }}>
-            <div style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, marginBottom: 14, letterSpacing: .5 }}>
-              TERRACE
-            </div>
-            {plants
-              .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
-              .map(p => (
-                <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction}
-                  onStartAction={handleStartAction}
-                  onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-                  onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
-                  briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
-              ))
-            }
-            {frontPlants.length > 0 && <>
-              <div style={{ fontFamily: MONO, fontSize: 7, color: '#e84070', margin: '20px 0 14px', letterSpacing: .5 }}>
-                🌹 EMMA'S ROSE GARDEN
-              </div>
-              {frontPlants
-                .filter(p => p.health !== 'memorial')
-                .map(p => (
-                  <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction}
-                    onStartAction={handleStartAction}
-                    onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-                    onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
-                    briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
-                ))
-              }
-            </>}
-          </div>
+          <GardenAccordion
+            plants={plants.filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')}
+            frontPlants={frontPlants.filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')}
+            careLog={careLog}
+            onAction={handleAction}
+            onStartAction={handleStartAction}
+            onPortraitUpdate={onPortraitUpdate}
+            onGrowthUpdate={onGrowthUpdate}
+            onAddPhoto={onAddPhoto}
+            allPhotos={allPhotos}
+            portraits={portraits}
+            briefings={briefings}
+            seasonOpen={seasonOpen}
+            frozenAgendaItems={frozenAgendaItems}
+          />
         )}
 
         {tab === 'ask' && (
