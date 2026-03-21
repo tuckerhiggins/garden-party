@@ -112,10 +112,11 @@ export function useGardenData({ user }) {
   }, []);
 
   // ── WRITE OPERATIONS ──────────────────────────────────────────────────────
-  const logAction = useCallback(async (key, plant, withEmma) => {
+  const logAction = useCallback(async (key, plant, withEmma, customLabel) => {
     const def = ACTION_DEFS[key]; if (!def) return 0;
     const mult = withEmma ? 2 : 1;
     const earned = def.warmth * mult;
+    const label = customLabel || def.label;
 
     if (supabase && user) {
       // Fetch current warmth from Supabase to avoid stale-closure race condition
@@ -125,7 +126,7 @@ export function useGardenData({ user }) {
       const newWarmth = Math.min(1000, currentWarmth + earned);
       await Promise.all([
         supabase.from('care_log').insert({
-          plant_id: plant.id, action: key, label: def.label, emoji: def.emoji,
+          plant_id: plant.id, action: key, label, emoji: def.emoji,
           earned, with_emma: withEmma, plant_name: plant.name, logged_by: user.id,
         }),
         supabase.from('garden_state').update({ warmth: newWarmth }).eq('id', 1),
@@ -134,7 +135,7 @@ export function useGardenData({ user }) {
     } else {
       // localStorage fallback
       const entry = {
-        action: key, label: def.label, emoji: def.emoji,
+        action: key, label, emoji: def.emoji,
         date: new Date().toISOString(), withEmma, earned, plantName: plant.name,
       };
       setCareLogState(prev => {

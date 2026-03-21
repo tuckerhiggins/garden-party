@@ -4,7 +4,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { OracleChat } from './OracleChat';
 import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
-import { fetchPlantBriefing } from '../claude';
+import { fetchPlantBriefing, fetchMorningBrief } from '../claude';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO = '"Press Start 2P", monospace';
@@ -88,6 +88,8 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
   const analyzing = portraits?.[plant.id]?.analyzing;
   const photoSrc = lastPhoto?.dataUrl || lastPhoto?.url || null;
   const [photoFailed, setPhotoFailed] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState('');
 
   async function handleFiles(e) {
     const files = Array.from(e.target.files || []).slice(0, 4);
@@ -161,6 +163,14 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
     }
   }
 
+  function submitNote() {
+    const text = noteText.trim();
+    if (!text) { setNoteOpen(false); return; }
+    onAction('note', plant, text);
+    setNoteText('');
+    setNoteOpen(false);
+  }
+
   const waterStatus = actionStatus(plant, 'water', careLog, seasonOpen);
   // Oracle-recommended actions, filtered through cooldown check
   const oracleActions = (briefing?.actions || [])
@@ -213,16 +223,16 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
             )}
           </div>
         )}
-        {/* Analyzing overlay */}
+        {/* Analyzing indicator — subtle, non-blocking */}
         {analyzing && (
           <div style={{
-            position: 'absolute', inset: 0,
-            background: 'rgba(18,12,6,0.65)',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 8,
+            position: 'absolute', bottom: 8, left: 8,
+            background: 'rgba(18,12,6,0.82)',
+            borderRadius: 20, padding: '4px 10px',
+            display: 'flex', alignItems: 'center', gap: 5,
           }}>
-            <div style={{ fontSize: 22 }}>🌿</div>
-            <div style={{ fontFamily: MONO, fontSize: 6, color: C.uiGold, letterSpacing: .5 }}>ANALYZING…</div>
+            <span style={{ fontSize: 10 }}>🌿</span>
+            <span style={{ fontFamily: MONO, fontSize: 5, color: C.uiGold, letterSpacing: .5 }}>analyzing…</span>
           </div>
         )}
         {/* Camera overlay button */}
@@ -319,7 +329,52 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
               </span>
             </button>
           )}
+
+          {/* Note button */}
+          <button
+            onClick={() => setNoteOpen(o => !o)}
+            style={{
+              flex: 1, padding: '10px 8px',
+              background: noteOpen ? 'rgba(212,168,48,0.10)' : 'rgba(0,0,0,.02)',
+              border: `1px solid ${noteOpen ? 'rgba(212,168,48,0.35)' : 'rgba(160,130,80,.15)'}`,
+              borderRadius: 8, cursor: 'pointer',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+            }}>
+            <span style={{ fontSize: 18 }}>📝</span>
+            <span style={{ fontFamily: MONO, fontSize: 6, color: '#a08060' }}>NOTE</span>
+          </button>
         </div>
+
+        {/* Note input — inline, expands when open */}
+        {noteOpen && (
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <input
+              autoFocus
+              type="text"
+              value={noteText}
+              onChange={e => setNoteText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') submitNote(); if (e.key === 'Escape') setNoteOpen(false); }}
+              placeholder="What did you notice?"
+              style={{
+                flex: 1, padding: '9px 12px',
+                background: 'rgba(255,255,255,0.7)',
+                border: '1px solid rgba(160,130,80,0.3)',
+                borderRadius: 8, fontFamily: SERIF, fontSize: 14,
+                color: '#2a1808', outline: 'none',
+              }}
+            />
+            <button onClick={submitNote}
+              style={{
+                padding: '9px 14px',
+                background: 'rgba(212,168,48,0.15)',
+                border: '1px solid rgba(212,168,48,0.35)',
+                borderRadius: 8, cursor: 'pointer',
+                fontFamily: MONO, fontSize: 6, color: C.uiGold,
+              }}>
+              LOG
+            </button>
+          </div>
+        )}
 
         {/* Last photo date if exists */}
         {lastPhoto && (
@@ -333,22 +388,27 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
 }
 
 // ── QUICK CARE TAB ─────────────────────────────────────────────────────────
-function QuickCareTab({ plants, careLog, onAction, onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos = {}, portraits, briefings = {}, seasonOpen }) {
-  // Show plants that need water OR have oracle-recommended actions
-  const needsWater = plants.filter(p => {
-    if (p.health === 'memorial' || p.type === 'empty-pot') return false;
-    if (!p.actions?.includes('water')) return false;
-    const entries = (careLog[p.id] || []).filter(e => e.action === 'water');
-    if (!entries.length) return true;
-    return (Date.now() - new Date(entries[entries.length - 1].date).getTime()) / 86400000 > 1;
-  });
-  const hasOracleActions = plants.filter(p =>
-    p.health !== 'memorial' && p.type !== 'empty-pot' &&
-    (briefings[p.id]?.actions || []).length > 0
-  );
-  const actionable = [...new Map(
-    [...needsWater, ...hasOracleActions].map(p => [p.id, p])
-  ).values()];
+function QuickCareTab({ plants, frontPlants = [], careLog, onAction, onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos = {}, portraits, briefings = {}, seasonOpen, morningBrief }) {
+  function getActionable(pList) {
+    const needsWater = pList.filter(p => {
+      if (p.health === 'memorial' || p.type === 'empty-pot') return false;
+      if (!p.actions?.includes('water')) return false;
+      const entries = (careLog[p.id] || []).filter(e => e.action === 'water');
+      if (!entries.length) return true;
+      return (Date.now() - new Date(entries[entries.length - 1].date).getTime()) / 86400000 > 1;
+    });
+    const hasOracleActions = pList.filter(p =>
+      p.health !== 'memorial' && p.type !== 'empty-pot' &&
+      (briefings[p.id]?.actions || []).length > 0
+    );
+    return [...new Map(
+      [...needsWater, ...hasOracleActions].map(p => [p.id, p])
+    ).values()];
+  }
+
+  const terraceActionable = getActionable(plants);
+  const emmaActionable = getActionable(frontPlants);
+  const totalActionable = terraceActionable.length + emmaActionable.length;
 
   if (!seasonOpen) {
     return (
@@ -361,47 +421,113 @@ function QuickCareTab({ plants, careLog, onAction, onPortraitUpdate, onGrowthUpd
     );
   }
 
-  if (actionable.length === 0 && needsWater.length === 0) {
-    return (
-      <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>✓</div>
-        <div style={{ fontFamily: SERIF, fontSize: 16, color: '#907050', fontStyle: 'italic' }}>
-          Everything is tended to.
-        </div>
-      </div>
-    );
-  }
-
-  const prioritized = [
-    ...needsWater.filter(p => !actionable.find(a => a.id === p.id)),
-    ...actionable,
-  ].filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
-
   return (
     <div style={{ padding: '16px' }}>
-      <div style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, marginBottom: 14, letterSpacing: .5 }}>
-        {prioritized.length} NEED{prioritized.length !== 1 ? 'S' : ''} CARE
-      </div>
-      {prioritized.map(p => (
-        <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction}
-          onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-          onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
-          briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
-      ))}
+      {/* Morning brief */}
+      {morningBrief && (
+        <div style={{
+          background: 'rgba(212,168,48,0.08)',
+          border: '1px solid rgba(212,168,48,0.20)',
+          borderRadius: 10, padding: '12px 14px', marginBottom: 18,
+        }}>
+          <div style={{ fontFamily: SERIF, fontSize: 14, color: '#5a3c18', fontStyle: 'italic', lineHeight: 1.5 }}>
+            {morningBrief}
+          </div>
+        </div>
+      )}
+
+      {totalActionable === 0 ? (
+        <div style={{ padding: '24px 0', textAlign: 'center' }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>✓</div>
+          <div style={{ fontFamily: SERIF, fontSize: 16, color: '#907050', fontStyle: 'italic' }}>
+            Everything is tended to.
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Terrace section */}
+          {terraceActionable.length > 0 && (
+            <>
+              <div style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, marginBottom: 14, letterSpacing: .5 }}>
+                TERRACE · {terraceActionable.length} NEED{terraceActionable.length !== 1 ? 'S' : ''} CARE
+              </div>
+              {terraceActionable.map(p => (
+                <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction}
+                  onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
+                  onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
+                  briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
+              ))}
+            </>
+          )}
+
+          {/* Emma's Rose Garden section */}
+          {emmaActionable.length > 0 && (
+            <>
+              <div style={{ fontFamily: MONO, fontSize: 7, color: '#e84070', margin: `${terraceActionable.length > 0 ? 20 : 0}px 0 14px`, letterSpacing: .5 }}>
+                🌹 EMMA'S GARDEN · {emmaActionable.length} NEED{emmaActionable.length !== 1 ? 'S' : ''} CARE
+              </div>
+              {emmaActionable.map(p => (
+                <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction}
+                  onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
+                  onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
+                  briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
+              ))}
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 }
 
 // ── JOURNAL TAB (mobile) ───────────────────────────────────────────────────
-function MobileJournal({ plants, careLog }) {
+function MobileJournal({ plants, frontPlants = [], careLog, portraits = {} }) {
+  const allPlants = [...plants, ...frontPlants];
   const allEntries = [];
-  Object.entries(careLog).forEach(([id, entries]) => {
-    const plant = plants.find(p => p.id === id);
-    if (plant) entries.forEach(e => allEntries.push({ ...e, plant }));
-  });
-  allEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  if (allEntries.length === 0) {
+  // Care log entries
+  Object.entries(careLog).forEach(([id, entries]) => {
+    const plant = allPlants.find(p => p.id === id);
+    if (plant) entries.forEach(e => allEntries.push({ ...e, plant, entryType: e.action === 'note' ? 'note' : 'care' }));
+  });
+
+  // Portrait observation entries (from AI analysis)
+  allPlants.forEach(p => {
+    const portrait = portraits[p.id];
+    if (!portrait?.visualNote || !portrait?.date) return;
+    allEntries.push({
+      entryType: 'observation',
+      plant: p,
+      label: portrait.visualNote,
+      date: portrait.date,
+      emoji: '🔍',
+      earned: 0,
+    });
+    // Also include history observations
+    (portrait.history || []).forEach(h => {
+      if (h.visualNote && h.date) {
+        allEntries.push({
+          entryType: 'observation',
+          plant: p,
+          label: h.visualNote,
+          date: h.date,
+          emoji: '🔍',
+          earned: 0,
+        });
+      }
+    });
+  });
+
+  allEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
+  // Deduplicate by plant + date + label
+  const seen = new Set();
+  const deduped = allEntries.filter(e => {
+    const key = `${e.plant.id}|${e.date}|${e.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+
+  if (deduped.length === 0) {
     return (
       <div style={{ padding: '40px 20px', textAlign: 'center' }}>
         <div style={{ fontFamily: SERIF, fontSize: 14, color: '#907050', fontStyle: 'italic' }}>
@@ -416,23 +542,34 @@ function MobileJournal({ plants, careLog }) {
       <div style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, marginBottom: 14, letterSpacing: .5 }}>
         SEASON 2 LOG
       </div>
-      {allEntries.slice(0, 40).map((e, i) => {
+      {deduped.slice(0, 60).map((e, i) => {
         const color = plantColor(e.plant.type);
+        const isObservation = e.entryType === 'observation';
+        const isNote = e.entryType === 'note';
         return (
           <div key={i} style={{
             display: 'flex', gap: 10, padding: '10px 0',
             borderBottom: '1px solid rgba(160,130,80,0.12)',
             alignItems: 'flex-start',
+            opacity: isObservation ? 0.85 : 1,
           }}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>{e.emoji}</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, color: '#2a1808', fontFamily: SERIF }}>{e.label}</div>
+              <div style={{
+                fontSize: isObservation ? 12 : 14,
+                color: isNote ? '#5a3c18' : isObservation ? '#7a5c3c' : '#2a1808',
+                fontFamily: SERIF,
+                fontStyle: isObservation ? 'italic' : 'normal',
+                lineHeight: 1.4,
+              }}>
+                {e.label}
+              </div>
               <div style={{ fontSize: 12, color, fontFamily: SERIF }}>{e.plant.name}</div>
               {e.withEmma && <div style={{ fontSize: 11, color: '#a07030', fontFamily: SERIF }}>with Emma ♥</div>}
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               <div style={{ fontSize: 11, color: '#b09070', fontFamily: SERIF }}>{fmtDate(e.date)}</div>
-              <div style={{ fontSize: 11, color, fontFamily: SERIF }}>+{e.earned}♥</div>
+              {e.earned > 0 && <div style={{ fontSize: 11, color, fontFamily: SERIF }}>+{e.earned}♥</div>}
             </div>
           </div>
         );
@@ -531,6 +668,9 @@ export function MobileView({
   const [tab, setTab] = useState('care');
   const [flash, setFlash] = useState(null);
   const [briefings, setBriefings] = useState({});
+  const [morningBrief, setMorningBrief] = useState(null);
+  const [analysisNotice, setAnalysisNotice] = useState(null);
+  const prevAnalyzingRef = useRef({});
 
   // Version string that changes when any plant's last care action changes
   const careVersion = useMemo(() =>
@@ -549,13 +689,40 @@ export function MobileView({
           .then(b => setBriefings(prev => ({ ...prev, [p.id]: b })))
           .catch(() => {});
       });
-  }, [careVersion, weather]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [careVersion, weather]); // intentional: portraits/careLog refs change too often
 
-  function handleAction(key, plant) {
-    onAction(key, plant);
+  // Fetch morning brief once weather is available
+  useEffect(() => {
+    if (!weather || morningBrief) return;
+    fetchMorningBrief({ plants: [...plants, ...frontPlants], careLog, weather, portraits })
+      .then(brief => { if (brief) setMorningBrief(brief); })
+      .catch(() => {});
+  }, [weather]); // intentional: fetch once per weather load
+
+  // Watch portraits for analysis completion → show notification
+  useEffect(() => {
+    const prev = prevAnalyzingRef.current;
+    const allPlants = [...plants, ...frontPlants];
+    for (const [id, portrait] of Object.entries(portraits)) {
+      if (prev[id]?.analyzing && !portrait.analyzing) {
+        const plant = allPlants.find(p => p.id === id);
+        if (plant) {
+          setAnalysisNotice(`${plant.name} portrait updated`);
+          setTimeout(() => setAnalysisNotice(null), 4000);
+        }
+      }
+    }
+    prevAnalyzingRef.current = Object.fromEntries(
+      Object.entries(portraits).map(([id, p]) => [id, { analyzing: !!p.analyzing }])
+    );
+  }, [portraits]); // intentional: only track portrait analyzing transitions
+
+  function handleAction(key, plant, customLabel) {
+    onAction(key, plant, customLabel);
     const def = ACTION_DEFS[key];
     if (def) {
-      setFlash(`${def.emoji} ${def.label} · +${def.warmth}♥`);
+      const displayLabel = customLabel || def.label;
+      setFlash(`${def.emoji} ${displayLabel} · +${def.warmth}♥`);
       setTimeout(() => setFlash(null), 2000);
     }
   }
@@ -619,6 +786,21 @@ export function MobileView({
         )}
       </div>
 
+      {/* Analysis notification bar */}
+      {analysisNotice && (
+        <div style={{
+          background: 'rgba(18,12,6,0.90)',
+          borderBottom: `1px solid ${C.uiBorder}`,
+          padding: '7px 16px',
+          display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 14 }}>🌿</span>
+          <span style={{ fontFamily: SERIF, fontSize: 13, color: C.uiGold, fontStyle: 'italic' }}>
+            {analysisNotice}
+          </span>
+        </div>
+      )}
+
       {/* Flash message */}
       {flash && (
         <div style={{
@@ -666,10 +848,12 @@ export function MobileView({
         )}
 
         {tab === 'care' && (
-          <QuickCareTab plants={[...plants, ...frontPlants]} careLog={careLog} onAction={handleAction}
+          <QuickCareTab
+            plants={plants} frontPlants={frontPlants} careLog={careLog} onAction={handleAction}
             onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
             onAddPhoto={onAddPhoto} allPhotos={allPhotos} portraits={portraits}
-            briefings={briefings} seasonOpen={seasonOpen}/>
+            briefings={briefings} seasonOpen={seasonOpen} morningBrief={morningBrief}
+          />
         )}
 
         {tab === 'oracle' && (
@@ -680,7 +864,9 @@ export function MobileView({
         )}
 
         {tab === 'journal' && (
-          <MobileJournal plants={plants} careLog={careLog}/>
+          <MobileJournal
+            plants={plants} frontPlants={frontPlants} careLog={careLog} portraits={portraits}
+          />
         )}
       </div>
 

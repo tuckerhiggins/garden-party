@@ -1460,12 +1460,13 @@ export default function App() {
   }, [seasonOpener]);
 
   // Care action
-  const doAction = useCallback(async (key, plant) => {
+  const doAction = useCallback(async (key, plant, customLabel) => {
     const def = ACTION_DEFS[key]; if (!def) return;
     const autoEmma = role === 'emma'; // Emma's actions always count as with-Emma
     const isWithEmma = withEmma || autoEmma;
-    const earned = await logAction(key, plant, isWithEmma);
-    setFlash(`${def.emoji} ${def.label}${isWithEmma ? ' with Emma' : ''} · +${earned || def.warmth}♥`);
+    const earned = await logAction(key, plant, isWithEmma, customLabel);
+    const displayLabel = customLabel || def.label;
+    setFlash(`${def.emoji} ${displayLabel}${isWithEmma ? ' with Emma' : ''} · +${earned || def.warmth}♥`);
     setTimeout(() => setFlash(null), 2500);
   }, [withEmma, role, logAction]);
 
