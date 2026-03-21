@@ -138,7 +138,7 @@ export function usePortraits({ user }) {
       // Sync to Supabase (skip mid-analysis states)
       if (supabase && !data.analyzing && (data.svg || data.visualNote)) {
         const entry = next[id];
-        supabase.from('plant_portraits').upsert({
+        const basePayload = {
           plant_id: id,
           svg: entry.svg || null,
           visual_note: entry.visualNote || null,
@@ -146,13 +146,27 @@ export function usePortraits({ user }) {
           bloom_state: entry.bloomState || null,
           foliage_state: entry.foliageState || null,
           history: entry.history || [],
+          updated_at: new Date().toISOString(),
+        };
+        const withStages = {
+          ...basePayload,
           stages_data: {
             stages: entry.stages || [],
             currentStage: entry.currentStage || null,
             stageHistory: entry.stageHistory || [],
           },
-          updated_at: new Date().toISOString(),
-        }).catch(() => {});
+        };
+        // Try with stages_data first; if column doesn't exist yet, fall back to base payload
+        supabase.from('plant_portraits').upsert(withStages)
+          .then(({ error }) => {
+            if (error) {
+              // stages_data column not yet migrated — sync portrait data without it
+              supabase.from('plant_portraits').upsert(basePayload).catch(() => {});
+            }
+          })
+          .catch(() => {
+            supabase.from('plant_portraits').upsert(basePayload).catch(() => {});
+          });
       }
 
       return next;

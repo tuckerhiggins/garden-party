@@ -145,8 +145,12 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
     // iOS-safe input reset
     try { fileRef.current.value = null; } catch { fileRef.current.value = ''; }
 
-    // Compress all selected files in parallel
-    const dataUrls = (await Promise.all(files.map(f => compressImage(f)))).filter(Boolean);
+    // Compress files sequentially — parallel canvas ops can crash mobile Safari
+    const dataUrls = [];
+    for (const f of files) {
+      const result = await compressImage(f);
+      if (result) dataUrls.push(result);
+    }
     if (!dataUrls.length) { onPortraitUpdate?.(plant.id, { analyzing: false }); return; }
 
     const date = new Date().toISOString();
