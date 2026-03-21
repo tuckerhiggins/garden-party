@@ -262,7 +262,7 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
         ) : (
           <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-            <PlantPortrait plant={plant}/>
+            <PlantPortrait plant={plant} aiSvg={portrait?.svg}/>
             <div style={{
               position: 'absolute', inset: 0,
               background: 'rgba(4,2,1,0.30)',
@@ -308,6 +308,18 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
       </div>
       <input ref={fileRef} type="file" accept="image/*" multiple
         style={{ display: 'none' }} onChange={handleFiles}/>
+
+      {/* Visual note from AI analysis */}
+      {portrait?.visualNote && !portrait?.analyzing && (
+        <div style={{
+          padding: '8px 14px',
+          borderBottom: '1px solid rgba(160,130,80,0.12)',
+          fontFamily: SERIF, fontSize: 12, fontStyle: 'italic',
+          color: 'rgba(120,90,50,0.80)', lineHeight: 1.5,
+        }}>
+          {portrait.visualNote}
+        </div>
+      )}
 
       {/* Info + actions */}
       <div style={{ padding: '12px 14px' }}>
