@@ -1364,6 +1364,22 @@ export function MobileView({
   const prevAnalyzingRef = useRef({});
   const [completedThisSession, setCompletedThisSession] = useState(() => new Set());
 
+  // Seed session counter from today's care log so it survives page reloads
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const doneToday = new Set();
+    for (const [plantId, entries] of Object.entries(careLog)) {
+      for (const entry of entries) {
+        if (entry.date?.startsWith(today)) {
+          doneToday.add(`${plantId}:${entry.action}`);
+        }
+      }
+    }
+    if (doneToday.size > 0) {
+      setCompletedThisSession(prev => new Set([...doneToday, ...prev]));
+    }
+  }, [careVersion]); // careVersion changes when careLog is updated
+
   function handleMarkDone(item) {
     setCompletedThisSession(prev => new Set([...prev, item.key]));
     handleAction(item.actionKey, item.plant);
@@ -1399,6 +1415,18 @@ export function MobileView({
     () => computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen }),
     [plants, frontPlants, careLog, briefings, weather, seasonOpen]
   );
+
+  // Freeze the day's agenda so the total count stays stable as tasks are completed.
+  // Tasks dim out (completed=true) rather than disappearing from the list.
+  // Resets when the date changes (new day → fresh agenda).
+  const frozenAgendaRef = useRef([]);
+  const frozenAgendaDateRef = useRef('');
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (rawAgendaItems.length > 0 && frozenAgendaDateRef.current !== todayStr) {
+    frozenAgendaRef.current = rawAgendaItems;
+    frozenAgendaDateRef.current = todayStr;
+  }
+  const frozenAgendaItems = frozenAgendaRef.current.length > 0 ? frozenAgendaRef.current : rawAgendaItems;
 
   // Fetch AI-enriched agenda once per day (busts on care or weather changes)
   const rawAgendaKeys = rawAgendaItems.map(i => i.key).join(',');
@@ -1526,7 +1554,7 @@ export function MobileView({
       <div style={{ flex: 1, overflowY: tab !== 'ask' ? 'auto' : 'hidden', position: 'relative' }}>
         {tab === 'today' && (
           <TodayAgenda
-            rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
+            rawItems={frozenAgendaItems} isWeekend={agendaIsWeekend}
             agendaData={agendaData} seasonOpen={seasonOpen}
             totalActivePlants={totalActivePlants}
             morningBrief={morningBrief} onStartAction={handleStartAction}
