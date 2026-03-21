@@ -14,6 +14,7 @@ function sanitizeSvg(svg) {
   if (!svg) return null;
   return svg
     .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<text[\s\S]*?<\/text>/gi, '')
     .replace(/\son\w+\s*=["'][^"']*["']/gi, '')
     .replace(/\son\w+\s*=[^\s>]*/gi, '');
 }

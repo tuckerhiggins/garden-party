@@ -1339,19 +1339,12 @@ export default function App() {
 
     const calendarOk = new Date() >= new Date('2026-03-10');
 
-    const todayCode = weather?.code ?? 0;
-    const todayBad = todayCode >= 61; // WMO ≥61 = precipitation
-    const tomorrow = weather?.forecast?.[1];
-    const tomorrowBad = tomorrow ? (tomorrow.precipChance > 60 || tomorrow.code >= 61) : false;
-    const weatherOk = !todayBad && !tomorrowBad;
-
     let blocking = null;
     if (!readinessOk) blocking = 'readiness';
     else if (!calendarOk) blocking = 'calendar';
-    else if (!weatherOk) blocking = tomorrow?.precipChance > 60 ? 'rain-tomorrow' : 'rain-today';
 
     return {
-      seasonOpen: readinessOk && calendarOk && weatherOk,
+      seasonOpen: readinessOk && calendarOk,
       seasonReadiness: score,
       plantsNeedingPhotos: active.filter(p => (allPhotos[p.id] || []).length === 0).map(p => p.name),
       photoCount: withPhotos.length,

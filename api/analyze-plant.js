@@ -75,6 +75,7 @@ Illustration style:
 - Show ACTUAL state — dormant means bare canes, budding means tight buds, don't draw what you don't see
 - Warm naturalistic palette: greens (#4a7030, #6a9040), browns (#8a6040, #6a4828), reds (#c03058, #e84070), purples (#9860c8)
 - 30-60 SVG elements, clean and purposeful
+- NO text elements, labels, or annotations of any kind — pure illustration only
 - SVG must have: viewBox="0 0 240 180" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"`;
 
   const photoIntro = images.length > 1
