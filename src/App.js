@@ -1107,10 +1107,9 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
                 </div>
               </div>
             )}
-            {plant.type !== 'empty-pot' && (plant.actions||[]).length > 0 && (
+            {plant.type !== 'empty-pot' && (
               <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14}}>
-                {(plant.actions||[]).map(a=>{
-                  const def=ACTION_DEFS[a]; if(!def) return null;
+                {Object.entries(ACTION_DEFS).filter(([a]) => !['photo','visit','note'].includes(a)).map(([a, def])=>{
                   const st=actionStatus(plant,a,careLog,seasonOpen);
                   return(
                     <button key={a} onClick={()=>handleAction(a)} disabled={!st.available}

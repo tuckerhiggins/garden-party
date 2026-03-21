@@ -153,13 +153,13 @@ ${hasBriefing ? 'Lead with the specific action Tucker needs to take because of t
 
 // ── PLANT BRIEFING ────────────────────────────────────────────────────────
 // One-sentence oracle note about a specific plant right now. Shown in map hover card.
-// Actions the oracle can recommend (water is always shown separately)
-const RECOMMENDABLE_ACTIONS = new Set(['neem', 'prune', 'train', 'fertilize', 'worms']);
-const ACTION_DESCRIPTIONS = {
-  neem:      'neem oil spray — prevents aphids and fungal disease on foliage',
+const ORACLE_ACTIONS = {
+  water:     'water — irrigate thoroughly',
+  fertilize: 'fertilize — apply balanced or bloom-booster fertilizer',
+  neem:      'neem oil — spray to prevent/treat aphids, fungal issues',
   prune:     'prune — remove dead, damaged, or crossing growth',
-  train:     'train — tie and guide new growth along its support structure',
-  fertilize: 'fertilize — apply slow-release or bloom-booster fertilizer',
+  train:     'train — tie and guide new growth along its support',
+  repot:     'repot — move to larger container or refresh soil',
   worms:     'worms — add worms to improve soil aeration and nutrients',
 };
 
@@ -170,7 +170,7 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
   const lastActionDate = entries.length ? entries[entries.length - 1].date.slice(0, 10) : 'none';
   const portrait = portraits?.[plant.id] || {};
   const currentStage = portrait.currentStage || null;
-  const cacheKey = `plantbrief3_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}`;
+  const cacheKey = `plantbrief4_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}`;
 
   const lastWater = [...entries].reverse().find(e => e.action === 'water');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
@@ -182,16 +182,15 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
     `${d.date}: ${d.label} ${d.high}°/${d.low}°F, ${d.precipChance}% rain`
   ).join('; ') ?? '';
 
-  // Build action menu — only actions relevant to this plant type
-  const recommendable = (plant.actions || []).filter(a => RECOMMENDABLE_ACTIONS.has(a));
-  const actionMenu = recommendable.map(a => {
+  // Build action menu — all care actions, with recency info
+  const actionMenu = Object.entries(ORACLE_ACTIONS).map(([a, desc]) => {
     const last = [...entries].reverse().find(e => e.action === a);
     const daysAgo = last ? Math.floor((Date.now() - new Date(last.date).getTime()) / 86400000) : null;
     const when = daysAgo !== null ? `last done ${daysAgo}d ago` : 'not done this season';
-    return `  ${a}: ${ACTION_DESCRIPTIONS[a]} (${when})`;
+    return `  ${a}: ${desc} (${when})`;
   }).join('\n');
 
-  const systemPrompt = `You are a knowledgeable plant care advisor for Tucker and Emma's Brooklyn rooftop garden (Zone 7b). You give a brief specific observation about a plant's current state AND decide which care actions — if any — genuinely make sense right now. You are selective: don't recommend something just done, don't recommend more than is needed, don't recommend if nothing is needed.`;
+  const systemPrompt = `You are a knowledgeable plant care advisor for Tucker and Emma's Brooklyn rooftop garden (Zone 7b). You give a brief specific observation about a plant's current state AND recommend which care actions — if any — genuinely make sense right now. You can recommend any action from the list. Be selective: don't recommend something just done, don't recommend more than 2 actions, don't recommend if nothing is needed.`;
 
   const userPrompt = `Plant: ${plant.name}${plant.species ? ` (${plant.species})` : ''}, ${plant.type}.
 Health: ${plant.health}. Today: ${today}. Early spring, Zone 7b.
@@ -200,7 +199,11 @@ ${daysSinceWater !== null ? `Last watered ${daysSinceWater} day${daysSinceWater 
 ${recentActions ? `Recent care: ${recentActions}.` : ''}
 ${visualNote ? `Last photo observation: "${visualNote}"` : ''}
 ${next3 ? `3-day forecast: ${next3}` : ''}
-${recommendable.length > 0 ? `\nCare actions available for this plant:\n${actionMenu}\n\nRecommend 0–2 of the above that genuinely make sense RIGHT NOW given the plant's state, season, and what's already been done.` : ''}
+
+Care actions you can recommend:
+${actionMenu}
+
+Recommend 0–2 of the above that genuinely make sense RIGHT NOW. Use the exact action key (e.g. "water", "prune").
 Respond as JSON only — no other text:
 {"note": "one specific observation, max 20 words", "actions": []}`;
 
@@ -211,11 +214,10 @@ Respond as JSON only — no other text:
     return {
       note: typeof parsed.note === 'string' ? parsed.note : '',
       actions: Array.isArray(parsed.actions)
-        ? parsed.actions.filter(a => RECOMMENDABLE_ACTIONS.has(a))
+        ? parsed.actions.filter(a => ORACLE_ACTIONS[a])
         : [],
     };
   } catch {
-    // Old cached plain-text values fall back gracefully
     return { note: raw || '', actions: [] };
   }
 }
