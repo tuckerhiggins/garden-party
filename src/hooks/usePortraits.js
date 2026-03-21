@@ -29,24 +29,21 @@ export function usePortraits({ user }) {
     const merged = { ...prev };
     data.forEach(row => {
       const existing = prev[row.plant_id] || {};
-      const sbDate = row.updated_at ? new Date(row.updated_at).getTime() : 0;
-      const localDate = existing.date ? new Date(existing.date).getTime() : 0;
-      if (sbDate >= localDate || !existing.svg) {
-        const stagesData = row.stages_data || {};
-        merged[row.plant_id] = {
-          svg: sanitizeSvg(row.svg) || existing.svg || null,
-          visualNote: row.visual_note || existing.visualNote || null,
-          growth: row.growth ?? existing.growth ?? null,
-          bloomState: row.bloom_state || existing.bloomState || null,
-          foliageState: row.foliage_state || existing.foliageState || null,
-          history: row.history || existing.history || [],
-          stages: stagesData.stages || existing.stages || [],
-          currentStage: stagesData.currentStage || existing.currentStage || null,
-          stageHistory: stagesData.stageHistory || existing.stageHistory || [],
-          analyzing: false,
-          date: row.updated_at || existing.date,
-        };
-      }
+      const stagesData = row.stages_data || {};
+      // Supabase always wins on load — it is the source of truth
+      merged[row.plant_id] = {
+        svg: sanitizeSvg(row.svg) || existing.svg || null,
+        visualNote: row.visual_note || existing.visualNote || null,
+        growth: row.growth ?? existing.growth ?? null,
+        bloomState: row.bloom_state || existing.bloomState || null,
+        foliageState: row.foliage_state || existing.foliageState || null,
+        history: row.history || existing.history || [],
+        stages: stagesData.stages || existing.stages || [],
+        currentStage: stagesData.currentStage || existing.currentStage || null,
+        stageHistory: stagesData.stageHistory || existing.stageHistory || [],
+        analyzing: false,
+        date: row.updated_at || existing.date,
+      };
     });
     return merged;
   }

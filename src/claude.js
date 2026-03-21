@@ -170,7 +170,7 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
   const lastActionDate = entries.length ? entries[entries.length - 1].date.slice(0, 10) : 'none';
   const portrait = portraits?.[plant.id] || {};
   const currentStage = portrait.currentStage || null;
-  const cacheKey = `plantbrief2_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}`;
+  const cacheKey = `plantbrief3_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}`;
 
   const lastWater = [...entries].reverse().find(e => e.action === 'water');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
@@ -206,7 +206,8 @@ Respond as JSON only — no other text:
 
   const raw = await cachedClaude(cacheKey, systemPrompt, userPrompt, 120, 24 * 60 * 60 * 1000);
   try {
-    const parsed = JSON.parse(raw);
+    const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/,'').trim();
+    const parsed = JSON.parse(clean);
     return {
       note: typeof parsed.note === 'string' ? parsed.note : '',
       actions: Array.isArray(parsed.actions)
