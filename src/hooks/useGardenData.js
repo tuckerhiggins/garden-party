@@ -32,7 +32,9 @@ export function useGardenData({ user }) {
         supabase.from('expenses').select('*').order('created_at'),
       ]);
 
-      if (careRows) {
+      // Only overwrite local state if Supabase actually returned rows.
+      // An empty array ([] is truthy) would otherwise wipe valid localStorage data.
+      if (careRows?.length) {
         const log = {};
         careRows.forEach(row => {
           if (!log[row.plant_id]) log[row.plant_id] = [];
@@ -79,9 +81,18 @@ export function useGardenData({ user }) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'care_log' }, payload => {
         const row = payload.new;
         setCareLogState(prev => {
+          const existing = prev[row.plant_id] || [];
+          // Skip if we already have a matching entry from the optimistic update
+          // (same action on same plant within 10s = the one we just logged locally)
+          const rowTime = new Date(row.created_at).getTime();
+          const isDupe = existing.some(e =>
+            e.action === row.action &&
+            Math.abs(new Date(e.date).getTime() - rowTime) < 10000
+          );
+          if (isDupe) return prev;
           const u = {
             ...prev,
-            [row.plant_id]: [...(prev[row.plant_id] || []), {
+            [row.plant_id]: [...existing, {
               action: row.action, label: row.label, emoji: row.emoji,
               withEmma: row.with_emma,
               date: row.created_at, plantName: row.plant_name,
@@ -122,8 +133,9 @@ export function useGardenData({ user }) {
         plant_id: plant.id, action: key, label, emoji: def.emoji,
         with_emma: withEmma, plant_name: plant.name, logged_by: user.id,
       });
-      if (error) console.error('care_log insert failed:', error.message);
+      if (error) return error.message;
     }
+    return null;
   }, [user]);
 
   const updateGrowth = useCallback(async (plantId, val) => {

@@ -1855,10 +1855,13 @@ export default function App() {
   const doAction = useCallback(async (key, plant, customLabel) => {
     const def = ACTION_DEFS[key]; if (!def) return;
     const isWithEmma = role === 'emma';
-    await logAction(key, plant, isWithEmma, customLabel);
+    const syncError = await logAction(key, plant, isWithEmma, customLabel);
     const displayLabel = customLabel || def.label;
-    setFlash(`${def.emoji} ${displayLabel}${isWithEmma ? ' with Emma' : ''}`);
-    setTimeout(() => setFlash(null), 2500);
+    setFlash(syncError
+      ? `⚠️ Logged locally but sync failed: ${syncError}`
+      : `${def.emoji} ${displayLabel}${isWithEmma ? ' with Emma' : ''}`
+    );
+    setTimeout(() => setFlash(null), syncError ? 5000 : 2500);
   }, [role, logAction]);
 
   // Expense
