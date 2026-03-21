@@ -994,12 +994,15 @@ function GardenAccordion({
   );
 
   // Auto-open groups that have today's attention items
+  const TREE_TYPES = new Set(['evergreen', 'maple', 'serviceberry']);
+  function toGroupType(type) { return TREE_TYPES.has(type) ? 'tree' : type; }
+
   const [expandedGroups, setExpandedGroups] = useState(() => {
     const open = new Set();
     const all = [...plants, ...frontPlants];
     for (const item of frozenAgendaItems || []) {
       const p = all.find(x => x.id === item.plantId);
-      if (p) open.add(p.type);
+      if (p) open.add(toGroupType(p.type));
     }
     return open;
   });
@@ -1019,7 +1022,20 @@ function GardenAccordion({
     return entries.length ? entries[entries.length - 1].date : null;
   }
 
+  const GROUP_NAMES = {
+    tree: count => count === 1 ? 'The Tree' : 'The Trees',
+    hydrangea: count => count === 1 ? 'The Hydrangea' : 'The Hydrangeas',
+    wisteria: count => count === 1 ? 'The Wisteria' : 'The Wisterias',
+    lavender: count => count === 1 ? 'The Lavender' : 'The Lavenders',
+    'climbing-rose': count => count === 1 ? 'The Climbing Rose' : 'The Climbing Roses',
+    rose: count => count === 1 ? 'The Rose' : 'The Roses',
+    magnolia: () => 'The Magnolia',
+    tomato: count => count === 1 ? 'The Tomato' : 'The Tomatoes',
+    pepper: count => count === 1 ? 'The Pepper' : 'The Peppers',
+    herb: count => count === 1 ? 'The Herb' : 'The Herbs',
+  };
   function groupDisplayName(type, count) {
+    if (GROUP_NAMES[type]) return GROUP_NAMES[type](count);
     const base = type.replace(/-/g, ' ');
     if (count === 1) return 'The ' + base.charAt(0).toUpperCase() + base.slice(1);
     const plural = base.endsWith('y')
@@ -1055,10 +1071,12 @@ function GardenAccordion({
     if (!list.length) return null;
 
     // Group by type, sort groups: attention first then alpha
+    // Trees (evergreen, maple, serviceberry) merge into a single 'tree' group
     const groupMap = new Map();
     for (const p of list) {
-      if (!groupMap.has(p.type)) groupMap.set(p.type, []);
-      groupMap.get(p.type).push(p);
+      const key = toGroupType(p.type);
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key).push(p);
     }
     const sortedGroups = [...groupMap.entries()].sort(([tA, pA], [tB, pB]) => {
       const diff = (pA.some(p => attentionIds.has(p.id)) ? 0 : 1) - (pB.some(p => attentionIds.has(p.id)) ? 0 : 1);

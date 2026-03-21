@@ -34,6 +34,7 @@ function buildGardenContext({ plants, careLog, weather, seasonOpen, seasonBlocki
       return {
         name: p.name, type: p.type, health: p.health,
         container: p.container, growth: p.growth,
+        gardenSection: p.gardenSection || null,
         lastWatered, poem: p.poem, visualNote, lastAnalyzed,
       };
     });

@@ -24,10 +24,15 @@ module.exports = async function handler(req, res) {
     .map(e => `${e.label} ${new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`)
     .join(', ');
 
-  const system = `You are a practical garden advisor helping Tucker tend his Brooklyn rooftop terrace (Zone 7b). You're a knowledgeable friend — direct, specific, zero fluff.
+  const isRoseGarden = plantContext.container && plantContext.container.includes('in ground');
+  const locationDesc = isRoseGarden
+    ? "Emma's Rose Garden — a street-level front garden at their Park Slope brownstone (Zone 7b)"
+    : "Brooklyn rooftop terrace, 5th floor (Zone 7b)";
 
+  const system = `You are a practical garden advisor helping Tucker tend ${locationDesc}. You're a knowledgeable friend — direct, specific, zero fluff.
+${isRoseGarden ? `\nThis plant is in Emma's Rose Garden — planted in the ground at street level, not in a container. In-ground plants have much deeper moisture reserves and dry out far slower than rooftop pots. Don't apply container-care logic here.\n` : ''}
 Plant: ${plantContext.name}${plantContext.species ? ` (${plantContext.species})` : ''}
-Health: ${plantContext.health || 'unknown'} · Container: ${plantContext.container || 'pot'}
+Health: ${plantContext.health || 'unknown'} · Location: ${plantContext.container || 'pot'}
 Current phenological stage: ${plantContext.stage || 'unknown'}
 ${plantContext.visualNote ? `Last observed: ${plantContext.visualNote}` : ''}
 ${recentCare ? `Recent care: ${recentCare}` : ''}
@@ -36,7 +41,7 @@ ${action ? `\nTucker is performing: ${action}` : ''}
 
 Rules:
 - Be concise: 2–4 sentences unless steps genuinely need more
-- Give exact instructions for this specific plant in this specific container at this stage
+- Give exact instructions for this specific plant in its actual location at this stage
 - When you see a photo, describe exactly what you see and what to do next — no generalities
 - No markdown formatting, no bullet points in responses, just clear prose
 - If something looks wrong in a photo, say so plainly
