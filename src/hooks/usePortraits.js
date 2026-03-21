@@ -56,7 +56,10 @@ export function usePortraits({ user }) {
     if (!supabase) return;
     supabase.from('plant_portraits').select('*')
       .then(({ data, error }) => {
-        console.log('[portraits] initial load:', data?.length ?? 0, 'rows', error?.message ?? 'ok');
+        const withSvg = data?.filter(r => r.svg).length ?? 0;
+        const withNote = data?.filter(r => r.visual_note).length ?? 0;
+        console.log('[portraits] initial load:', data?.length ?? 0, 'rows ok —', withSvg, 'have svg,', withNote, 'have visual_note');
+        if (data?.length) console.log('[portraits] sample row keys:', Object.keys(data[0]));
         if (error || !data || data.length === 0) return;
         setPortraitsRef.current(prev => {
           const merged = mergeSupabaseRows(data, prev);
