@@ -1077,7 +1077,7 @@ function CookieSVG({ pose }) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
-export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, portraits = {}, careLog = {} }) {
+export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, seasonOpen, portraits = {}, careLog = {} }) {
   const [hovId, setHovId] = useState(null);
   const cookieRef = useRef(null);
   if (!cookieRef.current) {
@@ -1656,6 +1656,8 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           : null;
         const stage = portrait.currentStage;
         const note = portrait.visualNote;
+        const waterUrgent = daysSinceWater === null || daysSinceWater > 3;
+        const showWaterBtn = seasonOpen && onAction;
 
         let px, py;
         if (hp.wall === 3) {
@@ -1669,67 +1671,96 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           py = pt.y;
         }
 
-        const boxW = 170;
-        const rows = [];
-        if (stage) rows.push({ type: 'stage', text: stage });
-        if (daysSinceWater !== null) rows.push({ type: 'water', text: daysSinceWater === 0 ? 'Watered today' : `Watered ${daysSinceWater}d ago` });
-        else rows.push({ type: 'water', text: 'No water logged' });
+        // Word-wrap note to ~28 chars/line, max 2 lines
+        const noteLines = [];
         if (note) {
           const words = note.split(' ');
           let line = '';
-          const noteLines = [];
           for (const w of words) {
-            if ((line + ' ' + w).trim().length > 26) { noteLines.push(line.trim()); line = w; }
+            if ((line + ' ' + w).trim().length > 28) { noteLines.push(line.trim()); line = w; }
             else line = (line + ' ' + w).trim();
           }
           if (line) noteLines.push(line);
-          rows.push({ type: 'note', lines: noteLines.slice(0, 2) });
+          noteLines.splice(2);
         }
 
-        const rowH = 14;
-        const noteExtra = note ? (Math.min(2, note.split(' ').length > 13 ? 2 : 1) - 1) * rowH : 0;
-        const boxH = 28 + rows.length * rowH + noteExtra + 4;
+        const PAD = 12;
+        const boxW = 188;
+        const ROW = 15;
+        // Layout: name row + divider + water row + note rows + optional button
+        let contentH = ROW; // name
+        contentH += 5; // divider gap
+        contentH += ROW; // water status
+        if (noteLines.length) contentH += noteLines.length * ROW + 2;
+        if (showWaterBtn) contentH += ROW + 8;
+        const boxH = PAD + contentH + PAD;
 
-        let bx = px + 18;
-        let by = py - boxH - 12;
-        if (bx + boxW > VW - 10) bx = px - boxW - 18;
-        if (by < DT + 4) by = py + 16;
+        let bx = px + 20;
+        let by = py - boxH - 14;
+        if (bx + boxW > VW - 10) bx = px - boxW - 20;
+        if (by < DT + 4) by = py + 18;
         if (by + boxH > DB - 4) by = DB - boxH - 8;
         if (bx < DL + 4) bx = DL + 6;
 
         const accentColor = hp.color || '#d4a830';
+        let cy = by + PAD;
 
-        let rowY = by + 22;
+        // Button area
+        const btnY = by + boxH - PAD - ROW - 2;
+        const btnW = boxW - PAD * 2;
+
         return (
-          <g>
-            {/* shadow */}
-            <rect x={bx+2} y={by+2} width={boxW} height={boxH} fill="rgba(0,0,0,0.30)" rx={5}/>
+          <g style={{ pointerEvents: showWaterBtn ? 'auto' : 'none' }}>
+            {/* drop shadow */}
+            <rect x={bx+3} y={by+3} width={boxW} height={boxH} fill="rgba(0,0,0,0.28)" rx={7}/>
             {/* bg */}
-            <rect x={bx} y={by} width={boxW} height={boxH} fill="rgba(14,8,3,0.95)" rx={5}
-              stroke="rgba(160,130,80,0.22)" strokeWidth={0.8}/>
-            {/* accent bar */}
-            <rect x={bx} y={by} width={3} height={boxH} fill={accentColor} rx={2} opacity={0.85}/>
-            {/* plant name */}
-            <text x={bx+11} y={by+15} fontFamily="'Press Start 2P', monospace" fontSize={7}
-              fill={accentColor} letterSpacing={0.3}>{hp.name.toUpperCase()}</text>
-            {/* rows */}
-            {rows.map((row, i) => {
-              const y = rowY + i * rowH;
-              if (row.type === 'note') {
-                return row.lines.map((l, j) => (
-                  <text key={`n${j}`} x={bx+11} y={y + j*rowH}
-                    fontFamily="'Crimson Pro', Georgia, serif" fontSize={9.5} fontStyle="italic"
-                    fill="rgba(240,228,200,0.65)">{l}</text>
-                ));
-              }
-              return (
-                <text key={i} x={bx+11} y={y}
+            <rect x={bx} y={by} width={boxW} height={boxH} fill="rgba(10,6,2,0.96)" rx={7}
+              stroke={accentColor} strokeWidth={0.6} strokeOpacity={0.3}/>
+            {/* left accent bar */}
+            <rect x={bx} y={by+8} width={3} height={boxH-16} fill={accentColor} rx={1.5} opacity={0.9}/>
+
+            {/* Plant name */}
+            <text x={bx+PAD} y={cy+10}
+              fontFamily="'Press Start 2P', monospace" fontSize={7.5}
+              fill={accentColor} letterSpacing={0.4}>{hp.name.toUpperCase()}</text>
+            {/* Stage pill — top right */}
+            {stage && (
+              <text x={bx+boxW-PAD} y={cy+10} textAnchor="end"
+                fontFamily="'Crimson Pro', Georgia, serif" fontSize={9.5} fontStyle="italic"
+                fill="rgba(240,228,200,0.42)">{stage}</text>
+            )}
+            {(() => { cy += ROW + 5; return null; })()}
+
+            {/* thin divider */}
+            <line x1={bx+PAD} y1={cy} x2={bx+boxW-PAD} y2={cy} stroke="rgba(160,130,80,0.18)" strokeWidth={0.7}/>
+            {(() => { cy += 8; return null; })()}
+
+            {/* Water status */}
+            <text x={bx+PAD} y={cy+8}
+              fontFamily="'Crimson Pro', Georgia, serif" fontSize={10.5}
+              fill={waterUrgent ? '#e8905a' : 'rgba(240,228,200,0.62)'}>
+              {daysSinceWater === null ? '💧 No water logged' : daysSinceWater === 0 ? '💧 Watered today' : `💧 ${daysSinceWater}d since water`}
+            </text>
+            {(() => { cy += ROW + 2; return null; })()}
+
+            {/* Visual note — italic */}
+            {noteLines.map((l, i) => (
+              <text key={i} x={bx+PAD} y={cy + i*ROW + 9}
+                fontFamily="'Crimson Pro', Georgia, serif" fontSize={10} fontStyle="italic"
+                fill="rgba(240,228,200,0.52)">{l}</text>
+            ))}
+
+            {/* Quick water button */}
+            {showWaterBtn && (
+              <g style={{ cursor:'pointer' }} onClick={e => { e.stopPropagation(); onAction('water', hp); }}>
+                <rect x={bx+PAD} y={btnY} width={btnW} height={ROW+4} rx={4}
+                  fill={waterUrgent ? 'rgba(200,100,30,0.35)' : 'rgba(255,255,255,0.07)'}
+                  stroke={waterUrgent ? 'rgba(220,130,60,0.55)' : 'rgba(255,255,255,0.14)'} strokeWidth={0.7}/>
+                <text x={bx+PAD+btnW/2} y={btnY+ROW-2} textAnchor="middle"
                   fontFamily="'Crimson Pro', Georgia, serif" fontSize={10}
-                  fill={row.type === 'water' && daysSinceWater > 3 ? '#e09060' : 'rgba(240,228,200,0.80)'}>
-                  {row.text}
-                </text>
-              );
-            })}
+                  fill={waterUrgent ? '#f0a070' : 'rgba(240,228,200,0.65)'}>💧 Water now</text>
+              </g>
+            )}
           </g>
         );
       })()}

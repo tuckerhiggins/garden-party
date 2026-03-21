@@ -1022,11 +1022,19 @@ function PhotoSection({ plant, color, careLog, onAnalyze, portraits, photos = []
 }
 
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
-function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate }) {
-  const [tab, setTab] = useState('history');
+function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate, weather }) {
+  const [tab, setTab] = useState('care');
   const [showHowTo, setShowHowTo] = useState(null);
+  const [briefing, setBriefing] = useState(null);
   const history = careLog[plant.id] || [];
   const color = plantColor(plant.type);
+
+  useEffect(() => {
+    setBriefing(null);
+    fetchPlantBriefing(plant, careLog, weather, portraits)
+      .then(setBriefing)
+      .catch(() => {});
+  }, [plant.id, plant.health]);
 
   const handleAction = (key) => {
     const st = actionStatus(plant, key, careLog, seasonOpen);
@@ -1073,7 +1081,7 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
             {/* Portrait */}
             <div style={{height:140,background:`${color}08`,borderRadius:8,overflow:'hidden',marginBottom:12,
               border:`1px solid ${color}20`}}>
-              <PlantPortrait plant={plant}/>
+              <PlantPortrait plant={plant} aiSvg={portraits?.[plant.id]?.svg}/>
             </div>
             {/* Photo section */}
             {plant.type !== 'empty-pot' && plant.health !== 'memorial' && (
@@ -1150,36 +1158,108 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
                 </div>
               </div>
             )}
-            {!seasonOpen && (
-              <div style={{background:'rgba(40,80,120,0.08)',border:'1px solid rgba(60,100,160,0.2)',
-                borderRadius:6,padding:'10px 12px',marginBottom:12}}>
-                <div style={{fontFamily:MONO,fontSize:7,color:'#6090b0',marginBottom:4}}>PRE-SEASON</div>
-                <div style={{fontSize:12,color:'#608090',fontFamily:SERIF,lineHeight:1.6}}>
-                  Care actions unlock when Season 2 opens.
-                </div>
-              </div>
-            )}
+
             {plant.type !== 'empty-pot' && (
-              <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14}}>
-                {Object.entries(ACTION_DEFS).filter(([a]) => !['photo','visit','note','plant'].includes(a)).map(([a, def])=>{
-                  const st=actionStatus(plant,a,careLog,seasonOpen);
-                  return(
-                    <button key={a} onClick={()=>handleAction(a)} disabled={!st.available}
-                      style={{display:'flex',alignItems:'center',gap:8,
-                        background:st.available?'#fff':'rgba(0,0,0,.03)',
-                        border:`1px solid ${st.available?`${color}40`:'rgba(160,130,80,.2)'}`,
-                        borderRadius:6,padding:'8px 10px',cursor:st.available?'pointer':'not-allowed',
-                        transition:'all .12s',textAlign:'left',
-                        boxShadow:st.available?`0 1px 4px rgba(100,70,30,0.08)`:'none'}}>
-                      <span style={{fontSize:15}}>{def.emoji}</span>
-                      <span style={{flex:1,fontSize:13,color:st.available?'#2a1808':'#b09070',fontFamily:SERIF}}>{def.label}</span>
-                      {!st.available && (
-                        <span style={{fontSize:10,color:'#c0a080',fontFamily:SERIF}}>{st.reason}</span>
-                      )}
-                    </button>
+              <>
+                {/* AI Portrait */}
+                <div style={{height:150, background:`${color}08`, borderRadius:8, overflow:'hidden',
+                  marginBottom:12, border:`1px solid ${color}20`}}>
+                  <PlantPortrait plant={plant} aiSvg={portraits?.[plant.id]?.svg}/>
+                </div>
+
+                {/* Visual note from last analysis */}
+                {portraits?.[plant.id]?.visualNote && !portraits?.[plant.id]?.analyzing && (
+                  <div style={{fontSize:11.5, color:'#907050', fontStyle:'italic', fontFamily:SERIF,
+                    lineHeight:1.6, marginBottom:12, paddingBottom:12,
+                    borderBottom:`1px solid ${color}18`}}>
+                    {portraits[plant.id].visualNote}
+                  </div>
+                )}
+
+                {/* Oracle briefing */}
+                {briefing?.note ? (
+                  <div style={{fontSize:13, color:'#4a2c10', fontStyle:'italic', fontFamily:SERIF,
+                    lineHeight:1.7, marginBottom:14, paddingBottom:14,
+                    borderBottom:`1px solid ${color}18`}}>
+                    {briefing.note}
+                  </div>
+                ) : (
+                  <div style={{fontSize:11, color:'#c0a880', fontStyle:'italic', fontFamily:SERIF,
+                    marginBottom:12}}>Reading the garden…</div>
+                )}
+
+                {!seasonOpen && (
+                  <div style={{background:'rgba(40,80,120,0.06)',border:'1px solid rgba(60,100,160,0.18)',
+                    borderRadius:6,padding:'8px 10px',marginBottom:12}}>
+                    <div style={{fontSize:11,color:'#6090b0',fontFamily:SERIF,lineHeight:1.6}}>
+                      Care actions unlock when Season 2 opens.
+                    </div>
+                  </div>
+                )}
+
+                {/* Action buttons — recommended first, then available, then unavailable */}
+                {(() => {
+                  const recommendedKeys = (briefing?.actions || []).filter(a => ACTION_DEFS[a]);
+                  const careActions = Object.entries(ACTION_DEFS)
+                    .filter(([a]) => !['photo','visit','note','plant'].includes(a));
+                  const recommended = careActions.filter(([a]) => {
+                    const st = actionStatus(plant,a,careLog,seasonOpen);
+                    return st.available && recommendedKeys.includes(a);
+                  });
+                  const available = careActions.filter(([a]) => {
+                    const st = actionStatus(plant,a,careLog,seasonOpen);
+                    return st.available && !recommendedKeys.includes(a);
+                  });
+                  const unavailable = careActions.filter(([a]) => {
+                    const st = actionStatus(plant,a,careLog,seasonOpen);
+                    return !st.available;
+                  });
+                  return (
+                    <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14}}>
+                      {recommended.map(([a, def]) => (
+                        <button key={a} onClick={()=>handleAction(a)}
+                          style={{display:'flex',alignItems:'center',gap:8,
+                            background:'rgba(180,120,20,0.10)',
+                            border:`1.5px solid rgba(180,120,20,0.45)`,
+                            borderRadius:6,padding:'9px 10px',cursor:'pointer',
+                            transition:'all .12s',textAlign:'left',
+                            boxShadow:`0 1px 4px rgba(180,120,20,0.10)`}}>
+                          <span style={{fontSize:15}}>{def.emoji}</span>
+                          <span style={{flex:1,fontSize:13,color:'#7a4a08',fontFamily:SERIF,fontWeight:600}}>{def.label}</span>
+                          <span style={{fontSize:8,fontFamily:MONO,color:'#b07010',letterSpacing:.3}}>NOW</span>
+                        </button>
+                      ))}
+                      {available.map(([a, def]) => (
+                        <button key={a} onClick={()=>handleAction(a)}
+                          style={{display:'flex',alignItems:'center',gap:8,
+                            background:'#fff',
+                            border:`1px solid ${color}35`,
+                            borderRadius:6,padding:'8px 10px',cursor:'pointer',
+                            transition:'all .12s',textAlign:'left',
+                            boxShadow:`0 1px 3px rgba(100,70,30,0.07)`}}>
+                          <span style={{fontSize:15}}>{def.emoji}</span>
+                          <span style={{flex:1,fontSize:13,color:'#2a1808',fontFamily:SERIF}}>{def.label}</span>
+                        </button>
+                      ))}
+                      {unavailable.map(([a, def]) => {
+                        const st = actionStatus(plant,a,careLog,seasonOpen);
+                        return (
+                          <button key={a} disabled
+                            style={{display:'flex',alignItems:'center',gap:8,
+                              background:'rgba(0,0,0,0.02)',
+                              border:`1px solid rgba(160,130,80,0.15)`,
+                              borderRadius:6,padding:'7px 10px',cursor:'not-allowed',
+                              textAlign:'left',opacity:0.7}}>
+                            <span style={{fontSize:15,opacity:0.5}}>{def.emoji}</span>
+                            <span style={{flex:1,fontSize:12,color:'#b09070',fontFamily:SERIF}}>{def.label}</span>
+                            <span style={{fontSize:10,color:'#c0a080',fontFamily:SERIF}}>{st.reason}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   );
-                })}
-              </div>
+                })()}
+              </>
             )}
           </>
         )}
@@ -1742,7 +1822,8 @@ export default function App() {
               <div style={{position:'relative',width:320,flexShrink:0}}>
                 <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                   onAction={doAction} seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}
-                  photos={allPhotos[sel.id] || []} onAddPhoto={addPhoto} onGrowthUpdate={updateGrowth}/>
+                  photos={allPhotos[sel.id] || []} onAddPhoto={addPhoto} onGrowthUpdate={updateGrowth}
+                  weather={weather}/>
               </div>
             )}
             </>)}
@@ -1763,6 +1844,8 @@ export default function App() {
                       onMove={(id,pos)=>movePosition(id,pos)}
                       onHover={setHov}
                       onDescend={()=>setScene('front')}
+                      onAction={(k,p)=>doAction(k,p)}
+                      seasonOpen={seasonOpen}
                       portraits={portraits}
                       careLog={careLog}
                     />
