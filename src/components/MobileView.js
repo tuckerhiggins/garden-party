@@ -4,7 +4,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { OracleChat } from './OracleChat';
 import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
-import { fetchPlantBriefing, fetchMorningBrief } from '../claude';
+import { fetchPlantBriefing, fetchMorningBrief, streamGardenChat } from '../claude';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO = '"Press Start 2P", monospace';
@@ -80,6 +80,358 @@ async function compressImage(file, maxPx = 800, quality = 0.72) {
   });
 }
 
+// ── MOBILE ACTION SHEET ────────────────────────────────────────────────────
+// Full-screen care session: fork → confirm or guided chat
+// Designed for one-handed use while actively gardening.
+const MOBILE_AFFIRMATIONS = {
+  fertilize: ['Feeding logged. Watch for new growth.', 'Nutrients in. Good timing.'],
+  neem:      ['Pest prevention logged.', 'Good preventive care.'],
+  prune:     ['Logged. Clean cuts mean strong growth.', 'Pruning directs the plant\'s energy.'],
+  train:     ['Training logged. Good for the season.', 'Logged — patience pays off.'],
+  repot:     ['Logged. Keep water consistent.', 'New roots incoming.'],
+  worms:     ['Soil biology logged.', 'Good long-term investment.'],
+};
+function mobileAffirmation(key) {
+  const arr = MOBILE_AFFIRMATIONS[key] || ['Logged.'];
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function MobileActionSheet({ plant, actionKey, careLog, portraits, onLog, onClose }) {
+  const def = ACTION_DEFS[actionKey];
+  const color = plantColor(plant.type);
+  const [mode, setMode] = React.useState(null); // null | 'confirm' | 'help'
+
+  // confirm mode
+  const [confirmPhoto, setConfirmPhoto] = React.useState(null);
+  const [confirmFeedback, setConfirmFeedback] = React.useState(null);
+  const [confirmLoading, setConfirmLoading] = React.useState(false);
+  const [confirmed, setConfirmed] = React.useState(false);
+  const confirmFileRef = React.useRef(null);
+
+  // help/chat mode
+  const [messages, setMessages] = React.useState([]);
+  const [input, setInput] = React.useState('');
+  const [chatPhoto, setChatPhoto] = React.useState(null);
+  const [chatLoading, setChatLoading] = React.useState(false);
+  const [logged, setLogged] = React.useState(false);
+  const chatFileRef = React.useRef(null);
+  const chatEndRef = React.useRef(null);
+  const inputRef = React.useRef(null);
+
+  function buildContext() {
+    const portrait = portraits?.[plant.id] || {};
+    return {
+      name: plant.name, species: plant.species, type: plant.type,
+      health: plant.health, container: plant.container,
+      visualNote: portrait.visualNote, stage: portrait.currentStage,
+      careHistory: (careLog[plant.id] || []).slice(-5),
+    };
+  }
+
+  React.useEffect(() => {
+    if (mode === 'help' && messages.length === 0) {
+      sendChat(`I'm about to ${def.label.toLowerCase()} my ${plant.name}. Walk me through exactly what to do.`);
+    }
+  }, [mode]); // eslint-disable-line
+
+  React.useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  async function sendChat(text, images = []) {
+    const userMsg = { role: 'user', content: text, ...(images.length ? { images } : {}) };
+    const nextMsgs = [...messages, userMsg];
+    setMessages([...nextMsgs, { role: 'assistant', content: '' }]);
+    setInput(''); setChatPhoto(null); setChatLoading(true);
+    try {
+      await streamGardenChat({
+        messages: nextMsgs, plantContext: buildContext(), action: def.label,
+        onChunk: chunk => setMessages(m => {
+          const c = [...m];
+          c[c.length - 1] = { ...c[c.length - 1], content: c[c.length - 1].content + chunk };
+          return c;
+        }),
+      });
+    } catch {
+      setMessages(m => { const c=[...m]; c[c.length-1]={...c[c.length-1],content:'Could not reach the oracle.'}; return c; });
+    }
+    setChatLoading(false);
+  }
+
+  async function sendConfirmPhoto(dataUrl) {
+    setConfirmPhoto(dataUrl); setConfirmLoading(true);
+    let feedback = '';
+    try {
+      await streamGardenChat({
+        messages: [{ role: 'user', content: `I just ${def.label.toLowerCase()}d my ${plant.name}. Here's a photo — did I do it right? One or two sentences.`, images: [dataUrl] }],
+        plantContext: buildContext(), action: def.label,
+        onChunk: chunk => { feedback += chunk; setConfirmFeedback(feedback); },
+      });
+    } catch { setConfirmFeedback(mobileAffirmation(actionKey)); }
+    if (!feedback) setConfirmFeedback(mobileAffirmation(actionKey));
+    setConfirmLoading(false);
+  }
+
+  function readPhoto(file) {
+    return new Promise(resolve => {
+      const r = new FileReader();
+      r.onload = e => resolve(e.target.result);
+      r.readAsDataURL(file);
+    });
+  }
+
+  // ── Fork screen ───────────────────────────────────────────────────────────
+  if (!mode) return (
+    <div style={{ position:'fixed', inset:0, zIndex:500, display:'flex', flexDirection:'column',
+      background:'rgba(0,0,0,0.55)', WebkitBackdropFilter:'blur(4px)', backdropFilter:'blur(4px)' }}>
+      {/* Backdrop tap closes */}
+      <div style={{ flex:1 }} onClick={onClose}/>
+      {/* Sheet slides up */}
+      <div style={{ background:'#faf6ee', borderRadius:'18px 18px 0 0',
+        padding:'0 0 calc(24px + env(safe-area-inset-bottom)) 0',
+        boxShadow:'0 -8px 40px rgba(0,0,0,0.22)' }}>
+        {/* Handle */}
+        <div style={{ display:'flex', justifyContent:'center', paddingTop:10, paddingBottom:4 }}>
+          <div style={{ width:36, height:4, borderRadius:2, background:'rgba(160,130,80,0.25)' }}/>
+        </div>
+        <div style={{ padding:'12px 20px 20px' }}>
+          <div style={{ fontSize:28, marginBottom:4 }}>{def.emoji}</div>
+          <div style={{ fontSize:20, color:'#2a1808', fontWeight:600, fontFamily:SERIF }}>{def.label}</div>
+          <div style={{ fontSize:13, color:'#907050', fontFamily:SERIF, marginBottom:24 }}>{plant.name}</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            <button onClick={() => setMode('help')}
+              style={{ display:'flex', alignItems:'center', gap:14,
+                background: color + '14', border:`1.5px solid ${color}40`,
+                borderRadius:14, padding:'16px 18px', cursor:'pointer', textAlign:'left',
+                WebkitTapHighlightColor:'transparent' }}>
+              <span style={{ fontSize:28, flexShrink:0 }}>🌿</span>
+              <div>
+                <div style={{ fontSize:16, color:'#2a1808', fontFamily:SERIF, fontWeight:600, marginBottom:3 }}>
+                  Walk me through it
+                </div>
+                <div style={{ fontSize:13, color:'#907050', fontFamily:SERIF, lineHeight:1.4 }}>
+                  Step-by-step guidance. Ask questions, send photos.
+                </div>
+              </div>
+            </button>
+            <button onClick={() => setMode('confirm')}
+              style={{ display:'flex', alignItems:'center', gap:14,
+                background:'rgba(0,0,0,0.03)', border:`1px solid rgba(160,130,80,0.25)`,
+                borderRadius:14, padding:'16px 18px', cursor:'pointer', textAlign:'left',
+                WebkitTapHighlightColor:'transparent' }}>
+              <span style={{ fontSize:28, flexShrink:0 }}>✓</span>
+              <div>
+                <div style={{ fontSize:16, color:'#2a1808', fontFamily:SERIF, fontWeight:600, marginBottom:3 }}>
+                  I already did it
+                </div>
+                <div style={{ fontSize:13, color:'#907050', fontFamily:SERIF, lineHeight:1.4 }}>
+                  Log it now. Add a photo for feedback.
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Confirm mode ──────────────────────────────────────────────────────────
+  if (mode === 'confirm') {
+    if (confirmed) return (
+      <div style={{ position:'fixed', inset:0, zIndex:500, background:'#faf6ee',
+        display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+        fontFamily:SERIF, padding:32, textAlign:'center' }}>
+        <div style={{ fontSize:48, marginBottom:12 }}>✓</div>
+        <div style={{ fontSize:20, color:'#2a1808', fontWeight:600, marginBottom:10 }}>{def.label} logged</div>
+        {confirmFeedback && (
+          <div style={{ fontSize:15, color:'#605040', fontStyle:'italic', lineHeight:1.75,
+            maxWidth:280, marginBottom:32, fontFamily:SERIF }}>{confirmFeedback}</div>
+        )}
+        <button onClick={onClose}
+          style={{ background:color, border:'none', borderRadius:12, padding:'14px 40px',
+            color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:9, letterSpacing:.3 }}>
+          DONE
+        </button>
+      </div>
+    );
+    return (
+      <div style={{ position:'fixed', inset:0, zIndex:500, background:'#faf6ee',
+        display:'flex', flexDirection:'column', fontFamily:SERIF }}>
+        {/* Header */}
+        <div style={{ padding:'16px 18px 12px', paddingTop:'calc(16px + env(safe-area-inset-top))',
+          borderBottom:'1px solid rgba(160,130,80,0.18)',
+          display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <div>
+            <button onClick={() => setMode(null)} style={{ background:'none', border:'none',
+              color:'#b09070', cursor:'pointer', fontSize:15, fontFamily:SERIF, padding:0, marginRight:10 }}>←</button>
+            <span style={{ fontSize:15, color:'#2a1808', fontWeight:600 }}>{def.emoji} {def.label}</span>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none',
+            color:'#b09070', cursor:'pointer', fontSize:26, lineHeight:1, padding:'0 4px' }}>&times;</button>
+        </div>
+        {/* Body */}
+        <div style={{ flex:1, overflowY:'auto', padding:'24px 20px' }}>
+          <div style={{ fontSize:15, color:'#907050', fontFamily:SERIF, marginBottom:28, textAlign:'center' }}>
+            {confirmPhoto ? 'Oracle is looking…' : `Add a photo for feedback, or just log it.`}
+          </div>
+          {confirmPhoto ? (
+            <div style={{ marginBottom:20 }}>
+              <img src={confirmPhoto} alt="" style={{ width:'100%', borderRadius:12, marginBottom:14,
+                maxHeight:240, objectFit:'cover' }}/>
+              {confirmLoading ? (
+                <div style={{ fontSize:15, color:'#c0a880', fontStyle:'italic', fontFamily:SERIF, textAlign:'center' }}>
+                  Reading the photo…
+                </div>
+              ) : confirmFeedback ? (
+                <div style={{ fontSize:16, color:'#4a2c10', fontStyle:'italic', lineHeight:1.75,
+                  fontFamily:SERIF, textAlign:'center', marginBottom:8 }}>{confirmFeedback}</div>
+              ) : null}
+            </div>
+          ) : (
+            /* Big camera button */
+            <button onClick={() => confirmFileRef.current?.click()}
+              style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                width:'100%', height:180, background:color+'10', border:`2px dashed ${color}40`,
+                borderRadius:16, cursor:'pointer', gap:12,
+                WebkitTapHighlightColor:'transparent' }}>
+              <span style={{ fontSize:48 }}>📷</span>
+              <div style={{ fontSize:14, color, fontFamily:SERIF, fontWeight:600 }}>Take a photo</div>
+              <div style={{ fontSize:12, color:'#907050', fontFamily:SERIF }}>Get feedback from the oracle</div>
+            </button>
+          )}
+          <input ref={confirmFileRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }}
+            onChange={async e => { const f = e.target.files?.[0]; if (f) sendConfirmPhoto(await readPhoto(f)); }}/>
+        </div>
+        {/* Bottom bar */}
+        <div style={{ padding:'12px 20px', paddingBottom:'calc(12px + env(safe-area-inset-bottom))',
+          borderTop:'1px solid rgba(160,130,80,0.18)', flexShrink:0,
+          display:'flex', flexDirection:'column', gap:10 }}>
+          <button
+            onClick={() => { onLog(); if (!confirmPhoto) setConfirmFeedback(mobileAffirmation(actionKey)); setConfirmed(true); }}
+            disabled={confirmPhoto && !confirmFeedback}
+            style={{ background:color, border:'none', borderRadius:12, padding:'16px',
+              color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:9, letterSpacing:.3,
+              opacity:(confirmPhoto && !confirmFeedback) ? 0.4 : 1 }}>
+            ✓ LOG {def.label.toUpperCase()}
+          </button>
+          {!confirmPhoto && (
+            <button onClick={() => { onLog(); setConfirmed(true); setConfirmFeedback(mobileAffirmation(actionKey)); }}
+              style={{ background:'none', border:'none', color:'#b09070', cursor:'pointer',
+                fontSize:14, fontFamily:SERIF, padding:'4px 0', textAlign:'center' }}>
+              Skip photo — log now
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Help / chat mode (full screen, one-handed) ────────────────────────────
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:500, background:'#f5ede0',
+      display:'flex', flexDirection:'column', fontFamily:SERIF }}>
+
+      {/* Sticky header */}
+      <div style={{ padding:'12px 16px', paddingTop:'calc(12px + env(safe-area-inset-top))',
+        borderBottom:'1px solid rgba(160,130,80,0.22)',
+        background:'rgba(245,237,224,0.98)', flexShrink:0,
+        display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <button onClick={() => setMode(null)} style={{ background:'none', border:'none',
+            color:'#b09070', cursor:'pointer', fontSize:16, padding:'0 8px 0 0',
+            WebkitTapHighlightColor:'transparent' }}>←</button>
+          <div>
+            <span style={{ fontSize:14, color:'#4a2c10', fontWeight:600 }}>{def.emoji} {def.label}</span>
+            <span style={{ fontSize:12, color:'#a08060', marginLeft:6, fontStyle:'italic' }}>{plant.name}</span>
+          </div>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          {!logged ? (
+            <button onClick={() => { onLog(); setLogged(true); }}
+              style={{ background:color, border:'none', borderRadius:10, padding:'8px 14px',
+                color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:7, letterSpacing:.3,
+                WebkitTapHighlightColor:'transparent' }}>
+              ✓ DONE
+            </button>
+          ) : (
+            <span style={{ fontSize:13, color:'#5a9040', fontFamily:SERIF }}>✓ Logged</span>
+          )}
+          <button onClick={onClose} style={{ background:'none', border:'none',
+            color:'#b09070', cursor:'pointer', fontSize:26, lineHeight:1, padding:'0 4px',
+            WebkitTapHighlightColor:'transparent' }}>&times;</button>
+        </div>
+      </div>
+
+      {/* Message thread */}
+      <div style={{ flex:1, overflowY:'auto', padding:'16px 16px 8px',
+        display:'flex', flexDirection:'column', gap:12 }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ display:'flex', flexDirection:'column',
+            alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            {m.images?.length > 0 && (
+              <img src={m.images[0]} alt="" style={{ width:130, height:98, borderRadius:8,
+                marginBottom:6, objectFit:'cover', alignSelf:'flex-end' }}/>
+            )}
+            <div style={{
+              maxWidth:'88%', padding:'11px 14px',
+              borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+              background: m.role === 'user' ? color+'20' : '#fff',
+              border: m.role === 'user' ? `1px solid ${color}38` : '1px solid rgba(160,130,80,0.20)',
+              fontSize:15, color:'#2a1808', lineHeight:1.65,
+              fontStyle: m.role === 'assistant' ? 'italic' : 'normal',
+            }}>
+              {m.content || (chatLoading && i === messages.length - 1 ? '…' : '')}
+            </div>
+          </div>
+        ))}
+        <div ref={chatEndRef}/>
+      </div>
+
+      {/* Input row — pinned to bottom, thumb-zone */}
+      <div style={{ padding:'10px 12px', paddingBottom:'calc(10px + env(safe-area-inset-bottom))',
+        borderTop:'1px solid rgba(160,130,80,0.18)', background:'rgba(245,237,224,0.98)', flexShrink:0 }}>
+        {chatPhoto && (
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+            <img src={chatPhoto} alt="" style={{ width:52, height:52, borderRadius:6, objectFit:'cover' }}/>
+            <button onClick={() => setChatPhoto(null)}
+              style={{ background:'none', border:'none', color:'#b09070', cursor:'pointer', fontSize:22 }}>×</button>
+          </div>
+        )}
+        <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
+          {/* Camera — large tap target */}
+          <button onClick={() => chatFileRef.current?.click()}
+            style={{ background:'#fff', border:`1px solid rgba(160,130,80,0.28)`,
+              borderRadius:12, padding:'12px 14px', cursor:'pointer', fontSize:22, flexShrink:0, lineHeight:1,
+              WebkitTapHighlightColor:'transparent' }}>📷</button>
+          <textarea
+            ref={inputRef}
+            value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if ((input.trim() || chatPhoto) && !chatLoading) sendChat(input.trim(), chatPhoto ? [chatPhoto] : []);
+              }
+            }}
+            placeholder="Ask anything…" rows={1}
+            style={{ flex:1, border:`1px solid rgba(160,130,80,0.25)`, borderRadius:12,
+              padding:'12px 14px', fontSize:16, fontFamily:SERIF, background:'#fff',
+              resize:'none', color:'#2a1808', outline:'none', lineHeight:1.4,
+              WebkitAppearance:'none' }}/>
+          <button
+            onClick={() => { if ((input.trim() || chatPhoto) && !chatLoading) sendChat(input.trim(), chatPhoto ? [chatPhoto] : []); }}
+            disabled={chatLoading || (!input.trim() && !chatPhoto)}
+            style={{ background:color, border:'none', borderRadius:12, padding:'12px 16px',
+              color:'#fff', cursor:'pointer', fontSize:20, flexShrink:0,
+              opacity:(chatLoading || (!input.trim() && !chatPhoto)) ? 0.35 : 1,
+              WebkitTapHighlightColor:'transparent' }}>→</button>
+        </div>
+        <input ref={chatFileRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }}
+          onChange={async e => { const f = e.target.files?.[0]; if (f) setChatPhoto(await readPhoto(f)); }}/>
+      </div>
+    </div>
+  );
+}
+
 // ── MOBILE PLANT CARD ──────────────────────────────────────────────────────
 // ── STAGE ARC ──────────────────────────────────────────────────────────────
 function StageArc({ stages, currentStage, color }) {
@@ -127,7 +479,7 @@ function StageArc({ stages, currentStage, color }) {
   );
 }
 
-function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, onAddPhoto, photos = [], portraits, briefing, seasonOpen }) {
+function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, onAddPhoto, photos = [], portraits, briefing, seasonOpen }) {
   const fileRef = useRef(null);
   const color = plantColor(plant.type);
   const lastPhoto = photos[photos.length - 1];
@@ -385,7 +737,7 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
           {oracleActions.map(a => {
             const def = ACTION_DEFS[a];
             return (
-              <button key={a} onClick={() => onAction(a, plant)}
+              <button key={a} onClick={() => onStartAction ? onStartAction(plant, a) : onAction(a, plant)}
                 style={{
                   flex: 1, padding: '10px 8px',
                   background: `${color}10`,
@@ -481,7 +833,7 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
 }
 
 // ── QUICK CARE TAB ─────────────────────────────────────────────────────────
-function QuickCareTab({ plants, frontPlants = [], careLog, onAction, onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos = {}, portraits, briefings = {}, seasonOpen, morningBrief }) {
+function QuickCareTab({ plants, frontPlants = [], careLog, onAction, onStartAction, onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos = {}, portraits, briefings = {}, seasonOpen, morningBrief }) {
   function getActionable(pList) {
     const needsWater = pList.filter(p => {
       if (p.health === 'memorial' || p.type === 'empty-pot') return false;
@@ -546,6 +898,7 @@ function QuickCareTab({ plants, frontPlants = [], careLog, onAction, onPortraitU
               </div>
               {terraceActionable.map(p => (
                 <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction}
+                  onStartAction={onStartAction}
                   onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
                   onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
                   briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
@@ -561,6 +914,7 @@ function QuickCareTab({ plants, frontPlants = [], careLog, onAction, onPortraitU
               </div>
               {emmaActionable.map(p => (
                 <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction}
+                  onStartAction={onStartAction}
                   onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
                   onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
                   briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
@@ -759,6 +1113,7 @@ export function MobileView({
 }) {
   const [tab, setTab] = useState('care');
   const [flash, setFlash] = useState(null);
+  const [actionSession, setActionSession] = useState(null); // { plant, actionKey } | null
   const [briefings, setBriefings] = useState({});
   const [morningBrief, setMorningBrief] = useState(null);
   const [analysisNotice, setAnalysisNotice] = useState(null);
@@ -817,6 +1172,10 @@ export function MobileView({
       setFlash(`${def.emoji} ${displayLabel}`);
       setTimeout(() => setFlash(null), 2000);
     }
+  }
+
+  function handleStartAction(plant, key) {
+    setActionSession({ plant, key });
   }
 
   const TABS = [
@@ -903,6 +1262,7 @@ export function MobileView({
               .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
               .map(p => (
                 <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction}
+                  onStartAction={handleStartAction}
                   onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
                   onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
                   briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
@@ -916,6 +1276,7 @@ export function MobileView({
                 .filter(p => p.health !== 'memorial')
                 .map(p => (
                   <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction}
+                    onStartAction={handleStartAction}
                     onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
                     onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
                     briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
@@ -928,6 +1289,7 @@ export function MobileView({
         {tab === 'care' && (
           <QuickCareTab
             plants={plants} frontPlants={frontPlants} careLog={careLog} onAction={handleAction}
+            onStartAction={handleStartAction}
             onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
             onAddPhoto={onAddPhoto} allPhotos={allPhotos} portraits={portraits}
             briefings={briefings} seasonOpen={seasonOpen} morningBrief={morningBrief}
@@ -947,6 +1309,18 @@ export function MobileView({
           />
         )}
       </div>
+
+      {/* Care action sheet */}
+      {actionSession && (
+        <MobileActionSheet
+          plant={actionSession.plant}
+          actionKey={actionSession.key}
+          careLog={careLog}
+          portraits={portraits}
+          onLog={() => handleAction(actionSession.key, actionSession.plant)}
+          onClose={() => setActionSession(null)}
+        />
+      )}
 
       {/* Bottom tab bar */}
       <div style={{

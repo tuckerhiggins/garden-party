@@ -7,7 +7,7 @@ import { TERRACE_PLANTS, FRONT_PLANTS, ACTION_DEFS, ACTION_HOWTO } from './data/
 import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
-import { fetchOracle, fetchSeasonOpener, fetchMissedCareVoice, fetchPlantBriefing } from './claude';
+import { fetchOracle, fetchSeasonOpener, fetchMissedCareVoice, fetchPlantBriefing, streamGardenChat } from './claude';
 import { usePortraits } from './hooks/usePortraits';
 import { usePhotos } from './hooks/usePhotos';
 import { useAuth } from './hooks/useAuth';
@@ -1035,30 +1035,6 @@ function getAffirmation(key) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-async function streamGardenChat({ messages, plantContext, action, onChunk }) {
-  const res = await fetch('/api/garden-chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, plantContext, action }),
-  });
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split('\n');
-    buf = lines.pop() || '';
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      const raw = line.slice(6).trim();
-      if (raw === '[DONE]') continue;
-      try { const { text } = JSON.parse(raw); if (text) onChunk(text); } catch {}
-    }
-  }
-}
-
 function ActionModal({ plant, actionKey, careLog, portraits, onLog, onClose }) {
   const def = ACTION_DEFS[actionKey];
   const color = plantColor(plant.type);
@@ -1271,19 +1247,20 @@ function ActionModal({ plant, actionKey, careLog, portraits, onLog, onClose }) {
           <span style={{ fontSize:13, color:'#4a2c10', fontWeight:600 }}>{def.emoji} {def.label}</span>
           <span style={{ fontSize:11, color:'#a08060', marginLeft:7, fontStyle:'italic' }}>{plant.name}</span>
         </div>
-        {!logged ? (
-          <button onClick={() => { onLog(); setLogged(true); }}
-            style={{ background:color, border:'none', borderRadius:6, padding:'5px 10px',
-              color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:7, letterSpacing:.3 }}>
-            ✓ DONE
-          </button>
-        ) : (
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          {!logged ? (
+            <button onClick={() => { onLog(); setLogged(true); }}
+              style={{ background:color, border:'none', borderRadius:6, padding:'5px 10px',
+                color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:7, letterSpacing:.3 }}>
+              ✓ DONE
+            </button>
+          ) : (
             <span style={{ fontSize:11, color:'#5a9040', fontFamily:SERIF }}>✓ Logged</span>
-            <button onClick={onClose} style={{ background:'none', border:'none',
-              color:'#b09070', cursor:'pointer', fontSize:20, padding:'0 2px', lineHeight:1 }}>&times;</button>
-          </div>
-        )}
+          )}
+          <button onClick={onClose} style={{ background:'none', border:'none',
+            color:'#b09070', cursor:'pointer', fontSize:22, padding:'0 4px', lineHeight:1,
+            opacity: logged ? 1 : 0.6 }}>&times;</button>
+        </div>
       </div>
 
       {/* Message thread */}

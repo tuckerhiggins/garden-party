@@ -1156,7 +1156,7 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
       setHovId(onDoor ? null : hit.id);
     } else {
       if (!leaveTimerRef.current) {
-        leaveTimerRef.current = setTimeout(() => { setHovId(null); leaveTimerRef.current = null; }, 220);
+        leaveTimerRef.current = setTimeout(() => { setHovId(null); leaveTimerRef.current = null; }, 440);
       }
     }
   }, [dragId, svgPt, hitTest, onMove]);
@@ -1702,7 +1702,15 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         const btnW = boxW - PAD * 2;
 
         return (
-          <g style={{ pointerEvents: showWaterBtn ? 'auto' : 'none' }}>
+          <g
+            style={{ pointerEvents: 'auto' }}
+            onMouseEnter={() => {
+              if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
+            }}
+            onMouseLeave={() => {
+              leaveTimerRef.current = setTimeout(() => { setHovId(null); leaveTimerRef.current = null; }, 440);
+            }}
+          >
             {/* drop shadow */}
             <rect x={bx+3} y={by+3} width={boxW} height={boxH} fill="rgba(0,0,0,0.28)" rx={7}/>
             {/* bg */}

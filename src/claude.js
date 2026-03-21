@@ -313,3 +313,27 @@ Speak the season-opening message.`;
   // Cache forever (season opener only fires once)
   return cachedClaude(cacheKey, systemPrompt, userPrompt, 280, 365 * 24 * 60 * 60 * 1000);
 }
+
+export async function streamGardenChat({ messages, plantContext, action, onChunk }) {
+  const res = await fetch('/api/garden-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages, plantContext, action }),
+  });
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (raw === '[DONE]') continue;
+      try { const { text } = JSON.parse(raw); if (text) onChunk(text); } catch {}
+    }
+  }
+}
