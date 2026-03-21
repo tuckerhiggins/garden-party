@@ -106,22 +106,23 @@ export function useGardenData({ user }) {
   const logAction = useCallback(async (key, plant, withEmma, customLabel) => {
     const def = ACTION_DEFS[key]; if (!def) return;
     const label = customLabel || def.label;
+    const entry = {
+      action: key, label, emoji: def.emoji,
+      date: new Date().toISOString(), withEmma, plantName: plant.name,
+    };
+
+    // Optimistic local update — visible immediately regardless of Supabase status
+    setCareLogState(prev => {
+      const u = { ...prev, [plant.id]: [...(prev[plant.id] || []), entry] };
+      lsSave(LS.care, u); return u;
+    });
 
     if (supabase && user) {
-      await supabase.from('care_log').insert({
+      const { error } = await supabase.from('care_log').insert({
         plant_id: plant.id, action: key, label, emoji: def.emoji,
         with_emma: withEmma, plant_name: plant.name, logged_by: user.id,
       });
-      // State update comes via realtime subscription
-    } else {
-      const entry = {
-        action: key, label, emoji: def.emoji,
-        date: new Date().toISOString(), withEmma, plantName: plant.name,
-      };
-      setCareLogState(prev => {
-        const u = { ...prev, [plant.id]: [...(prev[plant.id] || []), entry] };
-        lsSave(LS.care, u); return u;
-      });
+      if (error) console.error('care_log insert failed:', error.message);
     }
   }, [user]);
 
