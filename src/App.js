@@ -760,7 +760,8 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOp
 function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait, photos = [] }) {
   const history = careLog[plant.id] || [];
   const lastAction = history.length > 0 ? history[history.length-1] : null;
-  const needsCare = seasonOpen && plant.actions?.some(a => actionStatus(plant, a, careLog, seasonOpen).available && !ACTION_DEFS[a]?.alwaysAvailable);
+  const URGENT = new Set(['thirsty','overlooked','struggling']);
+  const needsCare = seasonOpen && URGENT.has(plant.health);
   const color = plantColor(plant.type);
   const hColor = healthColor(plant.health);
   const hasPhoto = photos.length > 0;
@@ -808,6 +809,7 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait,
             <span style={{fontSize:9,color:'#fff',fontFamily:MONO}}>needs care</span>
           </div>
         )}
+        <PlantBriefing plant={plant} careLog={careLog} weather={null} portraits={portrait ? {[plant.id]: portrait} : {}}/>
 
         {portrait?.analyzing && (
           <div style={{position:'absolute',top:8,left:8,background:'rgba(18,12,6,0.72)',
@@ -943,6 +945,7 @@ function PhotoSection({ plant, color, careLog, onAnalyze, portraits, photos = []
     <div style={{marginBottom:14,borderRadius:8,overflow:'hidden',border:`1px solid ${color}22`}}>
       {lastPhoto ? (
         <img src={lastPhoto.dataUrl || lastPhoto.url} alt={plant.name}
+          onError={e => { e.target.style.display='none'; }}
           style={{width:'100%',maxHeight:200,objectFit:'cover',display:'block'}}/>
       ) : (
         <div style={{height:72,display:'flex',alignItems:'center',justifyContent:'center',
@@ -1109,7 +1112,7 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
             )}
             {plant.type !== 'empty-pot' && (
               <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14}}>
-                {Object.entries(ACTION_DEFS).filter(([a]) => !['photo','visit','note'].includes(a)).map(([a, def])=>{
+                {Object.entries(ACTION_DEFS).filter(([a]) => !['photo','visit','note','plant'].includes(a)).map(([a, def])=>{
                   const st=actionStatus(plant,a,careLog,seasonOpen);
                   return(
                     <button key={a} onClick={()=>handleAction(a)} disabled={!st.available}
@@ -1413,9 +1416,8 @@ export default function App() {
     terrace: [...terracePlants.filter(p => p.type !== 'empty-pot'), ...customPlantsWithState],
   }),[terracePlants, customPlantsWithState]);
 
-  const needsCareCount = gardenPlants.terrace.filter(p=>
-    seasonOpen && p.actions?.some(a=>actionStatus(p,a,careLog,seasonOpen).available&&!ACTION_DEFS[a]?.alwaysAvailable)
-  ).length;
+  const URGENT_SET = new Set(['thirsty','overlooked','struggling']);
+  const needsCareCount = gardenPlants.terrace.filter(p=> seasonOpen && URGENT_SET.has(p.health)).length;
 
   // Map info panel data
   const attentionItems = useMemo(() =>
@@ -1712,6 +1714,7 @@ export default function App() {
                       onMove={(id,pos)=>movePosition(id,pos)}
                       onHover={setHov}
                       onDescend={()=>setScene('front')}
+                      portraits={portraits}
                     />
                   </div>
                 </div>

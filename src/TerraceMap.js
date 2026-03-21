@@ -1077,7 +1077,7 @@ function CookieSVG({ pose }) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
-export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover }) {
+export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, portraits = {} }) {
   const [hovId, setHovId] = useState(null);
   const cookieRef = useRef(null);
   if (!cookieRef.current) {
@@ -1643,10 +1643,11 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         );
       })()}
 
-      {/* ── Floating poem on hover ── */}
+      {/* ── Floating visual note on hover ── */}
       {hovId && (() => {
         const hp = plants.find(p => p.id === hovId);
-        if (!hp?.poem) return null;
+        const note = portraits[hp?.id]?.visualNote;
+        if (!note) return null;
 
         let px, py;
         if (hp.wall === 3) {
@@ -1660,9 +1661,18 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           py = pt.y;
         }
 
-        const lines = hp.poem.split('\n').slice(0, 3);
-        const boxW = 148;
-        const boxH = lines.length * 15 + 18;
+        const words = note.split(' ');
+        const lines = [];
+        let line = '';
+        for (const w of words) {
+          if ((line + ' ' + w).trim().length > 28) { lines.push(line.trim()); line = w; }
+          else line = (line + ' ' + w).trim();
+        }
+        if (line) lines.push(line);
+        const displayLines = lines.slice(0, 3);
+
+        const boxW = 160;
+        const boxH = displayLines.length * 15 + 18;
 
         let bx = px + 18;
         let by = py - boxH - 12;
@@ -1680,11 +1690,11 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
               stroke="rgba(160,130,80,0.28)" strokeWidth={0.8}/>
             <rect x={bx} y={by} width={3} height={boxH}
               fill={hp.color || '#d4a830'} rx={2} opacity={0.80}/>
-            {lines.map((line, i) => (
+            {displayLines.map((l, i) => (
               <text key={i} x={bx + 11} y={by + 14 + i * 15}
-                fontFamily={SERIF} fontSize={10} fontStyle="italic"
+                fontFamily="'Crimson Pro', Georgia, serif" fontSize={10} fontStyle="italic"
                 fill="rgba(240,228,200,0.90)">
-                {line}
+                {l}
               </text>
             ))}
           </g>
