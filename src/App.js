@@ -1112,9 +1112,8 @@ function ActionModal({ plant, actionKey, careLog, portraits, weather, onLog, onC
     setConfirmLoading(false);
   }
 
-  function readPhoto(file) {
-    return new Promise(resolve => { const r = new FileReader(); r.onload = e => resolve(e.target.result); r.readAsDataURL(file); });
-  }
+  // Compress to ≤800px / 0.72 quality — keeps oracle chat payloads well under Vercel's 4.5MB limit
+  function readPhoto(file) { return compressImage(file, 800, 0.72); }
 
   // ── Mode chooser ──────────────────────────────────────────────────────────
   if (!mode) return (

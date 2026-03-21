@@ -328,6 +328,7 @@ export async function streamGardenChat({ messages, plantContext, action, onChunk
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, plantContext, action }),
   });
+  if (!res.ok) throw new Error(`garden-chat ${res.status}`);
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buf = '';

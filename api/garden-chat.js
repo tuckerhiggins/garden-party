@@ -42,23 +42,30 @@ Rules:
 - If something looks wrong in a photo, say so plainly
 - If rain ≥60% is forecast in the next 24h, factor that into any watering or neem oil advice`;
 
-  // Convert messages to Claude format, handling embedded images
-  const claudeMessages = messages.map(m => {
+  // Convert messages to Claude format, handling embedded images.
+  // Only the LAST message that has images gets them sent — older image messages
+  // are stripped to text to keep the payload under Vercel's 4.5MB body limit.
+  const lastImgIdx = messages.reduce((last, m, i) => m.images?.length ? i : last, -1);
+  const claudeMessages = messages.map((m, i) => {
     if (m.images?.length) {
-      return {
-        role: m.role,
-        content: [
-          ...m.images.map(img => ({
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: 'image/jpeg',
-              data: img.replace(/^data:image\/\w+;base64,/, ''),
-            },
-          })),
-          { type: 'text', text: m.content || '' },
-        ],
-      };
+      if (i === lastImgIdx) {
+        return {
+          role: m.role,
+          content: [
+            ...m.images.map(img => ({
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: 'image/jpeg',
+                data: img.replace(/^data:image\/\w+;base64,/, ''),
+              },
+            })),
+            { type: 'text', text: m.content || '' },
+          ],
+        };
+      }
+      // Older image message — keep text only to avoid payload bloat
+      return { role: m.role, content: `${m.content || ''}${m.images.length ? ' [photo]' : ''}` };
     }
     return { role: m.role, content: m.content };
   });
