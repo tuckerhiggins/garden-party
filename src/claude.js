@@ -232,6 +232,71 @@ Respond as JSON only — no other text:
   }
 }
 
+// ── DAILY AGENDA ──────────────────────────────────────────────────────────
+// Single AI call for the full day's task list: ordered, with human reasons
+// and a session time estimate. Replaces N per-plant fetchPlantBriefing calls
+// for the Today tab. Cached client-side; busts on care, weather, portrait changes.
+export async function fetchDailyAgenda({ candidateTasks, weather, careLog, portraits }) {
+  if (!candidateTasks?.length) return { sessionMinutes: null, tasks: [] };
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const isWeekend = [0, 6].includes(new Date().getDay());
+
+  const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
+  const lastCareDate = Object.values(careLog || {}).flat().map(e => e.date).sort().pop()?.slice(0, 13).replace(/\D/g, '') ?? '0';
+  const lastPortraitDate = Object.values(portraits || {}).filter(p => p?.date && !p.analyzing).map(p => p.date).sort().pop()?.slice(0, 13).replace(/\D/g, '') ?? '0';
+  const taskCount = candidateTasks.length;
+  const cacheKey = `dailyagenda1_${todayStr}_${rainToken}_${lastCareDate}_${lastPortraitDate}_${taskCount}`;
+
+  const cached = lsGet(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+
+  // Build condensed per-task context
+  const taskPayload = candidateTasks.map(t => {
+    const entries = careLog?.[t.plantId] || [];
+    const lastWaterEntry = [...entries].reverse().find(e => e.action === 'water');
+    const lastActionEntry = t.actionKey !== 'water' ? [...entries].reverse().find(e => e.action === t.actionKey) : null;
+    const daysSinceWater = lastWaterEntry
+      ? Math.floor((Date.now() - new Date(lastWaterEntry.date).getTime()) / 86400000)
+      : null;
+    const daysSinceAction = lastActionEntry
+      ? Math.floor((Date.now() - new Date(lastActionEntry.date).getTime()) / 86400000)
+      : null;
+    const recentCare = entries.slice(-3).map(e =>
+      `${e.label} ${new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    ).join(', ') || null;
+    const portrait = portraits?.[t.plantId] || {};
+    return {
+      plantId: t.plantId,
+      plantName: t.plantName,
+      type: t.plantType,
+      health: t.plantHealth,
+      actionKey: t.actionKey,
+      rulePriority: t.priority,
+      daysSinceWater,
+      daysSinceAction,
+      recentCare,
+      visualNote: portrait.visualNote || null,
+      currentStage: portrait.currentStage || null,
+    };
+  });
+
+  const res = await fetch('/api/daily-agenda', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ candidateTasks: taskPayload, weather, today, isWeekend }),
+  });
+  if (!res.ok) throw new Error(`daily-agenda ${res.status}`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+
+  // Cache until midnight
+  const midnight = new Date(); midnight.setHours(24, 0, 0, 0);
+  lsSet(cacheKey, { data, expiresAt: midnight.getTime() });
+  return data;
+}
+
 // ── MORNING BRIEF ─────────────────────────────────────────────────────────
 // One ambient sentence from the garden at the top of the Care tab each day.
 // Proactive — surfaces weather, what needs attention, or a quiet observation.

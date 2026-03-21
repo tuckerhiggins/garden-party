@@ -4,7 +4,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { OracleChat } from './OracleChat';
 import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
-import { fetchPlantBriefing, fetchMorningBrief, streamGardenChat } from '../claude';
+import { fetchPlantBriefing, fetchMorningBrief, fetchDailyAgenda, streamGardenChat } from '../claude';
 import { compressChatImage } from '../utils/compressChatImage';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
@@ -1007,13 +1007,31 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
   );
 }
 
-function TodayAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen, morningBrief,
-  onStartAction, portraits, completedThisSession, onMarkDone, onOpenAsk }) {
+function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seasonOpen,
+  morningBrief, onStartAction, portraits, completedThisSession, onMarkDone, onOpenAsk }) {
 
-  const { items, isWeekend } = useMemo(() =>
-    computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen }),
-    [plants, frontPlants, careLog, briefings, weather, seasonOpen]
-  );
+  // Merge deterministic items with AI-enriched agenda (reason + priority + order)
+  const items = useMemo(() => {
+    const apiTasks = agendaData?.tasks;
+    if (!apiTasks?.length) return rawItems;
+    // Build map from raw items for fast lookup
+    const rawMap = new Map(rawItems.map(r => [r.key, r]));
+    const ordered = [];
+    const covered = new Set();
+    for (const apiTask of apiTasks) {
+      const key = `${apiTask.plantId}:${apiTask.actionKey}`;
+      const raw = rawMap.get(key);
+      if (raw) {
+        ordered.push({ ...raw, reason: apiTask.reason || raw.reason, priority: apiTask.priority || raw.priority });
+        covered.add(key);
+      }
+    }
+    // Append items the API didn't cover (safety net)
+    for (const raw of rawItems) {
+      if (!covered.has(raw.key)) ordered.push(raw);
+    }
+    return ordered;
+  }, [rawItems, agendaData]);
 
   const urgentRec = items.filter(i => i.priority !== 'routine');
   const routineItems = items.filter(i => i.priority === 'routine');
@@ -1071,6 +1089,7 @@ function TodayAgenda({ plants, frontPlants, careLog, briefings, weather, seasonO
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
             <span style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, letterSpacing: .5 }}>
               {isWeekend ? 'WEEKEND SESSION' : 'TODAY\'S ROUNDS'}
+              {agendaData?.sessionMinutes ? ` · ~${agendaData.sessionMinutes} MIN` : ''}
             </span>
             <span style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 700, color: '#2a1808' }}>
               {doneCount} <span style={{ fontSize: 14, fontWeight: 400, color: '#907050' }}>of {totalCount}</span>
@@ -1340,6 +1359,7 @@ export function MobileView({
   const [flash, setFlash] = useState(null);
   const [actionSession, setActionSession] = useState(null); // { plant, actionKey } | null
   const [briefings, setBriefings] = useState({});
+  const [agendaData, setAgendaData] = useState(null); // { sessionMinutes, tasks }
   const [morningBrief, setMorningBrief] = useState(null);
   const [analysisNotice, setAnalysisNotice] = useState(null);
   const prevAnalyzingRef = useRef({});
@@ -1368,6 +1388,21 @@ export function MobileView({
           .catch(() => {});
       });
   }, [careVersion, weather]); // intentional: portraits/careLog refs change too often
+
+  // Compute today's agenda deterministically (instant, no API needed)
+  const { items: rawAgendaItems, isWeekend: agendaIsWeekend } = useMemo(
+    () => computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen }),
+    [plants, frontPlants, careLog, briefings, weather, seasonOpen]
+  );
+
+  // Fetch AI-enriched agenda once per day (busts on care or weather changes)
+  const rawAgendaKeys = rawAgendaItems.map(i => i.key).join(',');
+  useEffect(() => {
+    if (!weather || !seasonOpen || !rawAgendaItems.length) return;
+    fetchDailyAgenda({ candidateTasks: rawAgendaItems, weather, careLog, portraits })
+      .then(data => setAgendaData(data))
+      .catch(() => {}); // fallback: rawAgendaItems shown with no AI reasons
+  }, [rawAgendaKeys, weather]); // intentional: stable string dep
 
   // Fetch morning brief once weather is available
   useEffect(() => {
@@ -1486,8 +1521,8 @@ export function MobileView({
       <div style={{ flex: 1, overflowY: tab !== 'ask' ? 'auto' : 'hidden', position: 'relative' }}>
         {tab === 'today' && (
           <TodayAgenda
-            plants={plants} frontPlants={frontPlants} careLog={careLog}
-            briefings={briefings} weather={weather} seasonOpen={seasonOpen}
+            rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
+            agendaData={agendaData} seasonOpen={seasonOpen}
             morningBrief={morningBrief} onStartAction={handleStartAction}
             portraits={portraits} completedThisSession={completedThisSession}
             onMarkDone={handleMarkDone}
