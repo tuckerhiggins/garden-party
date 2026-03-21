@@ -1035,6 +1035,20 @@ function getAffirmation(key) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function parseOracleMsg(raw) {
+  let text = raw || '';
+  let diagram = null, photoRequest = null;
+  const dM = text.match(/<diagram>([\s\S]*?)<\/diagram>/);
+  if (dM) {
+    const svg = dM[1].trim();
+    if (svg.startsWith('<svg')) diagram = svg;
+    text = text.replace(dM[0], '').trim();
+  }
+  const pM = text.match(/<photo-request>([\s\S]*?)<\/photo-request>/);
+  if (pM) { photoRequest = pM[1].trim(); text = text.replace(pM[0], '').trim(); }
+  return { text: text.trim(), diagram, photoRequest };
+}
+
 function ActionModal({ plant, actionKey, careLog, portraits, weather, onLog, onClose }) {
   const def = ACTION_DEFS[actionKey];
   const color = plantColor(plant.type);
@@ -1096,6 +1110,15 @@ function ActionModal({ plant, actionKey, careLog, portraits, weather, onLog, onC
       setMessages(m => { const c=[...m]; c[c.length-1]={...c[c.length-1],content:'Could not reach the oracle.'}; return c; });
     }
     setChatLoading(false);
+    // Parse diagram/photo-request tags out of the final streamed response
+    setMessages(m => {
+      const c = [...m];
+      const last = c[c.length - 1];
+      if (last?.role !== 'assistant') return c;
+      const { text: cleanText, diagram, photoRequest } = parseOracleMsg(last.content);
+      c[c.length - 1] = { ...last, content: cleanText, ...(diagram ? { diagram } : {}), ...(photoRequest ? { photoRequest } : {}) };
+      return c;
+    });
   }
 
   async function sendConfirmPhoto(dataUrl) {
@@ -1285,6 +1308,24 @@ function ActionModal({ plant, actionKey, careLog, portraits, weather, onLog, onC
             }}>
               {m.content || (chatLoading && i === messages.length - 1 ? '…' : '')}
             </div>
+            {m.photoRequest && (
+              <div style={{ marginTop:5, background:'rgba(212,168,48,0.08)',
+                border:'1px solid rgba(212,168,48,0.32)', borderRadius:7, padding:'7px 10px',
+                display:'flex', alignItems:'center', gap:8, maxWidth:'90%' }}>
+                <span style={{ fontSize:13 }}>📷</span>
+                <span style={{ flex:1, fontSize:12, color:'#6a4010', fontStyle:'italic', lineHeight:1.5 }}>{m.photoRequest}</span>
+                <button onClick={() => chatFileRef.current?.click()}
+                  style={{ background:'#d4a830', border:'none', borderRadius:5, padding:'5px 8px',
+                    color:'#fff', cursor:'pointer', fontSize:11, fontFamily:SERIF, flexShrink:0 }}>
+                  📷 Send
+                </button>
+              </div>
+            )}
+            {m.diagram && (
+              <div style={{ marginTop:5, borderRadius:7, overflow:'hidden',
+                border:'1px solid rgba(160,130,80,0.22)', maxWidth:220, alignSelf:'flex-start' }}
+                dangerouslySetInnerHTML={{ __html: m.diagram }}/>
+            )}
           </div>
         ))}
         <div ref={chatEndRef}/>

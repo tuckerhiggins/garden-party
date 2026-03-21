@@ -96,6 +96,20 @@ function mobileAffirmation(key) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function parseOracleMsg(raw) {
+  let text = raw || '';
+  let diagram = null, photoRequest = null;
+  const dM = text.match(/<diagram>([\s\S]*?)<\/diagram>/);
+  if (dM) {
+    const svg = dM[1].trim();
+    if (svg.startsWith('<svg')) diagram = svg;
+    text = text.replace(dM[0], '').trim();
+  }
+  const pM = text.match(/<photo-request>([\s\S]*?)<\/photo-request>/);
+  if (pM) { photoRequest = pM[1].trim(); text = text.replace(pM[0], '').trim(); }
+  return { text: text.trim(), diagram, photoRequest };
+}
+
 function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLog, onClose }) {
   const def = ACTION_DEFS[actionKey];
   const color = plantColor(plant.type);
@@ -160,6 +174,15 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLo
       setMessages(m => { const c=[...m]; c[c.length-1]={...c[c.length-1],content:'Could not reach the oracle.'}; return c; });
     }
     setChatLoading(false);
+    // Parse diagram/photo-request tags out of the final streamed response
+    setMessages(m => {
+      const c = [...m];
+      const last = c[c.length - 1];
+      if (last?.role !== 'assistant') return c;
+      const { text: cleanText, diagram, photoRequest } = parseOracleMsg(last.content);
+      c[c.length - 1] = { ...last, content: cleanText, ...(diagram ? { diagram } : {}), ...(photoRequest ? { photoRequest } : {}) };
+      return c;
+    });
   }
 
   async function sendConfirmPhoto(dataUrl) {
@@ -397,6 +420,25 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLo
             }}>
               {m.content || (chatLoading && i === messages.length - 1 ? '…' : '')}
             </div>
+            {m.photoRequest && (
+              <div style={{ marginTop:6, background:'rgba(212,168,48,0.08)',
+                border:'1px solid rgba(212,168,48,0.32)', borderRadius:10, padding:'10px 12px',
+                display:'flex', alignItems:'center', gap:10, maxWidth:'88%' }}>
+                <span style={{ fontSize:16 }}>📷</span>
+                <span style={{ flex:1, fontSize:14, color:'#6a4010', fontStyle:'italic', lineHeight:1.5 }}>{m.photoRequest}</span>
+                <button onClick={() => chatFileRef.current?.click()}
+                  style={{ background:'#d4a830', border:'none', borderRadius:8, padding:'8px 12px',
+                    color:'#fff', cursor:'pointer', fontSize:13, fontFamily:SERIF, flexShrink:0,
+                    WebkitTapHighlightColor:'transparent' }}>
+                  📷 Send
+                </button>
+              </div>
+            )}
+            {m.diagram && (
+              <div style={{ marginTop:6, borderRadius:10, overflow:'hidden',
+                border:'1px solid rgba(160,130,80,0.22)', maxWidth:240, alignSelf:'flex-start' }}
+                dangerouslySetInnerHTML={{ __html: m.diagram }}/>
+            )}
           </div>
         ))}
         <div ref={chatEndRef}/>
