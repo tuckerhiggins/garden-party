@@ -54,14 +54,17 @@ Rules:
         return {
           role: m.role,
           content: [
-            ...m.images.map(img => ({
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: 'image/jpeg',
-                data: img.replace(/^data:image\/\w+;base64,/, ''),
-              },
-            })),
+            ...m.images.map(img => {
+              const match = img.match(/^data:(image\/\w+);base64,/);
+              return {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: match ? match[1] : 'image/jpeg',
+                  data: img.replace(/^data:image\/\w+;base64,/, ''),
+                },
+              };
+            }),
             { type: 'text', text: m.content || '' },
           ],
         };
