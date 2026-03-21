@@ -1331,13 +1331,13 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
 }
 
 function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seasonOpen,
-  totalActivePlants = 0, morningBrief, onStartAction, portraits, completedThisSession, onMarkDone, onOpenAsk }) {
+  totalActivePlants = 0, morningBrief, onStartAction, portraits, completedThisSession,
+  doneTodayItems = [], onMarkDone, onOpenAsk }) {
 
   // Merge deterministic items with AI-enriched agenda (reason + priority + order)
-  const items = useMemo(() => {
+  const pendingItems = useMemo(() => {
     const apiTasks = agendaData?.tasks;
     if (!apiTasks?.length) return rawItems;
-    // Build map from raw items for fast lookup
     const rawMap = new Map(rawItems.map(r => [r.key, r]));
     const ordered = [];
     const covered = new Set();
@@ -1349,20 +1349,30 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
         covered.add(key);
       }
     }
-    // Append items the API didn't cover (safety net)
     for (const raw of rawItems) {
       if (!covered.has(raw.key)) ordered.push(raw);
     }
     return ordered;
   }, [rawItems, agendaData]);
 
-  const urgentRec = items.filter(i => i.priority !== 'routine');
-  const routineItems = items.filter(i => i.priority === 'routine');
-  const doneCount = items.filter(i => completedThisSession.has(i.key)).length;
+  // Full today list = pending tasks + done-today tasks (deduped)
+  const doneTodayKeys = useMemo(() => new Set(doneTodayItems.map(i => i.key)), [doneTodayItems]);
+  const items = useMemo(() => {
+    const pendingNotDone = pendingItems.filter(i => !doneTodayKeys.has(i.key));
+    return [...pendingNotDone, ...doneTodayItems];
+  }, [pendingItems, doneTodayItems, doneTodayKeys]);
+
+  // An item is completed if it's been logged today (careLog) or just tapped (optimistic)
+  const isCompleted = (item) => doneTodayKeys.has(item.key) || completedThisSession.has(item.key);
+
+  const pendingNotDone = items.filter(i => !isCompleted(i));
+  const urgentRec = pendingNotDone.filter(i => i.priority !== 'routine');
+  const routineItems = pendingNotDone.filter(i => i.priority === 'routine');
+  const doneCount = items.filter(isCompleted).length;
   const totalCount = items.length;
   const allDone = totalCount > 0 && doneCount === totalCount;
-  const urgentRecAllDone = urgentRec.length > 0 && urgentRec.every(i => completedThisSession.has(i.key));
-  const hasRemainingRoutine = routineItems.some(i => !completedThisSession.has(i.key));
+  const urgentRecAllDone = urgentRec.length === 0 && doneTodayItems.length > 0;
+  const hasRemainingRoutine = routineItems.length > 0;
 
   if (!seasonOpen) {
     return (
@@ -1469,7 +1479,7 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
           <AgendaRow
             key={item.key}
             item={item}
-            completed={completedThisSession.has(item.key)}
+            completed={isCompleted(item)}
             onTap={i => onStartAction(i.plant, i.actionKey)}
             onDone={onMarkDone}
             portrait={portraits[item.plantId]}
@@ -1479,7 +1489,7 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
 
       {/* Resting plants count */}
       {(() => {
-        const activePlantIds = new Set(items.map(i => i.plantId));
+        const activePlantIds = new Set(pendingItems.map(i => i.plantId));
         const restingCount = totalActivePlants - activePlantIds.size;
         return restingCount > 0 ? (
           <div style={{ fontFamily: SERIF, fontSize: 12, color: '#b09070', fontStyle: 'italic',
@@ -1711,21 +1721,6 @@ export function MobileView({
       });
   }, [careVersion, weather]); // intentional: portraits/careLog refs change too often
 
-  // Seed session counter from today's care log so it survives page reloads
-  useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const doneToday = new Set();
-    for (const [plantId, entries] of Object.entries(careLog)) {
-      for (const entry of entries) {
-        if (entry.date?.startsWith(today)) {
-          doneToday.add(`${plantId}:${entry.action}`);
-        }
-      }
-    }
-    if (doneToday.size > 0) {
-      setCompletedThisSession(prev => new Set([...doneToday, ...prev]));
-    }
-  }, [careVersion]); // careVersion changes when careLog is updated
 
   // Total active plants — passed to TodayAgenda for "N plants resting" count
   const totalActivePlants = useMemo(
@@ -1739,17 +1734,29 @@ export function MobileView({
     [plants, frontPlants, careLog, briefings, weather, seasonOpen]
   );
 
-  // Freeze the day's agenda so the total count stays stable as tasks are completed.
-  // Tasks dim out (completed=true) rather than disappearing from the list.
-  // Resets when the date changes (new day → fresh agenda).
-  const frozenAgendaRef = useRef([]);
-  const frozenAgendaDateRef = useRef('');
   const todayStr = new Date().toISOString().slice(0, 10);
-  if (rawAgendaItems.length > 0 && frozenAgendaDateRef.current !== todayStr) {
-    frozenAgendaRef.current = rawAgendaItems;
-    frozenAgendaDateRef.current = todayStr;
-  }
-  const frozenAgendaItems = frozenAgendaRef.current.length > 0 ? frozenAgendaRef.current : rawAgendaItems;
+  const allPlantsFlat = useMemo(() => [...plants, ...frontPlants], [plants, frontPlants]);
+
+  // Tasks completed today from careLog — persists across page reloads.
+  // Grows as care is logged; complements rawAgendaItems (which shrinks as tasks are done).
+  const doneTodayItems = useMemo(() => {
+    const skipActions = new Set(['note', 'photo', 'visit']);
+    const seen = new Set();
+    const result = [];
+    for (const [plantId, entries] of Object.entries(careLog)) {
+      for (const entry of entries) {
+        if (!entry.date?.startsWith(todayStr)) continue;
+        if (skipActions.has(entry.action)) continue;
+        const key = `${plantId}:${entry.action}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const plant = allPlantsFlat.find(p => p.id === plantId);
+        if (!plant) continue;
+        result.push({ key, plantId, plantName: plant.name, actionKey: entry.action, plant, priority: 'routine', reason: '' });
+      }
+    }
+    return result;
+  }, [careLog, allPlantsFlat, todayStr]);
 
   // Fetch AI-enriched agenda once per day (busts on care or weather changes)
   const rawAgendaKeys = rawAgendaItems.map(i => i.key).join(',');
@@ -1877,11 +1884,12 @@ export function MobileView({
       <div style={{ flex: 1, overflowY: tab !== 'ask' ? 'auto' : 'hidden', position: 'relative' }}>
         {tab === 'today' && (
           <TodayAgenda
-            rawItems={frozenAgendaItems} isWeekend={agendaIsWeekend}
+            rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
             agendaData={agendaData} seasonOpen={seasonOpen}
             totalActivePlants={totalActivePlants}
             morningBrief={morningBrief} onStartAction={handleStartAction}
             portraits={portraits} completedThisSession={completedThisSession}
+            doneTodayItems={doneTodayItems}
             onMarkDone={handleMarkDone}
             onOpenAsk={() => setTab('ask')}
           />
@@ -1901,7 +1909,7 @@ export function MobileView({
             portraits={portraits}
             briefings={briefings}
             seasonOpen={seasonOpen}
-            frozenAgendaItems={frozenAgendaItems}
+            frozenAgendaItems={rawAgendaItems}
           />
         )}
 
