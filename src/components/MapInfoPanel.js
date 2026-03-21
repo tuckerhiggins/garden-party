@@ -55,7 +55,6 @@ function healthColor(h) {
 export function MapInfoPanel({
   plants = [],
   careLog = {},
-  warmth = 0,
   weather = null,
   seasonOpen = false,
   seasonBlocking = null,
@@ -145,34 +144,6 @@ export function MapInfoPanel({
           )}
         </Section>
       )}
-
-      {/* ── Warmth ── */}
-      <Section label="WARMTH">
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
-          <div style={{flex:1,height:7,background:'rgba(255,255,255,0.07)',borderRadius:4,overflow:'hidden',
-            border:'1px solid rgba(160,130,80,0.18)'}}>
-            <div style={{
-              width:`${Math.min(100, warmth/10)}%`, height:'100%',
-              background: warmth >= 1000 ? '#f0d040'
-                        : warmth >= 700  ? '#e4a030'
-                        : GOLD,
-              borderRadius:4, transition:'width .4s',
-            }}/>
-          </div>
-          <span style={{fontFamily:MONO,fontSize:7,color:GOLD,flexShrink:0}}>
-            {warmth}/1k
-          </span>
-        </div>
-        {warmth >= 1000 ? (
-          <div style={{fontSize:11,color:'#f0d040',fontFamily:SERIF,fontStyle:'italic'}}>
-            🔥 The fire pit is lit
-          </div>
-        ) : warmth >= 800 ? (
-          <div style={{fontSize:11,color:MUTED,fontFamily:SERIF,fontStyle:'italic'}}>
-            {1000 - warmth} warmth until the fire pit
-          </div>
-        ) : null}
-      </Section>
 
       {/* ── Needs care ── */}
       {seasonOpen && attentionItems.length > 0 && (
