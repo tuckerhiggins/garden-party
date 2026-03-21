@@ -238,7 +238,7 @@ Respond as JSON only — no other text:
 export async function fetchMorningBrief({ plants, careLog, weather, portraits }) {
   const today = new Date().toISOString().slice(0, 10);
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
-  const cacheKey = `morningbrief2_${today}_${rainToken}`;
+  const cacheKey = `morningbrief3_${today}_${rainToken}`;
 
   const needsWater = plants
     .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && p.actions?.includes('water'))
@@ -275,7 +275,7 @@ ${weatherEvents.length ? `Weather note: ${weatherEvents.join('; ')}.` : `Today: 
 ${recentNote ? `Recent observation — ${recentNote}` : ''}
 One sentence from the garden this morning.`;
 
-  return cachedClaude(cacheKey, systemPrompt, userPrompt, 100, 24 * 60 * 60 * 1000);
+  return cachedClaude(cacheKey, systemPrompt, userPrompt, 150, 24 * 60 * 60 * 1000);
 }
 
 // ── MISSED CARE VOICE ─────────────────────────────────────────────────────
