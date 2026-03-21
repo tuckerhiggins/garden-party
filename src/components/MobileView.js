@@ -509,9 +509,9 @@ function MobileSignIn({ signIn }) {
 
 // ── MAIN MOBILE VIEW ───────────────────────────────────────────────────────
 export function MobileView({
-  plants, careLog, warmth, weather,
+  plants, frontPlants = [], careLog, warmth, weather,
   onAction, onPortraitUpdate, onGrowthUpdate, allPhotos = {}, onAddPhoto,
-  portraits = {}, role, signIn, signOut, seasonOpen,
+  portraits = {}, role, signIn, signOut, seasonOpen, onGoFront,
 }) {
   const [tab, setTab] = useState('care');
   const [flash, setFlash] = useState(null);
@@ -565,6 +565,14 @@ export function MobileView({
           </div>
           <span style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold }}>{warmth}♥</span>
         </div>
+        {/* Front garden nav */}
+        {onGoFront && (
+          <button onClick={onGoFront}
+            style={{background:'none',border:'none',fontSize:16,cursor:'pointer',padding:'4px 6px',lineHeight:1}}
+            title="Emma's Rose Garden">
+            🌹
+          </button>
+        )}
         {/* Auth indicator */}
         {role !== 'guest' ? (
           <button onClick={signOut}
@@ -594,7 +602,7 @@ export function MobileView({
         {tab === 'plants' && (
           <div style={{ padding: '16px' }}>
             <div style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, marginBottom: 14, letterSpacing: .5 }}>
-              ALL PLANTS
+              TERRACE
             </div>
             {plants
               .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
@@ -604,11 +612,24 @@ export function MobileView({
                   onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits} seasonOpen={seasonOpen}/>
               ))
             }
+            {frontPlants.length > 0 && <>
+              <div style={{ fontFamily: MONO, fontSize: 7, color: '#e84070', margin: '20px 0 14px', letterSpacing: .5 }}>
+                🌹 EMMA'S ROSE GARDEN
+              </div>
+              {frontPlants
+                .filter(p => p.health !== 'memorial')
+                .map(p => (
+                  <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction}
+                    onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
+                    onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits} seasonOpen={seasonOpen}/>
+                ))
+              }
+            </>}
           </div>
         )}
 
         {tab === 'care' && (
-          <QuickCareTab plants={plants} careLog={careLog} onAction={handleAction}
+          <QuickCareTab plants={[...plants, ...frontPlants]} careLog={careLog} onAction={handleAction}
             onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
             onAddPhoto={onAddPhoto} allPhotos={allPhotos} portraits={portraits} seasonOpen={seasonOpen}/>
         )}

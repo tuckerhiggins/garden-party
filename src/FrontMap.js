@@ -409,7 +409,7 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
         onMouseLeave={() => setEnterHover(false)}
         style={{
           position: 'absolute',
-          bottom: selectedId ? 18 : 44, left: '50%',
+          bottom: selectedId ? 2 : 20, left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 10,
           textAlign: 'center',
@@ -418,6 +418,8 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
           transition: showEnter ? 'opacity 1.4s ease-in' : 'none',
           pointerEvents: showEnter ? 'auto' : 'none',
           userSelect: 'none',
+          padding: '22px 48px',
+          touchAction: 'manipulation',
         }}
       >
         <div style={{

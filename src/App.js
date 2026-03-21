@@ -1546,6 +1546,7 @@ export default function App() {
     return (
       <MobileView
         plants={terracePlants}
+        frontPlants={frontPlants}
         careLog={careLog}
         warmth={warmth}
         weather={weather}
@@ -1559,6 +1560,7 @@ export default function App() {
         signIn={signIn}
         signOut={signOut}
         seasonOpen={seasonOpen}
+        onGoFront={() => setScene('front')}
       />
     );
   }
