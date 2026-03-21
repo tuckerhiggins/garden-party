@@ -898,6 +898,8 @@ function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seaso
 
       // Skip watering if rain expected and plant not in distress
       if (actionKey === 'water' && hasRainSoon && !AGENDA_URGENT_HEALTH.has(plant.health)) continue;
+      // Skip neem if rain expected — it washes off within hours
+      if (actionKey === 'neem' && hasRainSoon) continue;
 
       let priority;
       if (AGENDA_URGENT_HEALTH.has(plant.health)) {
