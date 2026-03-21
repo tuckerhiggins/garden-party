@@ -1035,7 +1035,7 @@ function getAffirmation(key) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function ActionModal({ plant, actionKey, careLog, portraits, onLog, onClose }) {
+function ActionModal({ plant, actionKey, careLog, portraits, weather, onLog, onClose }) {
   const def = ACTION_DEFS[actionKey];
   const color = plantColor(plant.type);
   const [mode, setMode] = useState(null); // null | 'confirm' | 'help'
@@ -1058,11 +1058,15 @@ function ActionModal({ plant, actionKey, careLog, portraits, onLog, onClose }) {
 
   function buildContext() {
     const portrait = portraits?.[plant.id] || {};
+    const next3 = weather?.forecast?.slice(0, 3).map(d =>
+      `${d.date}: ${d.label} ${d.high}°/${d.low}°F, ${d.precipChance}% rain`
+    ).join('; ') ?? '';
     return {
       name: plant.name, species: plant.species, type: plant.type,
       health: plant.health, container: plant.container,
       visualNote: portrait.visualNote, stage: portrait.currentStage,
       careHistory: (careLog[plant.id] || []).slice(-5),
+      forecast: next3 || null,
     };
   }
 
@@ -1574,6 +1578,7 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
           actionKey={actionModal}
           careLog={careLog}
           portraits={portraits}
+          weather={weather}
           onLog={() => onAction(actionModal, plant)}
           onClose={() => setActionModal(null)}
         />
@@ -1720,7 +1725,7 @@ export default function App() {
   const frontPlants = useMemo(() => FRONT_PLANTS, []);
 
   const terracePlants = useMemo(()=>
-    TERRACE_PLANTS.map(p=>({...p, pos:positions[p.id]||p.pos, growth:growth[p.id]??p.growth??0})),
+    TERRACE_PLANTS.map(p=>({...p, pos:p.moveable ? (positions[p.id]||p.pos) : p.pos, growth:growth[p.id]??p.growth??0})),
     [positions, growth]);
 
   // Custom plants with positions/growth merged from localStorage

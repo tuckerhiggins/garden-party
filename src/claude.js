@@ -170,7 +170,9 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
   const lastActionDate = entries.length ? entries[entries.length - 1].date.slice(0, 10) : 'none';
   const portrait = portraits?.[plant.id] || {};
   const currentStage = portrait.currentStage || null;
-  const cacheKey = `plantbrief4_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}`;
+  // Weather token: bust cache when rain forecast changes (prevents stale neem/water recs)
+  const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
+  const cacheKey = `plantbrief5_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
 
   const lastWater = [...entries].reverse().find(e => e.action === 'water');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
@@ -190,7 +192,12 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
     return `  ${a}: ${desc} (${when})`;
   }).join('\n');
 
-  const systemPrompt = `You are a knowledgeable plant care advisor for Tucker and Emma's Brooklyn rooftop garden (Zone 7b). You give a brief specific observation about a plant's current state AND recommend which care actions — if any — genuinely make sense right now. You can recommend any action from the list. Be selective: don't recommend something just done, don't recommend more than 2 actions, don't recommend if nothing is needed.`;
+  const systemPrompt = `You are a knowledgeable plant care advisor for Tucker and Emma's Brooklyn rooftop garden (Zone 7b). You give a brief specific observation about a plant's current state AND recommend which care actions — if any — genuinely make sense right now. You can recommend any action from the list. Be selective: don't recommend something just done, don't recommend more than 2 actions, don't recommend if nothing is needed.
+
+Rain rules (non-negotiable):
+- If rain ≥60% chance today or tomorrow: do NOT recommend water
+- If rain within 24h: do NOT recommend neem oil (it washes off and wastes the application)
+- Check the 3-day forecast before making any recommendation`;
 
   const userPrompt = `Plant: ${plant.name}${plant.species ? ` (${plant.species})` : ''}, ${plant.type}.
 Health: ${plant.health}. Today: ${today}. Early spring, Zone 7b.
@@ -227,7 +234,8 @@ Respond as JSON only — no other text:
 // Proactive — surfaces weather, what needs attention, or a quiet observation.
 export async function fetchMorningBrief({ plants, careLog, weather, portraits }) {
   const today = new Date().toISOString().slice(0, 10);
-  const cacheKey = `morningbrief_${today}`;
+  const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
+  const cacheKey = `morningbrief2_${today}_${rainToken}`;
 
   const needsWater = plants
     .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && p.actions?.includes('water'))

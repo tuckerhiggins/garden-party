@@ -96,7 +96,7 @@ function mobileAffirmation(key) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function MobileActionSheet({ plant, actionKey, careLog, portraits, onLog, onClose }) {
+function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLog, onClose }) {
   const def = ACTION_DEFS[actionKey];
   const color = plantColor(plant.type);
   const [mode, setMode] = React.useState(null); // null | 'confirm' | 'help'
@@ -120,11 +120,15 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, onLog, onClos
 
   function buildContext() {
     const portrait = portraits?.[plant.id] || {};
+    const next3 = weather?.forecast?.slice(0, 3).map(d =>
+      `${d.date}: ${d.label} ${d.high}°/${d.low}°F, ${d.precipChance}% rain`
+    ).join('; ') ?? '';
     return {
       name: plant.name, species: plant.species, type: plant.type,
       health: plant.health, container: plant.container,
       visualNote: portrait.visualNote, stage: portrait.currentStage,
       careHistory: (careLog[plant.id] || []).slice(-5),
+      forecast: next3 || null,
     };
   }
 
@@ -1317,6 +1321,7 @@ export function MobileView({
           actionKey={actionSession.key}
           careLog={careLog}
           portraits={portraits}
+          weather={weather}
           onLog={() => handleAction(actionSession.key, actionSession.plant)}
           onClose={() => setActionSession(null)}
         />

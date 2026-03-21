@@ -14,7 +14,7 @@ module.exports = async function handler(req, res) {
 
   const {
     messages = [],       // [{role, content, images?: string[]}]
-    plantContext = {},   // {name, species, type, health, container, visualNote, stage, careHistory}
+    plantContext = {},   // {name, species, type, health, container, visualNote, stage, careHistory, forecast}
     action = '',         // label of care action being performed
   } = req.body || {};
 
@@ -31,6 +31,7 @@ Health: ${plantContext.health || 'unknown'} · Container: ${plantContext.contain
 Current phenological stage: ${plantContext.stage || 'unknown'}
 ${plantContext.visualNote ? `Last observed: ${plantContext.visualNote}` : ''}
 ${recentCare ? `Recent care: ${recentCare}` : ''}
+${plantContext.forecast ? `3-day forecast: ${plantContext.forecast}` : ''}
 ${action ? `\nTucker is performing: ${action}` : ''}
 
 Rules:
@@ -38,7 +39,8 @@ Rules:
 - Give exact instructions for this specific plant in this specific container at this stage
 - When you see a photo, describe exactly what you see and what to do next — no generalities
 - No markdown formatting, no bullet points in responses, just clear prose
-- If something looks wrong in a photo, say so plainly`;
+- If something looks wrong in a photo, say so plainly
+- If rain ≥60% is forecast in the next 24h, factor that into any watering or neem oil advice`;
 
   // Convert messages to Claude format, handling embedded images
   const claudeMessages = messages.map(m => {
