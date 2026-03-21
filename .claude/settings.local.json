@@ -36,7 +36,10 @@
       "Bash(which gh:*)",
       "Bash(git add:*)",
       "Bash(vercel:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "WebFetch(domain:garden-party-l2pc0ix0h-tucker-higgins-projects.vercel.app)",
+      "WebFetch(domain:garden-party.vercel.app)",
+      "WebFetch(domain:garden-party-sigma.vercel.app)"
     ]
   }
 }

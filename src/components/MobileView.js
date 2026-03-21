@@ -988,58 +988,182 @@ function GardenAccordion({
   onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos,
   portraits, briefings, seasonOpen, frozenAgendaItems,
 }) {
-  const [expandedId, setExpandedId] = useState(null);
   const attentionIds = useMemo(
     () => new Set((frozenAgendaItems || []).map(i => i.plantId)),
     [frozenAgendaItems]
   );
 
-  function toggle(id) {
-    setExpandedId(prev => prev === id ? null : id);
+  // Auto-open groups that have today's attention items
+  const [expandedGroups, setExpandedGroups] = useState(() => {
+    const open = new Set();
+    const all = [...plants, ...frontPlants];
+    for (const item of frozenAgendaItems || []) {
+      const p = all.find(x => x.id === item.plantId);
+      if (p) open.add(p.type);
+    }
+    return open;
+  });
+  const [expandedId, setExpandedId] = useState(null);
+
+  function toggleGroup(type) {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      next.has(type) ? next.delete(type) : next.add(type);
+      return next;
+    });
   }
+  function togglePlant(id) { setExpandedId(prev => prev === id ? null : id); }
 
   function lastWatered(plantId) {
     const entries = (careLog[plantId] || []).filter(e => e.action === 'water');
     return entries.length ? entries[entries.length - 1].date : null;
   }
 
-  function sortedByAttention(list) {
-    return [...list].sort((a, b) => {
-      const diff = (attentionIds.has(a.id) ? 0 : 1) - (attentionIds.has(b.id) ? 0 : 1);
-      return diff !== 0 ? diff : a.name.localeCompare(b.name);
-    });
+  function groupDisplayName(type, count) {
+    const base = type.replace(/-/g, ' ');
+    if (count === 1) return 'The ' + base.charAt(0).toUpperCase() + base.slice(1);
+    const plural = base.endsWith('y')
+      ? base.slice(0, -1) + 'ies'
+      : base.endsWith('s') ? base : base + 's';
+    return 'The ' + plural.charAt(0).toUpperCase() + plural.slice(1);
+  }
+
+  function groupSubtitle(groupPlants) {
+    // Stage: show if consistent, or first available
+    const stages = [...new Set(groupPlants.map(p => portraits?.[p.id]?.currentStage).filter(Boolean))];
+    // Attention actions for this group
+    const activeItems = (frozenAgendaItems || []).filter(i => groupPlants.some(p => p.id === i.plantId));
+    const actionEmojis = [...new Set(activeItems.map(i => ACTION_DEFS[i.actionKey]?.emoji).filter(Boolean))].join('');
+    // Visual note — only for single-plant groups with no stage
+    const visualNote = groupPlants.length === 1 && !stages.length
+      ? portraits?.[groupPlants[0].id]?.visualNote
+      : null;
+
+    const parts = [];
+    if (stages.length === 1) parts.push(stages[0]);
+    else if (stages.length === 2) parts.push(stages.join(' · '));
+    else if (stages.length > 2) parts.push(`${stages.length} stages`);
+
+    if (!parts.length && visualNote) parts.push(visualNote);
+    if (!parts.length) parts.push(healthLabel(groupPlants[0].health));
+
+    if (actionEmojis) parts.push(`${actionEmojis} today`);
+    return parts.join('  ·  ');
   }
 
   function renderSection(list, title, titleColor) {
     if (!list.length) return null;
-    const sorted = sortedByAttention(list);
+
+    // Group by type, sort groups: attention first then alpha
+    const groupMap = new Map();
+    for (const p of list) {
+      if (!groupMap.has(p.type)) groupMap.set(p.type, []);
+      groupMap.get(p.type).push(p);
+    }
+    const sortedGroups = [...groupMap.entries()].sort(([tA, pA], [tB, pB]) => {
+      const diff = (pA.some(p => attentionIds.has(p.id)) ? 0 : 1) - (pB.some(p => attentionIds.has(p.id)) ? 0 : 1);
+      return diff !== 0 ? diff : tA.localeCompare(tB);
+    });
+
     return (
       <div style={{ marginBottom: 8 }}>
-        <div style={{ fontFamily: MONO, fontSize: 7, color: titleColor,
-          marginBottom: 10, letterSpacing: .5 }}>
+        <div style={{ fontFamily: MONO, fontSize: 7, color: titleColor, marginBottom: 10, letterSpacing: .5 }}>
           {title}
         </div>
-        {sorted.map(p => (
-          <PlantAccordionRow
-            key={p.id}
-            plant={p}
-            isExpanded={expandedId === p.id}
-            onToggle={toggle}
-            needsAttention={attentionIds.has(p.id)}
-            portrait={portraits?.[p.id] || {}}
-            photos={allPhotos[p.id] || []}
-            lastWateredDate={lastWatered(p.id)}
-            careLog={careLog}
-            onAction={onAction}
-            onStartAction={onStartAction}
-            onPortraitUpdate={onPortraitUpdate}
-            onGrowthUpdate={onGrowthUpdate}
-            onAddPhoto={onAddPhoto}
-            briefing={briefings[p.id]}
-            seasonOpen={seasonOpen}
-            portraits={portraits}
-          />
-        ))}
+        {sortedGroups.map(([type, groupPlants]) => {
+          const isOpen = expandedGroups.has(type);
+          const anyAttention = groupPlants.some(p => attentionIds.has(p.id));
+          const subtitle = groupSubtitle(groupPlants);
+          const sortedGroupPlants = [...groupPlants].sort((a, b) => {
+            const d = (attentionIds.has(a.id) ? 0 : 1) - (attentionIds.has(b.id) ? 0 : 1);
+            return d !== 0 ? d : a.name.localeCompare(b.name);
+          });
+
+          return (
+            <div key={type} style={{ marginBottom: 8 }}>
+              {/* Group header */}
+              <div
+                onClick={() => toggleGroup(type)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 12px',
+                  background: isOpen ? 'rgba(212,168,48,0.06)' : '#f5f0e8',
+                  border: `1px solid rgba(160,130,80,${isOpen ? '0.30' : '0.18'})`,
+                  borderRadius: isOpen ? '10px 10px 0 0' : 10,
+                  cursor: 'pointer',
+                }}
+              >
+                {/* Stacked mini portraits */}
+                <div style={{ display: 'flex', flexShrink: 0, marginRight: 2 }}>
+                  {sortedGroupPlants.slice(0, 3).map((p, i) => (
+                    <div key={p.id} style={{
+                      width: 30, height: 30, borderRadius: 7, overflow: 'hidden',
+                      border: '1.5px solid rgba(160,130,80,0.22)',
+                      marginLeft: i > 0 ? -10 : 0,
+                      background: '#f0e8d8', flexShrink: 0,
+                      position: 'relative', zIndex: sortedGroupPlants.length - i,
+                    }}>
+                      <PlantPortrait plant={p} aiSvg={portraits?.[p.id]?.svg}/>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Name + subtitle */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontFamily: SERIF, fontSize: 15, fontWeight: 600, color: '#2a1808' }}>
+                      {groupDisplayName(type, groupPlants.length)}
+                    </span>
+                    {anyAttention && (
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#d4a830', flexShrink: 0 }}/>
+                    )}
+                  </div>
+                  {subtitle && (
+                    <div style={{ fontFamily: SERIF, fontSize: 11, color: '#907050', marginTop: 2,
+                      fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {subtitle}
+                    </div>
+                  )}
+                </div>
+
+                {/* Chevron */}
+                <span style={{
+                  fontSize: 10, color: '#c0a080', flexShrink: 0,
+                  transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s',
+                }}>▼</span>
+              </div>
+
+              {/* Group contents */}
+              {isOpen && (
+                <div style={{
+                  border: '1px solid rgba(160,130,80,0.18)', borderTop: 'none',
+                  borderRadius: '0 0 10px 10px', overflow: 'hidden',
+                  background: 'rgba(250,246,238,0.6)', padding: '8px 8px 4px',
+                }}>
+                  {sortedGroupPlants.map(p => (
+                    <PlantAccordionRow
+                      key={p.id} plant={p}
+                      isExpanded={expandedId === p.id}
+                      onToggle={togglePlant}
+                      needsAttention={attentionIds.has(p.id)}
+                      portrait={portraits?.[p.id] || {}}
+                      photos={allPhotos[p.id] || []}
+                      lastWateredDate={lastWatered(p.id)}
+                      careLog={careLog} onAction={onAction}
+                      onStartAction={onStartAction}
+                      onPortraitUpdate={onPortraitUpdate}
+                      onGrowthUpdate={onGrowthUpdate}
+                      onAddPhoto={onAddPhoto}
+                      briefing={briefings[p.id]}
+                      seasonOpen={seasonOpen}
+                      portraits={portraits}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
