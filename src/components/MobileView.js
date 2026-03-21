@@ -74,19 +74,22 @@ async function compressImage(file, maxPx = 800, quality = 0.72) {
       URL.revokeObjectURL(url);
       resolve(canvas.toDataURL('image/jpeg', quality));
     };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
     img.src = url;
   });
 }
 
 // ── MOBILE PLANT CARD ──────────────────────────────────────────────────────
-function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, onAddPhoto, photos = [], seasonOpen }) {
+function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, onAddPhoto, photos = [], portraits, seasonOpen }) {
   const fileRef = useRef(null);
   const color = plantColor(plant.type);
   const lastPhoto = photos[photos.length - 1];
+  const analyzing = portraits?.[plant.id]?.analyzing;
 
   async function handleFile(e) {
     const file = e.target.files[0]; if (!file) return;
     const dataUrl = await compressImage(file);
+    if (!dataUrl) { onPortraitUpdate?.(plant.id, { analyzing: false }); return; }
     const date = new Date().toISOString();
     onAddPhoto?.(plant.id, dataUrl, date);
     // iOS-safe input reset
@@ -200,6 +203,18 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
             )}
           </div>
         )}
+        {/* Analyzing overlay */}
+        {analyzing && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'rgba(18,12,6,0.65)',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}>
+            <div style={{ fontSize: 22 }}>🌿</div>
+            <div style={{ fontFamily: MONO, fontSize: 6, color: C.uiGold, letterSpacing: .5 }}>ANALYZING…</div>
+          </div>
+        )}
         {/* Camera overlay button */}
         <div style={{
           position: 'absolute', bottom: 8, right: 8,
@@ -303,7 +318,7 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
 }
 
 // ── QUICK CARE TAB ─────────────────────────────────────────────────────────
-function QuickCareTab({ plants, careLog, onAction, onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos = {}, seasonOpen }) {
+function QuickCareTab({ plants, careLog, onAction, onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos = {}, portraits, seasonOpen }) {
   const actionable = plants.filter(p =>
     p.health !== 'memorial' && p.type !== 'empty-pot' &&
     (p.actions || []).some(a => actionStatus(p, a, careLog, seasonOpen).available && !ACTION_DEFS[a]?.alwaysAvailable)
@@ -350,7 +365,7 @@ function QuickCareTab({ plants, careLog, onAction, onPortraitUpdate, onGrowthUpd
       {prioritized.map(p => (
         <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction}
           onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-          onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} seasonOpen={seasonOpen}/>
+          onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits} seasonOpen={seasonOpen}/>
       ))}
     </div>
   );
@@ -490,7 +505,7 @@ function MobileSignIn({ signIn }) {
 export function MobileView({
   plants, careLog, warmth, weather,
   onAction, onPortraitUpdate, onGrowthUpdate, allPhotos = {}, onAddPhoto,
-  role, signIn, signOut, seasonOpen,
+  portraits = {}, role, signIn, signOut, seasonOpen,
 }) {
   const [tab, setTab] = useState('care');
   const [flash, setFlash] = useState(null);
@@ -580,7 +595,7 @@ export function MobileView({
               .map(p => (
                 <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={handleAction}
                   onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-                  onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} seasonOpen={seasonOpen}/>
+                  onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits} seasonOpen={seasonOpen}/>
               ))
             }
           </div>
@@ -589,7 +604,7 @@ export function MobileView({
         {tab === 'care' && (
           <QuickCareTab plants={plants} careLog={careLog} onAction={handleAction}
             onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-            onAddPhoto={onAddPhoto} allPhotos={allPhotos} seasonOpen={seasonOpen}/>
+            onAddPhoto={onAddPhoto} allPhotos={allPhotos} portraits={portraits} seasonOpen={seasonOpen}/>
         )}
 
         {tab === 'oracle' && (

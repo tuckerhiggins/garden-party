@@ -17,11 +17,18 @@ function roleFromUser(user) {
   return 'guest';
 }
 
+const LS_ROLE = 'gp_role';
+
 export function useAuth() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [authError, setAuthError] = useState('');
+
+  // Optimistic role: read from localStorage so we never flash "guest" while session restores
+  const [optimisticRole, setOptimisticRole] = useState(() => {
+    try { return localStorage.getItem(LS_ROLE) || 'guest'; } catch { return 'guest'; }
+  });
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -29,10 +36,16 @@ export function useAuth() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
+      const r = roleFromUser(session?.user || null);
+      setOptimisticRole(r);
+      try { localStorage.setItem(LS_ROLE, r); } catch {}
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      const r = roleFromUser(session?.user || null);
+      setOptimisticRole(r);
+      try { localStorage.setItem(LS_ROLE, r); } catch {}
     });
 
     return () => subscription.unsubscribe();
@@ -61,7 +74,9 @@ export function useAuth() {
   };
 
   const user = session?.user || null;
-  const role = roleFromUser(user);
+  // While loading: use optimistic role from localStorage so UI doesn't flash "guest"
+  // After load: use the confirmed role from session (clears optimistic if session gone)
+  const role = loading ? optimisticRole : roleFromUser(user);
 
   return {
     user,

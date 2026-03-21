@@ -1554,6 +1554,7 @@ export default function App() {
         onGrowthUpdate={updateGrowth}
         allPhotos={allPhotos}
         onAddPhoto={addPhoto}
+        portraits={portraits}
         role={role}
         signIn={signIn}
         signOut={signOut}
