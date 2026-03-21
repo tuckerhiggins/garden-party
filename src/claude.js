@@ -169,14 +169,16 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
   const entries = careLog[plant.id] || [];
   // Cache busts when last action changes (so recommendations update after you care for a plant)
   const lastActionDate = entries.length ? entries[entries.length - 1].date.slice(0, 10) : 'none';
-  const cacheKey = `plantbrief2_${plant.id}_${plant.health}_${today}_${lastActionDate}`;
+  const portrait = portraits?.[plant.id] || {};
+  const currentStage = portrait.currentStage || null;
+  const cacheKey = `plantbrief2_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}`;
 
   const lastWater = [...entries].reverse().find(e => e.action === 'water');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
   const recentActions = entries.slice(-5).map(e =>
     `${e.label} on ${new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`
   ).join(', ');
-  const visualNote = portraits?.[plant.id]?.visualNote;
+  const visualNote = portrait.visualNote;
   const next3 = weather?.forecast?.slice(0, 3).map(d =>
     `${d.date}: ${d.label} ${d.high}°/${d.low}°F, ${d.precipChance}% rain`
   ).join('; ') ?? '';
@@ -194,6 +196,7 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
 
   const userPrompt = `Plant: ${plant.name}${plant.species ? ` (${plant.species})` : ''}, ${plant.type}.
 Health: ${plant.health}. Today: ${today}. Early spring, Zone 7b.
+${currentStage ? `Current phenological stage: ${currentStage}.` : ''}
 ${daysSinceWater !== null ? `Last watered ${daysSinceWater} day${daysSinceWater !== 1 ? 's' : ''} ago.` : 'No water logged.'}
 ${recentActions ? `Recent care: ${recentActions}.` : ''}
 ${visualNote ? `Last photo observation: "${visualNote}"` : ''}
@@ -215,6 +218,51 @@ Respond as JSON only — no other text:
     // Old cached plain-text values fall back gracefully
     return { note: raw || '', actions: [] };
   }
+}
+
+// ── MORNING BRIEF ─────────────────────────────────────────────────────────
+// One ambient sentence from the garden at the top of the Care tab each day.
+// Proactive — surfaces weather, what needs attention, or a quiet observation.
+export async function fetchMorningBrief({ plants, careLog, weather, portraits }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const cacheKey = `morningbrief_${today}`;
+
+  const needsWater = plants
+    .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && p.actions?.includes('water'))
+    .filter(p => {
+      const entries = (careLog[p.id] || []).filter(e => e.action === 'water');
+      if (!entries.length) return true;
+      return (Date.now() - new Date(entries[entries.length - 1].date).getTime()) / 86400000 > 1;
+    })
+    .map(p => p.name);
+
+  const weatherEvents = [];
+  if (weather?.forecast) {
+    const [today0, tom] = weather.forecast;
+    if (today0?.precipChance >= 70) weatherEvents.push(`rain today (${today0.precipChance}%)`);
+    if (tom?.precipChance >= 60) weatherEvents.push(`rain tomorrow (${tom.precipChance}%)`);
+    if (tom?.low <= 35) weatherEvents.push(`frost risk tomorrow (low ${tom.low}°F)`);
+    if (tom?.high >= 85) weatherEvents.push(`heat tomorrow (${tom.high}°F)`);
+  }
+
+  const recentNote = Object.entries(portraits || {})
+    .filter(([, p]) => p.visualNote && p.date)
+    .sort((a, b) => new Date(b[1].date) - new Date(a[1].date))
+    .map(([id, p]) => {
+      const plant = plants.find(pl => pl.id === id);
+      return plant ? `${plant.name}: "${p.visualNote}"` : null;
+    })
+    .find(Boolean);
+
+  const systemPrompt = `You are the garden speaking to Tucker and Emma at the start of their day on the Brooklyn terrace. One sentence. Present tense. Specific to what's actually happening — the weather, a plant that needs attention, or a quiet observation worth noticing. Never generic, never a list, never a greeting.`;
+
+  const userPrompt = `Today: ${today}. Brooklyn Zone 7b, early spring.
+${needsWater.length ? `Needs water: ${needsWater.join(', ')}.` : 'Watering up to date.'}
+${weatherEvents.length ? `Weather note: ${weatherEvents.join('; ')}.` : `Today: ${weather?.forecast?.[0]?.label || 'clear'}, ${weather?.forecast?.[0]?.high || '—'}°F.`}
+${recentNote ? `Recent observation — ${recentNote}` : ''}
+One sentence from the garden this morning.`;
+
+  return cachedClaude(cacheKey, systemPrompt, userPrompt, 60, 24 * 60 * 60 * 1000);
 }
 
 // ── MISSED CARE VOICE ─────────────────────────────────────────────────────

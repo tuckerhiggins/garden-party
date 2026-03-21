@@ -23,6 +23,7 @@ module.exports = async function handler(req, res) {
     careLog = [],        // array of care entries for this plant, recent-first
     plantHistory = [],   // array of { visualNote, growth, date } from past analyses
     plantContext = {},   // { health, container, poem, lore, special }
+    stages = [],         // existing stage vocabulary; empty = bootstrap mode
   } = req.body || {};
 
   // Support both single legacy field and new multi-image array
@@ -32,6 +33,8 @@ module.exports = async function handler(req, res) {
   if (!images.length || !plantName) return res.status(400).json({ error: 'Missing required fields' });
   if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' });
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+  const bootstrapMode = !stages || stages.length === 0;
 
   // Build care history section
   const recentCare = careLog.slice(0, 20);
@@ -78,31 +81,64 @@ Illustration style:
     ? `Now look at these ${images.length} photos taken from different angles at the same time. Synthesize all of them — a close-up of one part combined with a wider shot gives you more to work with than either alone. Use everything above plus what you observe across all angles.`
     : `Now look at this new photo. Use everything above to interpret what you see. Note changes relative to past observations. Explain what the care history might have caused in what you're seeing now.`;
 
+  const stageSection = bootstrapMode
+    ? `
+PHENOLOGICAL STAGES — BOOTSTRAP MODE:
+This plant has no stage vocabulary yet. Define one now.
+Create 6-8 stage names that capture the meaningful phenological moments for this specific species in a Brooklyn zone 7b garden. Stages should be:
+- Named in plain, evocative language (not scientific codes)
+- Ordered chronologically through the growing season
+- Specific to what this species actually does (a rose has flushes; a serviceberry has a brief spring bloom; wisteria has one dramatic moment)
+- Useful for a gardener deciding whether to visit, photograph, or act
+
+Return the stages as a JSON array in a <stages> block, then classify which stage this plant is currently in.`
+    : `
+PHENOLOGICAL STAGES — CLASSIFY MODE:
+This plant's stage vocabulary has been established. Classify the current photo against it.
+Stages: ${JSON.stringify(stages)}
+Identify which stage name the plant is currently in. Use the exact string from the stages array.`;
+
+  const responseFormat = bootstrapMode
+    ? `Respond in EXACTLY this format with nothing outside the tags:
+
+<stages>
+["Stage name 1", "Stage name 2", "Stage name 3", ...]
+</stages>
+<analysis>
+{"growth": 0.XX, "visualNote": "One specific sentence synthesizing photo with plant history", "bloomState": "dormant|budding|opening|peak|fading", "foliageState": "bare|sparse|leafing|full", "stage": "Exact stage name from your stages array above"}
+</analysis>
+<portrait>
+[Full SVG element here — start with <svg and end with </svg>]
+</portrait>`
+    : `Respond in EXACTLY this format with nothing outside the tags:
+
+<analysis>
+{"growth": 0.XX, "visualNote": "One specific sentence synthesizing photo with plant history", "bloomState": "dormant|budding|opening|peak|fading", "foliageState": "bare|sparse|leafing|full", "stage": "Exact stage name from the stages array"}
+</analysis>
+<portrait>
+[Full SVG element here — start with <svg and end with </svg>]
+</portrait>`;
+
   const userPrompt = `Plant: ${plantName}${plantSpecies ? ` (${plantSpecies})` : ''}, ${plantType}
 Location: Brooklyn rooftop terrace, Zone 7b
 Today: ${today || new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
 ${bioSection}${careSection}${historySection}
+${stageSection}
 
 ${photoIntro}
 
-Respond in EXACTLY this format with nothing outside the tags:
-
-<analysis>
-{"growth": 0.XX, "visualNote": "One specific sentence that synthesizes what you see in the photo(s) with what you know about this plant's recent history", "bloomState": "dormant|budding|opening|peak|fading", "foliageState": "bare|sparse|leafing|full"}
-</analysis>
-<portrait>
-[Full SVG element here — start with <svg and end with </svg>]
-</portrait>
+${responseFormat}
 
 Rules:
 - growth: 0.0 = fully dormant/bare, 1.0 = peak bloom/full canopy
-- visualNote must reference something from this specific photo AND something from the history when relevant (e.g. "The new growth since fertilizing Mar 7 is visible in the top laterals — about 4cm of fresh green shoot")
-- SVG portrait captures actual state seen in photo(s), not an idealized or generic version`;
+- visualNote must reference something from this specific photo AND something from the history when relevant
+- SVG portrait captures actual state seen in photo(s), not an idealized or generic version
+- stage must exactly match a string in the stages array (yours if bootstrapping, the provided array if classifying)`;
 
   try {
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 3000,
+      max_tokens: 3500,
       system: systemPrompt,
       messages: [{
         role: 'user',
@@ -118,6 +154,15 @@ Rules:
 
     const text = message.content[0].text;
 
+    // Parse stages (bootstrap mode only)
+    let newStages = null;
+    if (bootstrapMode) {
+      const stagesMatch = text.match(/<stages>([\s\S]*?)<\/stages>/);
+      if (stagesMatch) {
+        try { newStages = JSON.parse(stagesMatch[1].trim()); } catch {}
+      }
+    }
+
     const analysisMatch = text.match(/<analysis>([\s\S]*?)<\/analysis>/);
     let analysis = {};
     if (analysisMatch) {
@@ -131,7 +176,7 @@ Rules:
       if (raw.startsWith('<svg')) svg = raw;
     }
 
-    res.json({ analysis, svg });
+    res.json({ analysis, svg, stages: newStages });
   } catch (err) {
     console.error('analyze-plant error:', err.message);
     res.status(500).json({ error: err.message });

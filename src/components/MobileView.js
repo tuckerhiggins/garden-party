@@ -81,15 +81,63 @@ async function compressImage(file, maxPx = 800, quality = 0.72) {
 }
 
 // ── MOBILE PLANT CARD ──────────────────────────────────────────────────────
+// ── STAGE ARC ──────────────────────────────────────────────────────────────
+function StageArc({ stages, currentStage, color }) {
+  if (!stages || stages.length < 2) return null;
+  const currentIdx = stages.indexOf(currentStage);
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(160,130,80,0.12)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 0, position: 'relative' }}>
+        {stages.map((s, i) => {
+          const isCurrent = i === currentIdx;
+          const isPast = currentIdx >= 0 && i < currentIdx;
+          const isFuture = currentIdx < 0 || i > currentIdx;
+          return (
+            <React.Fragment key={s}>
+              {i > 0 && (
+                <div style={{
+                  flex: 1, height: 1,
+                  background: isPast || isCurrent ? `${color}60` : 'rgba(160,130,80,0.20)',
+                }}/>
+              )}
+              <div style={{
+                width: isCurrent ? 10 : 6,
+                height: isCurrent ? 10 : 6,
+                borderRadius: '50%',
+                background: isCurrent ? color : isPast ? `${color}50` : 'transparent',
+                border: `1.5px solid ${isCurrent ? color : isPast ? `${color}50` : 'rgba(160,130,80,0.30)'}`,
+                flexShrink: 0,
+                transition: 'all .2s',
+              }}/>
+            </React.Fragment>
+          );
+        })}
+      </div>
+      {currentStage && (
+        <div style={{
+          fontFamily: SERIF, fontSize: 11, color,
+          fontStyle: 'italic', marginTop: 5,
+          textAlign: currentIdx >= 0 ? 'left' : 'center',
+          paddingLeft: currentIdx > 0 ? `${Math.round((currentIdx / (stages.length - 1)) * 100) - 6}%` : 0,
+        }}>
+          {currentStage}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, onAddPhoto, photos = [], portraits, briefing, seasonOpen }) {
   const fileRef = useRef(null);
   const color = plantColor(plant.type);
   const lastPhoto = photos[photos.length - 1];
-  const analyzing = portraits?.[plant.id]?.analyzing;
+  const portrait = portraits?.[plant.id] || {};
+  const analyzing = portrait.analyzing;
   const photoSrc = lastPhoto?.dataUrl || lastPhoto?.url || null;
   const [photoFailed, setPhotoFailed] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
+  const { stages, currentStage } = portrait;
 
   async function handleFiles(e) {
     const files = Array.from(e.target.files || []).slice(0, 4);
@@ -112,7 +160,9 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
     // Send all images together in one analysis call
     try {
       const stored = JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}');
-      const plantHistory = (stored[plant.id]?.history || []).slice(-5);
+      const plantPortrait = stored[plant.id] || {};
+      const plantHistory = (plantPortrait.history || []).slice(-5);
+      const existingStages = plantPortrait.stages || [];
       const careStore = JSON.parse(localStorage.getItem('gp_care_v4') || '{}');
       const plantEntries = (careStore[plant.id] || []).slice(-20).reverse();
 
@@ -138,10 +188,11 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
             lore: plant.lore,
             special: plant.special,
           },
+          stages: existingStages,
         }),
       })
         .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
-        .then(({ analysis, svg }) => {
+        .then(({ analysis, svg, stages: newStages }) => {
           clearTimeout(timeout);
           const analysisDate = new Date().toISOString();
           const growth = typeof analysis?.growth === 'number' && isFinite(analysis.growth)
@@ -152,6 +203,9 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
             growth,
             bloomState: analysis?.bloomState || null,
             foliageState: analysis?.foliageState || null,
+            // Stage data — newStages only present when bootstrapping
+            ...(newStages ? { stages: newStages } : {}),
+            currentStage: analysis?.stage || null,
             analyzing: false,
             date: analysisDate,
           });
@@ -254,7 +308,7 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
       {/* Info + actions */}
       <div style={{ padding: '12px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div>
+          <div style={{ flex: 1, marginRight: 10 }}>
             <div style={{ fontSize: 17, fontFamily: SERIF, fontWeight: 600, color: '#2a1808' }}>
               {plant.name}
             </div>
@@ -262,13 +316,33 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
               <div style={{ fontSize: 12, color: '#907050', fontFamily: SERIF }}>{plant.subtitle}</div>
             )}
           </div>
-          <div style={{
-            background: `${healthColor(plant.health)}18`,
-            border: `1px solid ${healthColor(plant.health)}40`,
-            borderRadius: 20, padding: '3px 10px',
-            fontSize: 11, color: healthColor(plant.health), fontFamily: SERIF,
-          }}>
-            {healthLabel(plant.health)}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+            {/* Stage is primary when available */}
+            {currentStage ? (
+              <div style={{
+                background: `${color}18`,
+                border: `1px solid ${color}40`,
+                borderRadius: 20, padding: '3px 10px',
+                fontSize: 11, color, fontFamily: SERIF, fontStyle: 'italic',
+              }}>
+                {currentStage}
+              </div>
+            ) : (
+              <div style={{
+                background: `${healthColor(plant.health)}18`,
+                border: `1px solid ${healthColor(plant.health)}40`,
+                borderRadius: 20, padding: '3px 10px',
+                fontSize: 11, color: healthColor(plant.health), fontFamily: SERIF,
+              }}>
+                {healthLabel(plant.health)}
+              </div>
+            )}
+            {/* Health as secondary when stage is shown */}
+            {currentStage && (
+              <div style={{ fontSize: 10, color: healthColor(plant.health), fontFamily: SERIF, opacity: 0.7 }}>
+                {healthLabel(plant.health)}
+              </div>
+            )}
           </div>
         </div>
 
@@ -375,6 +449,9 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
             </button>
           </div>
         )}
+
+        {/* Stage arc */}
+        <StageArc stages={stages} currentStage={currentStage} color={color}/>
 
         {/* Last photo date if exists */}
         {lastPhoto && (
