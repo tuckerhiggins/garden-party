@@ -32,8 +32,6 @@ export function useGardenData({ user }) {
         supabase.from('expenses').select('*').order('created_at'),
       ]);
 
-      // Only overwrite local state if Supabase actually returned rows.
-      // An empty array ([] is truthy) would otherwise wipe valid localStorage data.
       if (careRows?.length) {
         const log = {};
         careRows.forEach(row => {
@@ -44,8 +42,21 @@ export function useGardenData({ user }) {
             date: row.created_at, plantName: row.plant_name,
           });
         });
-        setCareLogState(log);
-        lsSave(LS.care, log);
+        // Merge: keep any local entries newer than the latest Supabase entry for
+        // each plant — these were logged optimistically while the load was in flight
+        setCareLogState(prev => {
+          const merged = { ...log };
+          Object.entries(prev).forEach(([plantId, localEntries]) => {
+            const sbEntries = merged[plantId] || [];
+            const latestSb = sbEntries.length
+              ? Math.max(...sbEntries.map(e => new Date(e.date).getTime()))
+              : 0;
+            const pending = localEntries.filter(e => new Date(e.date).getTime() > latestSb + 1000);
+            if (pending.length) merged[plantId] = [...sbEntries, ...pending];
+          });
+          lsSave(LS.care, merged);
+          return merged;
+        });
       }
 
       if (stateRows) {
@@ -128,6 +139,7 @@ export function useGardenData({ user }) {
       lsSave(LS.care, u); return u;
     });
 
+    if (supabase && !user) return 'local only — not signed in';
     if (supabase && user) {
       const { error } = await supabase.from('care_log').insert({
         plant_id: plant.id, action: key, label, emoji: def.emoji,
