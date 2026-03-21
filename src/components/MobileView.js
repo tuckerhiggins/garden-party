@@ -623,11 +623,10 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
   }
 
   const waterStatus = actionStatus(plant, 'water', careLog, seasonOpen);
-  // Oracle-recommended actions, filtered through cooldown check
+  // All oracle-recommended actions that are currently available (no cap)
   const oracleActions = (briefing?.actions || [])
-    .filter(a => ACTION_DEFS[a])
-    .filter(a => actionStatus(plant, a, careLog, seasonOpen).available)
-    .slice(0, 2);
+    .filter(a => ACTION_DEFS[a] && a !== 'water')
+    .filter(a => actionStatus(plant, a, careLog, seasonOpen).available);
   // Fall back to Visit when oracle hasn't loaded or recommends nothing
   const showVisit = !briefing || oracleActions.length === 0;
 
@@ -755,14 +754,14 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
           </div>
         </div>
 
-        {/* Quick action row */}
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Quick action row — wraps when many actions are recommended */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {/* Water — always shown */}
           <button
             onClick={() => waterStatus.available && onAction('water', plant)}
             disabled={!waterStatus.available}
             style={{
-              flex: 1, padding: '10px 8px',
+              flex: '1 1 56px', padding: '10px 8px',
               background: waterStatus.available ? '#e8f4ff' : 'rgba(0,0,0,.03)',
               border: `1px solid ${waterStatus.available ? '#a8d0f0' : 'rgba(160,130,80,.15)'}`,
               borderRadius: 8, cursor: waterStatus.available ? 'pointer' : 'default',
@@ -780,7 +779,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
             return (
               <button key={a} onClick={() => onStartAction ? onStartAction(plant, a) : onAction(a, plant)}
                 style={{
-                  flex: 1, padding: '10px 8px',
+                  flex: '1 1 56px', padding: '10px 8px',
                   background: `${color}10`,
                   border: `1px solid ${color}40`,
                   borderRadius: 8, cursor: 'pointer',
@@ -799,7 +798,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
             <button
               onClick={() => onAction('visit', plant)}
               style={{
-                flex: 1, padding: '10px 8px',
+                flex: '1 1 56px', padding: '10px 8px',
                 background: briefing ? 'rgba(0,0,0,.03)' : 'rgba(0,0,0,.02)',
                 border: '1px solid rgba(160,130,80,.15)',
                 borderRadius: 8, cursor: 'pointer',
@@ -817,7 +816,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
           <button
             onClick={() => setNoteOpen(o => !o)}
             style={{
-              flex: 1, padding: '10px 8px',
+              flex: '1 1 56px', padding: '10px 8px',
               background: noteOpen ? 'rgba(212,168,48,0.10)' : 'rgba(0,0,0,.02)',
               border: `1px solid ${noteOpen ? 'rgba(212,168,48,0.35)' : 'rgba(160,130,80,.15)'}`,
               borderRadius: 8, cursor: 'pointer',
@@ -861,6 +860,37 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
 
         {/* Stage arc */}
         <StageArc stages={stages} currentStage={currentStage} color={color}/>
+
+        {/* Care history */}
+        {(() => {
+          const entries = (careLog[plant.id] || [])
+            .filter(e => e.action !== 'note')
+            .slice(-8).reverse();
+          if (!entries.length) return null;
+          return (
+            <div style={{ marginTop: 14, borderTop: '1px solid rgba(160,130,80,0.12)', paddingTop: 10 }}>
+              <div style={{ fontFamily: MONO, fontSize: 6, color: '#b09070', letterSpacing: .5, marginBottom: 6 }}>
+                CARE HISTORY
+              </div>
+              {entries.map((e, i) => {
+                const d = new Date(e.date);
+                const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+                const when = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`;
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    padding: '4px 0',
+                    borderBottom: i < entries.length - 1 ? '1px solid rgba(160,130,80,0.07)' : 'none',
+                  }}>
+                    <span style={{ fontSize: 13, flexShrink: 0 }}>{e.emoji || '·'}</span>
+                    <span style={{ fontFamily: SERIF, fontSize: 12, color: '#5a3c18', flex: 1 }}>{e.label}</span>
+                    <span style={{ fontFamily: SERIF, fontSize: 11, color: '#b09070', flexShrink: 0 }}>{when}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Last photo date if exists */}
         {lastPhoto && (
