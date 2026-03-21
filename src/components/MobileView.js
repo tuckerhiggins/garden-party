@@ -873,28 +873,152 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
   );
 }
 
-// ── QUICK CARE TAB ─────────────────────────────────────────────────────────
-function QuickCareTab({ plants, frontPlants = [], careLog, onAction, onStartAction, onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos = {}, portraits, briefings = {}, seasonOpen, morningBrief }) {
-  function getActionable(pList) {
-    const needsWater = pList.filter(p => {
-      if (p.health === 'memorial' || p.type === 'empty-pot') return false;
-      if (!p.actions?.includes('water')) return false;
-      const entries = (careLog[p.id] || []).filter(e => e.action === 'water');
-      if (!entries.length) return true;
-      return (Date.now() - new Date(entries[entries.length - 1].date).getTime()) / 86400000 > 1;
-    });
-    const hasOracleActions = pList.filter(p =>
-      p.health !== 'memorial' && p.type !== 'empty-pot' &&
-      (briefings[p.id]?.actions || []).length > 0
-    );
-    return [...new Map(
-      [...needsWater, ...hasOracleActions].map(p => [p.id, p])
-    ).values()];
+// ── AGENDA ─────────────────────────────────────────────────────────────────
+const AGENDA_SKIP_ACTIONS = new Set(['photo', 'visit', 'note', 'plant']);
+const AGENDA_URGENT_HEALTH = new Set(['struggling', 'thirsty', 'overlooked']);
+const AGENDA_TIER = { urgent: 0, recommended: 1, routine: 2 };
+const AGENDA_HEALTH_SEV = { struggling: 0, thirsty: 1, overlooked: 2 };
+
+function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen }) {
+  if (!seasonOpen) return { items: [], isWeekend: false };
+  const isWeekend = [0, 6].includes(new Date().getDay());
+  const emmaPlantsSet = new Set(frontPlants.map(p => p.id));
+  const hasRainSoon = weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60);
+  const hasFrostSoon = weather?.forecast?.slice(0, 2).some(d => d.low <= 35);
+  const items = [];
+
+  for (const plant of [...plants, ...frontPlants]) {
+    if (plant.type === 'empty-pot' || plant.health === 'memorial') continue;
+    const brief = briefings[plant.id];
+    const oracleActions = brief?.actions || [];
+
+    for (const actionKey of (plant.actions || [])) {
+      if (AGENDA_SKIP_ACTIONS.has(actionKey)) continue;
+      if (!actionStatus(plant, actionKey, careLog, seasonOpen).available) continue;
+
+      // Skip watering if rain expected and plant not in distress
+      if (actionKey === 'water' && hasRainSoon && !AGENDA_URGENT_HEALTH.has(plant.health)) continue;
+
+      let priority;
+      if (AGENDA_URGENT_HEALTH.has(plant.health)) {
+        priority = 'urgent';
+      } else if (oracleActions.includes(actionKey)) {
+        priority = hasFrostSoon ? 'urgent' : 'recommended';
+      } else {
+        priority = hasFrostSoon ? 'recommended' : 'routine';
+      }
+
+      // Weekday: only urgent + recommended
+      if (!isWeekend && priority === 'routine') continue;
+
+      items.push({
+        key: `${plant.id}:${actionKey}`,
+        plant,
+        plantId: plant.id,
+        plantName: plant.name,
+        plantType: plant.type,
+        plantHealth: plant.health,
+        actionKey,
+        priority,
+        reason: brief?.note || null,
+        section: emmaPlantsSet.has(plant.id) ? 'emma' : 'terrace',
+      });
+    }
   }
 
-  const terraceActionable = getActionable(plants);
-  const emmaActionable = getActionable(frontPlants);
-  const totalActionable = terraceActionable.length + emmaActionable.length;
+  items.sort((a, b) => {
+    const td = AGENDA_TIER[a.priority] - AGENDA_TIER[b.priority];
+    if (td !== 0) return td;
+    return (AGENDA_HEALTH_SEV[a.plantHealth] ?? 3) - (AGENDA_HEALTH_SEV[b.plantHealth] ?? 3);
+  });
+
+  return { items, isWeekend };
+}
+
+function AgendaRow({ item, completed, onTap, onDone, portrait }) {
+  const def = ACTION_DEFS[item.actionKey];
+  const tierColors = {
+    urgent:      { border: 'rgba(200,80,30,0.35)', bg: 'rgba(200,80,30,0.06)', accent: '#b84018', dot: '#c85020' },
+    recommended: { border: 'rgba(72,120,32,0.28)', bg: 'rgba(72,120,32,0.05)', accent: '#3a6818', dot: '#487820' },
+    routine:     { border: 'rgba(160,130,80,0.22)', bg: 'rgba(250,246,238,0.9)', accent: '#7a5c30', dot: '#907050' },
+  }[item.priority];
+
+  return (
+    <div
+      onClick={() => !completed && onTap(item)}
+      style={{
+        display: 'flex', alignItems: 'flex-start', gap: 11,
+        padding: '11px 13px', borderRadius: 10, marginBottom: 9,
+        border: `1.5px solid ${tierColors.border}`,
+        background: completed ? 'rgba(160,130,80,0.04)' : tierColors.bg,
+        opacity: completed ? 0.45 : 1,
+        cursor: completed ? 'default' : 'pointer',
+        transition: 'opacity .2s',
+      }}
+    >
+      {/* Priority dot */}
+      <div style={{
+        width: 7, height: 7, borderRadius: '50%',
+        background: completed ? '#c0b090' : tierColors.dot,
+        marginTop: 6, flexShrink: 0,
+      }}/>
+
+      {/* Portrait */}
+      {portrait?.svg && (
+        <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 6, overflow: 'hidden',
+          border: '1px solid rgba(160,130,80,0.18)', background: '#f8f0e0' }}>
+          <PlantPortrait plant={item.plant} aiSvg={portrait.svg}/>
+        </div>
+      )}
+
+      {/* Content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: MONO, fontSize: 6.5, color: completed ? '#b0a080' : tierColors.accent,
+            letterSpacing: .4, textDecoration: completed ? 'line-through' : 'none' }}>
+            {item.plantName.toUpperCase()}
+          </span>
+          <span style={{ fontSize: 13 }}>{def?.emoji}</span>
+          <span style={{ fontFamily: SERIF, fontSize: 12, color: completed ? '#b0a080' : tierColors.accent }}>
+            {def?.label}
+          </span>
+        </div>
+        {item.reason && !completed && (
+          <div style={{ fontSize: 12, color: '#6a4020', fontStyle: 'italic', lineHeight: 1.45 }}>
+            {item.reason}
+          </div>
+        )}
+      </div>
+
+      {/* Done button */}
+      {!completed && (
+        <button
+          onClick={e => { e.stopPropagation(); onDone(item.key); }}
+          style={{
+            background: 'none', border: '1px solid rgba(160,130,80,0.32)',
+            borderRadius: 6, padding: '5px 10px', color: '#907050',
+            fontSize: 11, fontFamily: SERIF, cursor: 'pointer', flexShrink: 0, marginTop: 1,
+          }}
+        >
+          Done
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TodayAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen, morningBrief,
+  onStartAction, portraits, completedThisSession, onMarkDone, onOpenAsk }) {
+
+  const { items, isWeekend } = useMemo(() =>
+    computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen }),
+    [plants, frontPlants, careLog, briefings, weather, seasonOpen]
+  );
+
+  const urgentRec = items.filter(i => i.priority !== 'routine');
+  const doneCount = items.filter(i => completedThisSession.has(i.key)).length;
+  const totalCount = items.length;
+  const urgentRecAllDone = urgentRec.length > 0 && urgentRec.every(i => completedThisSession.has(i.key));
 
   if (!seasonOpen) {
     return (
@@ -907,63 +1031,115 @@ function QuickCareTab({ plants, frontPlants = [], careLog, onAction, onStartActi
     );
   }
 
+  // Completion moment — all urgent/recommended done
+  if (urgentRecAllDone) {
+    const donePlants = [...new Set(
+      items.filter(i => completedThisSession.has(i.key)).map(i => i.plantName)
+    )];
+    return (
+      <div style={{ padding: '32px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '70vh', justifyContent: 'center' }}>
+        <div style={{ fontSize: 36, marginBottom: 16 }}>✦</div>
+        <div style={{ fontFamily: SERIF, fontSize: 22, color: '#2a1808', marginBottom: 8, textAlign: 'center' }}>
+          Garden tended.
+        </div>
+        <div style={{ fontFamily: SERIF, fontSize: 14, color: '#907050', fontStyle: 'italic', textAlign: 'center', marginBottom: 6, lineHeight: 1.6 }}>
+          {doneCount} of {totalCount} task{totalCount !== 1 ? 's' : ''} complete.
+        </div>
+        {donePlants.length > 0 && (
+          <div style={{ fontFamily: SERIF, fontSize: 13, color: '#7a5c30', textAlign: 'center', lineHeight: 1.7, marginBottom: 28, fontStyle: 'italic' }}>
+            {donePlants.join(', ')} {donePlants.length === 1 ? 'is' : 'are'} tended to.
+          </div>
+        )}
+        {items.filter(i => !completedThisSession.has(i.key)).length > 0 && (
+          <div style={{ fontFamily: SERIF, fontSize: 12, color: '#b09070', fontStyle: 'italic', marginBottom: 20, textAlign: 'center' }}>
+            {items.filter(i => !completedThisSession.has(i.key)).length} optional task{items.filter(i => !completedThisSession.has(i.key)).length !== 1 ? 's' : ''} remaining for the weekend.
+          </div>
+        )}
+        <button onClick={onOpenAsk} style={{
+          background: 'none', border: '1px solid rgba(160,130,80,0.35)',
+          borderRadius: 8, padding: '10px 22px', fontFamily: SERIF,
+          fontSize: 14, color: '#6a4020', cursor: 'pointer', fontStyle: 'italic',
+        }}>
+          Anything I missed? →
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ padding: '16px' }}>
+    <div style={{ padding: '14px 14px 24px' }}>
+
+      {/* Progress header */}
+      {totalCount > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+            <span style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, letterSpacing: .5 }}>
+              {isWeekend ? 'WEEKEND SESSION' : 'TODAY\'S ROUNDS'}
+            </span>
+            <span style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 700, color: '#2a1808' }}>
+              {doneCount} <span style={{ fontSize: 14, fontWeight: 400, color: '#907050' }}>of {totalCount}</span>
+            </span>
+          </div>
+          <div style={{ height: 4, background: 'rgba(160,130,80,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', borderRadius: 2,
+              background: doneCount === 0 ? 'transparent' : 'linear-gradient(90deg, #d4a830, #a07828)',
+              width: `${totalCount > 0 ? (doneCount / totalCount) * 100 : 0}%`,
+              transition: 'width .4s ease',
+            }}/>
+          </div>
+        </div>
+      )}
+
       {/* Morning brief */}
       {morningBrief && (
-        <div style={{
-          background: 'rgba(212,168,48,0.08)',
-          border: '1px solid rgba(212,168,48,0.20)',
-          borderRadius: 10, padding: '12px 14px', marginBottom: 18,
-        }}>
-          <div style={{ fontFamily: SERIF, fontSize: 14, color: '#5a3c18', fontStyle: 'italic', lineHeight: 1.5 }}>
+        <div style={{ background: 'rgba(212,168,48,0.07)', border: '1px solid rgba(212,168,48,0.18)',
+          borderRadius: 9, padding: '10px 13px', marginBottom: 16 }}>
+          <div style={{ fontFamily: SERIF, fontSize: 13, color: '#5a3c18', fontStyle: 'italic', lineHeight: 1.5 }}>
             {morningBrief}
           </div>
         </div>
       )}
 
-      {totalActionable === 0 ? (
-        <div style={{ padding: '24px 0', textAlign: 'center' }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>✓</div>
+      {/* Agenda items */}
+      {items.length === 0 ? (
+        <div style={{ padding: '32px 0', textAlign: 'center' }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>✦</div>
           <div style={{ fontFamily: SERIF, fontSize: 16, color: '#907050', fontStyle: 'italic' }}>
             Everything is tended to.
           </div>
+          {!isWeekend && (
+            <div style={{ fontFamily: SERIF, fontSize: 12, color: '#b09070', marginTop: 8, fontStyle: 'italic' }}>
+              More tasks surface on weekends.
+            </div>
+          )}
         </div>
       ) : (
-        <>
-          {/* Terrace section */}
-          {terraceActionable.length > 0 && (
-            <>
-              <div style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, marginBottom: 14, letterSpacing: .5 }}>
-                TERRACE · {terraceActionable.length} NEED{terraceActionable.length !== 1 ? 'S' : ''} CARE
-              </div>
-              {terraceActionable.map(p => (
-                <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction}
-                  onStartAction={onStartAction}
-                  onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-                  onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
-                  briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
-              ))}
-            </>
-          )}
-
-          {/* Emma's Rose Garden section */}
-          {emmaActionable.length > 0 && (
-            <>
-              <div style={{ fontFamily: MONO, fontSize: 7, color: '#e84070', margin: `${terraceActionable.length > 0 ? 20 : 0}px 0 14px`, letterSpacing: .5 }}>
-                🌹 EMMA'S GARDEN · {emmaActionable.length} NEED{emmaActionable.length !== 1 ? 'S' : ''} CARE
-              </div>
-              {emmaActionable.map(p => (
-                <MobilePlantCard key={p.id} plant={p} careLog={careLog} onAction={onAction}
-                  onStartAction={onStartAction}
-                  onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-                  onAddPhoto={onAddPhoto} photos={allPhotos[p.id] || []} portraits={portraits}
-                  briefing={briefings[p.id]} seasonOpen={seasonOpen}/>
-              ))}
-            </>
-          )}
-        </>
+        items.map(item => (
+          <AgendaRow
+            key={item.key}
+            item={item}
+            completed={completedThisSession.has(item.key)}
+            onTap={i => onStartAction(i.plant, i.actionKey)}
+            onDone={onMarkDone}
+            portrait={portraits[item.plantId]}
+          />
+        ))
       )}
+
+      {/* Resting plants count */}
+      {(() => {
+        const allActive = [...plants, ...frontPlants].filter(p => p.type !== 'empty-pot' && p.health !== 'memorial');
+        const activePlantIds = new Set(items.map(i => i.plantId));
+        const restingCount = allActive.filter(p => !activePlantIds.has(p.id)).length;
+        return restingCount > 0 ? (
+          <div style={{ fontFamily: SERIF, fontSize: 12, color: '#b09070', fontStyle: 'italic',
+            textAlign: 'center', marginTop: 16, paddingTop: 16,
+            borderTop: '1px solid rgba(160,130,80,0.12)' }}>
+            {restingCount} plant{restingCount !== 1 ? 's' : ''} resting — no action needed.
+          </div>
+        ) : null;
+      })()}
     </div>
   );
 }
@@ -1152,13 +1328,18 @@ export function MobileView({
   onAction, onPortraitUpdate, onGrowthUpdate, allPhotos = {}, onAddPhoto,
   portraits = {}, role, signIn, signOut, seasonOpen, onGoFront,
 }) {
-  const [tab, setTab] = useState('care');
+  const [tab, setTab] = useState('today');
   const [flash, setFlash] = useState(null);
   const [actionSession, setActionSession] = useState(null); // { plant, actionKey } | null
   const [briefings, setBriefings] = useState({});
   const [morningBrief, setMorningBrief] = useState(null);
   const [analysisNotice, setAnalysisNotice] = useState(null);
   const prevAnalyzingRef = useRef({});
+  const [completedThisSession, setCompletedThisSession] = useState(() => new Set());
+
+  function handleMarkDone(key) {
+    setCompletedThisSession(prev => new Set([...prev, key]));
+  }
 
   // Version string that changes when any plant's last care action changes
   const careVersion = useMemo(() =>
@@ -1220,9 +1401,9 @@ export function MobileView({
   }
 
   const TABS = [
-    { id: 'plants', label: '🌿', title: 'Plants' },
-    { id: 'care', label: '💧', title: 'Care' },
-    { id: 'oracle', label: '🌸', title: 'Oracle' },
+    { id: 'today',   label: '✦',  title: 'Today'   },
+    { id: 'garden',  label: '🌿', title: 'Garden'  },
+    { id: 'ask',     label: '🌸', title: 'Ask'     },
     { id: 'journal', label: '📖', title: 'Journal' },
   ];
 
@@ -1293,8 +1474,19 @@ export function MobileView({
       )}
 
       {/* Main content */}
-      <div style={{ flex: 1, overflowY: tab !== 'oracle' ? 'auto' : 'hidden', position: 'relative' }}>
-        {tab === 'plants' && (
+      <div style={{ flex: 1, overflowY: tab !== 'ask' ? 'auto' : 'hidden', position: 'relative' }}>
+        {tab === 'today' && (
+          <TodayAgenda
+            plants={plants} frontPlants={frontPlants} careLog={careLog}
+            briefings={briefings} weather={weather} seasonOpen={seasonOpen}
+            morningBrief={morningBrief} onStartAction={handleStartAction}
+            portraits={portraits} completedThisSession={completedThisSession}
+            onMarkDone={handleMarkDone}
+            onOpenAsk={() => setTab('ask')}
+          />
+        )}
+
+        {tab === 'garden' && (
           <div style={{ padding: '16px' }}>
             <div style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, marginBottom: 14, letterSpacing: .5 }}>
               TERRACE
@@ -1327,17 +1519,7 @@ export function MobileView({
           </div>
         )}
 
-        {tab === 'care' && (
-          <QuickCareTab
-            plants={plants} frontPlants={frontPlants} careLog={careLog} onAction={handleAction}
-            onStartAction={handleStartAction}
-            onPortraitUpdate={onPortraitUpdate} onGrowthUpdate={onGrowthUpdate}
-            onAddPhoto={onAddPhoto} allPhotos={allPhotos} portraits={portraits}
-            briefings={briefings} seasonOpen={seasonOpen} morningBrief={morningBrief}
-          />
-        )}
-
-        {tab === 'oracle' && (
+        {tab === 'ask' && (
           <OracleChat
             plants={[...plants, ...frontPlants]} careLog={careLog} weather={weather}
             style={{ height: '100%' }}
