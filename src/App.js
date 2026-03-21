@@ -1912,7 +1912,31 @@ export default function App() {
     return all.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
   }, [gardenPlants.terrace, careLog]);
 
-  // ── FRONT SCENE (opening screen) ────────────────────────────────────────
+  // Mobile — always go straight to MobileView, skip the front scene
+  if (isMobile) {
+    return (
+      <MobileView
+        plants={terracePlants}
+        frontPlants={frontPlants}
+        careLog={careLog}
+        weather={weather}
+        onAction={doAction}
+        onPortraitUpdate={updatePortrait}
+        onGrowthUpdate={updateGrowth}
+        allPhotos={allPhotos}
+        onAddPhoto={addPhoto}
+        portraits={portraits}
+        role={role}
+        signIn={signIn}
+        signOut={signOut}
+        seasonOpen={seasonOpen}
+        oracle={oracle}
+        onGoFront={() => setScene('front')}
+      />
+    );
+  }
+
+  // ── FRONT SCENE (desktop opening screen) ───────────────────────────────
   if (scene === 'front') {
     const isOpener = seasonOpen && !seasonOpenerDismissed && seasonOpener && seasonOpener !== 'loading';
     return (
@@ -1937,29 +1961,6 @@ export default function App() {
           }
         />
       </div>
-    );
-  }
-
-  // Mobile — swap to the mobile layout
-  if (isMobile) {
-    return (
-      <MobileView
-        plants={terracePlants}
-        frontPlants={frontPlants}
-        careLog={careLog}
-        weather={weather}
-        onAction={doAction}
-        onPortraitUpdate={updatePortrait}
-        onGrowthUpdate={updateGrowth}
-        allPhotos={allPhotos}
-        onAddPhoto={addPhoto}
-        portraits={portraits}
-        role={role}
-        signIn={signIn}
-        signOut={signOut}
-        seasonOpen={seasonOpen}
-        onGoFront={() => setScene('front')}
-      />
     );
   }
 

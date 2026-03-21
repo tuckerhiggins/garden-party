@@ -1361,8 +1361,9 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
 }
 
 function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seasonOpen,
-  totalActivePlants = 0, morningBrief, onStartAction, portraits, completedThisSession,
+  totalActivePlants = 0, morningBrief, fullBrief, onStartAction, portraits, completedThisSession,
   doneTodayItems = [], onMarkDone, onOpenAsk }) {
+  const [briefExpanded, setBriefExpanded] = React.useState(false);
 
   // Merge deterministic items with AI-enriched agenda (reason + priority + order)
   const pendingItems = useMemo(() => {
@@ -1469,13 +1470,44 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
         </div>
       )}
 
-      {/* Morning brief */}
+      {/* Morning brief — tap to expand to full daily briefing */}
       {morningBrief && (
-        <div style={{ background: 'rgba(212,168,48,0.07)', border: '1px solid rgba(212,168,48,0.18)',
-          borderRadius: 9, padding: '10px 13px', marginBottom: 16 }}>
-          <div style={{ fontFamily: SERIF, fontSize: 13, color: '#5a3c18', fontStyle: 'italic', lineHeight: 1.5 }}>
+        <div
+          onClick={() => fullBrief && setBriefExpanded(e => !e)}
+          style={{
+            background: briefExpanded ? 'rgba(212,168,48,0.10)' : 'rgba(212,168,48,0.07)',
+            border: `1px solid rgba(212,168,48,${briefExpanded ? '0.28' : '0.18'})`,
+            borderRadius: 9, padding: '11px 13px', marginBottom: 16,
+            cursor: fullBrief ? 'pointer' : 'default',
+            transition: 'background .15s, border-color .15s',
+          }}
+        >
+          {/* Always-visible one-liner */}
+          <div style={{ fontFamily: SERIF, fontSize: 13, color: '#5a3c18', fontStyle: 'italic', lineHeight: 1.55 }}>
             {morningBrief}
           </div>
+
+          {/* Expand hint when collapsed and full brief is available */}
+          {!briefExpanded && fullBrief && (
+            <div style={{ fontFamily: MONO, fontSize: 6, color: 'rgba(160,130,80,0.6)', marginTop: 6, letterSpacing: .4 }}>
+              FULL BRIEF ▾
+            </div>
+          )}
+
+          {/* Full oracle briefing — expanded */}
+          {briefExpanded && fullBrief && (
+            <div style={{
+              marginTop: 10, paddingTop: 10,
+              borderTop: '1px solid rgba(212,168,48,0.20)',
+              fontFamily: SERIF, fontSize: 13, color: '#4a3010',
+              lineHeight: 1.65,
+            }}>
+              {fullBrief}
+              <div style={{ fontFamily: MONO, fontSize: 6, color: 'rgba(160,130,80,0.6)', marginTop: 8, letterSpacing: .4 }}>
+                ▴ CLOSE
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1715,7 +1747,7 @@ function MobileSignIn({ signIn }) {
 export function MobileView({
   plants, frontPlants = [], careLog, weather,
   onAction, onPortraitUpdate, onGrowthUpdate, allPhotos = {}, onAddPhoto,
-  portraits = {}, role, signIn, signOut, seasonOpen, onGoFront,
+  portraits = {}, role, signIn, signOut, seasonOpen, oracle, onGoFront,
 }) {
   const [tab, setTab] = useState('today');
   const [flash, setFlash] = useState(null);
@@ -1917,7 +1949,8 @@ export function MobileView({
             rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
             agendaData={agendaData} seasonOpen={seasonOpen}
             totalActivePlants={totalActivePlants}
-            morningBrief={morningBrief} onStartAction={handleStartAction}
+            morningBrief={morningBrief} fullBrief={oracle}
+            onStartAction={handleStartAction}
             portraits={portraits} completedThisSession={completedThisSession}
             doneTodayItems={doneTodayItems}
             onMarkDone={handleMarkDone}
