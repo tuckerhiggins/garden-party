@@ -16,7 +16,8 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const {
-    imageBase64,
+    imageBase64,         // legacy single-image field (still supported)
+    imagesBase64,        // new: array of base64 strings for multi-angle upload
     plantName, plantType, plantSpecies,
     today,
     careLog = [],        // array of care entries for this plant, recent-first
@@ -24,10 +25,12 @@ module.exports = async function handler(req, res) {
     plantContext = {},   // { health, container, poem, lore, special }
   } = req.body || {};
 
-  if (!imageBase64 || !plantName) return res.status(400).json({ error: 'Missing required fields' });
-  if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' });
+  // Support both single legacy field and new multi-image array
+  const rawImages = imagesBase64 || (imageBase64 ? [imageBase64] : []);
+  const images = rawImages.slice(0, 4).map(s => s.replace(/^data:image\/\w+;base64,/, ''));
 
-  const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+  if (!images.length || !plantName) return res.status(400).json({ error: 'Missing required fields' });
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' });
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   // Build care history section
@@ -71,17 +74,21 @@ Illustration style:
 - 30-60 SVG elements, clean and purposeful
 - SVG must have: viewBox="0 0 240 180" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"`;
 
+  const photoIntro = images.length > 1
+    ? `Now look at these ${images.length} photos taken from different angles at the same time. Synthesize all of them — a close-up of one part combined with a wider shot gives you more to work with than either alone. Use everything above plus what you observe across all angles.`
+    : `Now look at this new photo. Use everything above to interpret what you see. Note changes relative to past observations. Explain what the care history might have caused in what you're seeing now.`;
+
   const userPrompt = `Plant: ${plantName}${plantSpecies ? ` (${plantSpecies})` : ''}, ${plantType}
 Location: Brooklyn rooftop terrace, Zone 7b
 Today: ${today || new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
 ${bioSection}${careSection}${historySection}
 
-Now look at this new photo. Use everything above to interpret what you see. Note changes relative to past observations. Explain what the care history might have caused in what you're seeing now.
+${photoIntro}
 
 Respond in EXACTLY this format with nothing outside the tags:
 
 <analysis>
-{"growth": 0.XX, "visualNote": "One specific sentence that synthesizes what you see in the photo with what you know about this plant's recent history", "bloomState": "dormant|budding|opening|peak|fading", "foliageState": "bare|sparse|leafing|full"}
+{"growth": 0.XX, "visualNote": "One specific sentence that synthesizes what you see in the photo(s) with what you know about this plant's recent history", "bloomState": "dormant|budding|opening|peak|fading", "foliageState": "bare|sparse|leafing|full"}
 </analysis>
 <portrait>
 [Full SVG element here — start with <svg and end with </svg>]
@@ -90,7 +97,7 @@ Respond in EXACTLY this format with nothing outside the tags:
 Rules:
 - growth: 0.0 = fully dormant/bare, 1.0 = peak bloom/full canopy
 - visualNote must reference something from this specific photo AND something from the history when relevant (e.g. "The new growth since fertilizing Mar 7 is visible in the top laterals — about 4cm of fresh green shoot")
-- SVG portrait captures actual state seen in photo, not an idealized or generic version`;
+- SVG portrait captures actual state seen in photo(s), not an idealized or generic version`;
 
   try {
     const message = await client.messages.create({
@@ -100,10 +107,10 @@ Rules:
       messages: [{
         role: 'user',
         content: [
-          {
+          ...images.map(data => ({
             type: 'image',
-            source: { type: 'base64', media_type: 'image/jpeg', data: base64Data },
-          },
+            source: { type: 'base64', media_type: 'image/jpeg', data },
+          })),
           { type: 'text', text: userPrompt },
         ],
       }],

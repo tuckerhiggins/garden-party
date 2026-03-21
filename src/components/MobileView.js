@@ -88,27 +88,30 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
   const photoSrc = lastPhoto?.dataUrl || lastPhoto?.url || null;
   const [photoFailed, setPhotoFailed] = useState(false);
 
-  async function handleFile(e) {
-    const file = e.target.files[0]; if (!file) return;
-    const dataUrl = await compressImage(file);
-    if (!dataUrl) { onPortraitUpdate?.(plant.id, { analyzing: false }); return; }
-    const date = new Date().toISOString();
-    onAddPhoto?.(plant.id, dataUrl, date);
+  async function handleFiles(e) {
+    const files = Array.from(e.target.files || []).slice(0, 4);
+    if (!files.length) return;
     // iOS-safe input reset
     try { fileRef.current.value = null; } catch { fileRef.current.value = ''; }
-    // Log the photograph action for warmth
-    if (plant.actions?.includes('photo')) {
-      onAction('photo', plant);
-    }
+
+    // Compress all selected files in parallel
+    const dataUrls = (await Promise.all(files.map(f => compressImage(f)))).filter(Boolean);
+    if (!dataUrls.length) { onPortraitUpdate?.(plant.id, { analyzing: false }); return; }
+
+    const date = new Date().toISOString();
+    // Store each photo individually
+    dataUrls.forEach(dataUrl => onAddPhoto?.(plant.id, dataUrl, date));
+    // Log photo action once
+    if (plant.actions?.includes('photo')) onAction('photo', plant);
     // Signal analysis start
     onPortraitUpdate?.(plant.id, { analyzing: true });
-    // Background AI analysis with 55s timeout (just under Vercel's 60s limit)
+
+    // Send all images together in one analysis call
     try {
       const stored = JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}');
       const plantHistory = (stored[plant.id]?.history || []).slice(-5);
       const careStore = JSON.parse(localStorage.getItem('gp_care_v4') || '{}');
-      const plantEntries = (careStore[plant.id] || []).slice(-20).reverse(); // cap at 20
-      const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+      const plantEntries = (careStore[plant.id] || []).slice(-20).reverse();
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 55000);
@@ -118,7 +121,7 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
         signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageBase64: base64,
+          imagesBase64: dataUrls,
           plantName: plant.name,
           plantType: plant.type,
           plantSpecies: plant.species || '',
@@ -227,12 +230,12 @@ function MobilePlantCard({ plant, careLog, onAction, onPhotoAdded, onPortraitUpd
         }}>
           <span style={{ fontSize: 13 }}>📷</span>
           <span style={{ fontFamily: MONO, fontSize: 6, color: '#d4a830' }}>
-            {photos.length > 0 ? `${photos.length} · ADD` : 'ADD'}
+            {photos.length > 0 ? `${photos.length} · ADD` : 'ADD 1-4'}
           </span>
         </div>
       </div>
-      <input ref={fileRef} type="file" accept="image/*" capture="environment"
-        style={{ display: 'none' }} onChange={handleFile}/>
+      <input ref={fileRef} type="file" accept="image/*" multiple
+        style={{ display: 'none' }} onChange={handleFiles}/>
 
       {/* Info + actions */}
       <div style={{ padding: '12px 14px' }}>
