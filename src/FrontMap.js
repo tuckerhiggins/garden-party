@@ -94,6 +94,8 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
     return () => clearTimeout(t);
   }, []);
 
+  const hour = new Date().getHours();
+  const isNight = hour < 6 || hour >= 20;
   const skyTop = isNight ? '#0a0e1a' : '#9aaebb';
   const skyMid = isNight ? '#111b2e' : '#b0c2cc';
   const skyBot = isNight ? '#1c2a42' : '#cdd8de';
