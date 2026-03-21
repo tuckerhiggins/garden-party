@@ -264,7 +264,7 @@ const TERRACE_GROUPS = [
 ];
 
 // ── STORAGE ───────────────────────────────────────────────────────────────
-const LS = { care:'gp_care_v4', warmth:'gp_warmth_v4',
+const LS = { care:'gp_care_v4',
   expenses:'gp_expenses_v4', positions:'gp_pos_v4', growth:'gp_growth_v4' };
 const load = (k,d) => { try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch{return d;} };
 const save = (k,v) => { try{ localStorage.setItem(k,JSON.stringify(v)); }catch{} };
@@ -588,7 +588,7 @@ function PlantBriefing({ plant, careLog, weather, portraits }) {
   );
 }
 
-function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma, setWithEmma, seasonOpen, portraits, weather }) {
+function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOpen, portraits, weather }) {
   const [confirmed, setConfirmed] = useState({}); // plantId → action key just logged
   const group = TERRACE_GROUPS.find(g => g.types.includes(hovPlant.type)) ||
     { key: hovPlant.type, label: hovPlant.name, types: [hovPlant.type] };
@@ -694,7 +694,7 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma
             {justLogged && (
               <div style={{ fontSize:11, color:'#88cc48', marginBottom:8, fontStyle:'italic',
                 animation:'fadeConfirm 2s forwards' }}>
-                ✓ {ACTION_DEFS[justLogged]?.label} logged{withEmma ? ' with Emma' : ''} · +{ACTION_DEFS[justLogged]?.warmth * (withEmma ? 2 : 1)}♥
+                ✓ {ACTION_DEFS[justLogged]?.label} logged
               </div>
             )}
 
@@ -752,28 +752,6 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, withEmma
         );
       })}
 
-      {/* With Emma toggle */}
-      {setWithEmma && (
-        <div style={{ padding:'14px 22px', borderBottom:'1px solid rgba(160,130,80,0.09)' }}>
-          <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer',
-            fontSize:12, color: withEmma ? '#d4a830' : 'rgba(240,228,200,0.4)' }}>
-            <input type="checkbox" checked={withEmma} onChange={e => setWithEmma(e.target.checked)}
-              style={{ accentColor:'#d4a830', width:13, height:13 }}/>
-            Tending with Emma
-            {withEmma && <span style={{ fontSize:11, color:'#d4a830' }}>♥ ×2 warmth</span>}
-          </label>
-        </div>
-      )}
-
-      {/* Poem */}
-      {primaryPlant.poem && (
-        <div style={{ padding:'18px 22px 28px', marginTop:'auto' }}>
-          <div style={{ fontStyle:'italic', fontSize:13, lineHeight:1.75,
-            color:'rgba(240,228,200,0.52)', whiteSpace:'pre-line' }}>
-            {primaryPlant.poem}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -785,7 +763,6 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait,
   const needsCare = seasonOpen && plant.actions?.some(a => actionStatus(plant, a, careLog, seasonOpen).available && !ACTION_DEFS[a]?.alwaysAvailable);
   const color = plantColor(plant.type);
   const hColor = healthColor(plant.health);
-  const poemLines = plant.poem ? plant.poem.split('\n') : [];
   const hasPhoto = photos.length > 0;
   const needsDoc = !seasonOpen && !hasPhoto && plant.health !== 'memorial' && plant.type !== 'empty-pot';
 
@@ -871,16 +848,6 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait,
             {plant.species}
             {plant.species && plant.container && <span style={{opacity:0.55}}> · </span>}
             {plant.container && <span style={{opacity:0.7}}>{plant.container}</span>}
-          </div>
-        )}
-
-        {/* Full poem — all lines */}
-        {poemLines.length > 0 && (
-          <div style={{fontSize:11.5,color:'#5a3818',fontStyle:'italic',lineHeight:1.85,
-            borderLeft:`2px solid ${color}50`,paddingLeft:9,marginBottom:8,fontFamily:SERIF}}>
-            {poemLines.map((line, i) => (
-              <React.Fragment key={i}>{line}{i < poemLines.length-1 && <br/>}</React.Fragment>
-            ))}
           </div>
         )}
 
@@ -1003,7 +970,7 @@ function PhotoSection({ plant, color, careLog, onAnalyze, portraits, photos = []
 }
 
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
-function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate }) {
+function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate }) {
   const [tab, setTab] = useState('history');
   const [showHowTo, setShowHowTo] = useState(null);
   const history = careLog[plant.id] || [];
@@ -1036,7 +1003,7 @@ function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma,
         </div>
         {/* Tabs */}
         <div style={{display:'flex',gap:0}}>
-          {['history','poem','care'].map(t=>(
+          {['history','care'].map(t=>(
             <button key={t} onClick={()=>setTab(t)}
               style={{flex:1,background:'none',border:'none',borderBottom:tab===t?`2px solid ${color}`:'2px solid transparent',
                 padding:'6px 0',color:tab===t?color:'#a08060',fontFamily:MONO,fontSize:7,cursor:'pointer',letterSpacing:.5,transition:'all .1s'}}>
@@ -1090,32 +1057,11 @@ function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma,
                     </div>
                     <div style={{textAlign:'right',flexShrink:0}}>
                       <div style={{fontSize:11,color:'#b09070',fontFamily:SERIF}}>{fmtDate(e.date)}</div>
-                      <div style={{fontSize:11,color:color,fontFamily:SERIF}}>+{e.earned}♥</div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </>
-        )}
-
-        {/* POEM TAB */}
-        {tab==='poem'&&(
-          <>
-            <div style={{height:120,background:`${color}08`,borderRadius:8,overflow:'hidden',marginBottom:14,border:`1px solid ${color}20`}}>
-              <PlantPortrait plant={plant}/>
-            </div>
-            {plant.poem ? (
-              <div style={{fontSize:16,color:'#2a1808',fontStyle:'italic',lineHeight:2,
-                whiteSpace:'pre-line',fontFamily:SERIF,
-                borderLeft:`3px solid ${color}60`,paddingLeft:12,marginBottom:14}}>
-                {plant.poem}
-              </div>
-            ) : (
-              <div style={{fontSize:13,color:'#b09070',fontStyle:'italic',fontFamily:SERIF}}>No poem yet.</div>
-            )}
-            <div style={{fontSize:12,color:'#a08060',fontFamily:SERIF,lineHeight:1.7}}>{plant.lore}</div>
-            <div style={{fontSize:11,color:'#b09070',marginTop:8,fontFamily:SERIF}}>🪴 {plant.container||'In-ground'}</div>
           </>
         )}
 
@@ -1176,22 +1122,13 @@ function DetailPanel({ plant, careLog, onClose, onAction, withEmma, setWithEmma,
                         boxShadow:st.available?`0 1px 4px rgba(100,70,30,0.08)`:'none'}}>
                       <span style={{fontSize:15}}>{def.emoji}</span>
                       <span style={{flex:1,fontSize:13,color:st.available?'#2a1808':'#b09070',fontFamily:SERIF}}>{def.label}</span>
-                      {st.available
-                        ? <span style={{fontSize:11,color:color,fontFamily:SERIF}}>+{def.warmth}{withEmma?'×2':''}</span>
-                        : <span style={{fontSize:10,color:'#c0a080',fontFamily:SERIF}}>{st.reason}</span>
-                      }
+                      {!st.available && (
+                        <span style={{fontSize:10,color:'#c0a080',fontFamily:SERIF}}>{st.reason}</span>
+                      )}
                     </button>
                   );
                 })}
               </div>
-            )}
-            {plant.type !== 'empty-pot' && (
-              <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13,color:'#907050',fontFamily:SERIF}}>
-                <input type="checkbox" checked={withEmma} onChange={e=>setWithEmma(e.target.checked)}
-                  style={{accentColor:color,width:14,height:14}}/>
-                Tended with Emma
-                <span style={{color:'#a07030',marginLeft:2}}>×2 warmth</span>
-              </label>
             )}
           </>
         )}
@@ -1308,9 +1245,6 @@ function JournalView({ careLog, plants }) {
                       <div style={{fontSize:10, color:'#b09070', fontFamily:SERIF}}>
                         {new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
                       </div>
-                      <div style={{fontSize:10, color:C.uiGold, fontFamily:SERIF}}>
-                        +{e.earned}♥
-                      </div>
                     </div>
                   </div>
                 );
@@ -1331,9 +1265,8 @@ export default function App() {
   const [gardenSection, setGardenSection] = useState('all');
   const [sel, setSel] = useState(null);
   const [hov, setHov] = useState(null);
-  const [withEmma, setWithEmma] = useState(false);
   const { user, role, signIn, signOut, checking, authError } = useAuth();
-  const { warmth, careLog, expenses, positions, growth, logAction, updateGrowth, movePosition, addExpense: addExpenseDb, addWarmth } = useGardenData({ user });
+  const { careLog, expenses, positions, growth, logAction, updateGrowth, movePosition, addExpense: addExpenseDb } = useGardenData({ user });
   useMigration({ user });
   const isMobile = useIsMobile();
   const [flash, setFlash] = useState(null);
@@ -1437,7 +1370,7 @@ export default function App() {
         return { name: p.name, count: all.length, lastDate: all[all.length - 1]?.date ?? null };
       });
     const totalPhotos = photoContext.reduce((s, p) => s + p.count, 0);
-    fetchOracle({ weather, warmth, plants: TERRACE_PLANTS, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits, role })
+    fetchOracle({ weather, plants: TERRACE_PLANTS, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits, role })
       .then(setOracle)
       .catch(() => {}); // fail silently in local dev
   }, [weather, role]);
@@ -1447,7 +1380,7 @@ export default function App() {
     if (!seasonOpen) return;
     if (seasonOpenerDismissed) return;
     setSeasonOpener('loading');
-    fetchSeasonOpener({ warmth, plants: TERRACE_PLANTS })
+    fetchSeasonOpener({ plants: TERRACE_PLANTS })
       .then(text => setSeasonOpener(text))
       .catch(() => setSeasonOpener(null));
   }, []);
@@ -1462,13 +1395,12 @@ export default function App() {
   // Care action
   const doAction = useCallback(async (key, plant, customLabel) => {
     const def = ACTION_DEFS[key]; if (!def) return;
-    const autoEmma = role === 'emma'; // Emma's actions always count as with-Emma
-    const isWithEmma = withEmma || autoEmma;
-    const earned = await logAction(key, plant, isWithEmma, customLabel);
+    const isWithEmma = role === 'emma';
+    await logAction(key, plant, isWithEmma, customLabel);
     const displayLabel = customLabel || def.label;
-    setFlash(`${def.emoji} ${displayLabel}${isWithEmma ? ' with Emma' : ''} · +${earned || def.warmth}♥`);
+    setFlash(`${def.emoji} ${displayLabel}${isWithEmma ? ' with Emma' : ''}`);
     setTimeout(() => setFlash(null), 2500);
-  }, [withEmma, role, logAction]);
+  }, [role, logAction]);
 
   // Expense
   const addExpense = () => {
@@ -1522,10 +1454,8 @@ export default function App() {
           plants={frontPlants}
           growth={growth}
           weather={weather}
-          warmth={warmth}
           oracle={isOpener ? null : oracle}
           seasonOpenerText={isOpener ? seasonOpener : null}
-          isNight={warmth >= 1000}
           selectedId={isOpener ? null : sel}
           onSelect={isOpener ? () => {} : (p) => setSel(p?.id ?? null)}
           onEnter={isOpener
@@ -1550,7 +1480,6 @@ export default function App() {
         plants={terracePlants}
         frontPlants={frontPlants}
         careLog={careLog}
-        warmth={warmth}
         weather={weather}
         onAction={doAction}
         onPortraitUpdate={updatePortrait}
@@ -1595,17 +1524,6 @@ export default function App() {
 
         {/* Auth */}
         <AuthButton role={role} signIn={signIn} signOut={signOut} checking={checking} authError={authError}/>
-
-        {/* Warmth */}
-        <div style={{display:'flex',alignItems:'center',gap:5}}>
-          <div style={{width:64,height:6,background:C.uiLight,borderRadius:3,border:`1px solid ${C.uiBorder}`,overflow:'hidden'}}>
-            <div style={{width:`${warmth/10}%`,height:'100%',background:warmth>=1000?'#f0d040':C.uiGold,borderRadius:3,transition:'width .4s'}}/>
-          </div>
-          {role === 'emma'
-            ? <span style={{fontFamily:MONO,fontSize:7,color:C.uiGold,minWidth:40}}>you & Tucker · {warmth}♥</span>
-            : <span style={{fontFamily:MONO,fontSize:8,color:C.uiGold,minWidth:40}}>{warmth}/1k</span>
-          }
-        </div>
 
         {/* Expense */}
         <button onClick={()=>setShowExpense(v=>!v)}
@@ -1779,8 +1697,7 @@ export default function App() {
             {sel&&(
               <div style={{position:'relative',width:320,flexShrink:0}}>
                 <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
-                  onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                  seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}
+                  onAction={doAction} seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}
                   photos={allPhotos[sel.id] || []} onAddPhoto={addPhoto} onGrowthUpdate={updateGrowth}/>
               </div>
             )}
@@ -1810,7 +1727,6 @@ export default function App() {
                   <MapInfoPanel
                     plants={gardenPlants.terrace}
                     careLog={careLog}
-                    warmth={warmth}
                     weather={weather}
                     seasonOpen={seasonOpen}
                     seasonBlocking={seasonBlocking}
@@ -1826,7 +1742,7 @@ export default function App() {
                     background:'rgba(10,6,3,0.93)',borderLeft:'1px solid rgba(160,130,80,0.18)',
                     overflowY:'auto'}}>
                     <MapPlantCard hovPlant={hov} plants={mapPlants} careLog={careLog}
-                      onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma} seasonOpen={seasonOpen}
+                      onAction={doAction} seasonOpen={seasonOpen}
                       portraits={portraits} weather={weather}/>
                   </div>
                 )}
@@ -1834,8 +1750,7 @@ export default function App() {
                   <div style={{position:'relative',zIndex:2,width:320,flexShrink:0,
                     background:'rgba(250,246,238,0.97)',borderLeft:`1px solid ${C.cardBorder}`}}>
                     <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
-                      onAction={doAction} withEmma={withEmma} setWithEmma={setWithEmma}
-                      seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}
+                      onAction={doAction} seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}
                       photos={allPhotos[sel.id] || []} onAddPhoto={addPhoto} onGrowthUpdate={updateGrowth}/>
                   </div>
                 )}

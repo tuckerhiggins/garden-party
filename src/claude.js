@@ -43,7 +43,7 @@ export async function cachedClaude(cacheKey, systemPrompt, userPrompt, maxTokens
 
 // ── ORACLE ────────────────────────────────────────────────────────────────
 // Daily garden greeting. Cached until midnight (busted when photo count or weather events change).
-export async function fetchOracle({ weather, warmth, plants, careLog, seasonOpen, seasonBlocking, daysUntilSeason, photoContext = [], totalPhotos = 0, portraits = {}, role = 'tucker' }) {
+export async function fetchOracle({ weather, plants, careLog, seasonOpen, seasonBlocking, daysUntilSeason, photoContext = [], totalPhotos = 0, portraits = {}, role = 'tucker' }) {
   const today = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
 
   // Find most recent portrait analysis date so cache busts when new photos are analyzed
@@ -141,7 +141,6 @@ ${seasonOpen
   : seasonBlocking?.startsWith('rain')
   ? `Season 2 is not yet open — blocked by rain in the forecast. Once there's a clear weather window the season can begin.`
   : `Season 2 pre-season. Plants in late dormancy.`}
-Current warmth: ${warmth} points.
 Weather today: ${weatherDesc}.
 ${needsWater.length > 0 ? `Overdue for water: ${needsWater.join(', ')}.` : 'No plants overdue for water.'}
 ${recentCare.length > 0 ? `Cared for in past 48h: ${recentCare.join(', ')}.` : ''}
@@ -287,7 +286,7 @@ One sentence from the garden.`;
 
 // ── SEASON OPENER ─────────────────────────────────────────────────────────
 // One-time message on first app open on/after March 20
-export async function fetchSeasonOpener({ warmth, plants }) {
+export async function fetchSeasonOpener({ plants }) {
   const cacheKey = 'season_opener_2026';
 
   const healthyPlants = plants.filter(p => ['thriving','content','recovering'].includes(p.health));
@@ -302,7 +301,6 @@ This is a threshold. Acknowledge it.
 Three to four sentences. End with something that points forward.`;
 
   const userPrompt = `Today is March 20, 2026. The season opens now.
-Tucker's current warmth: ${warmth} points.
 Plants in the garden: ${allPlantNames.join(', ')}.
 Healthy plants that came through winter: ${healthyPlants.map(p => p.name).join(', ')}.
 Emma is Tucker's partner.

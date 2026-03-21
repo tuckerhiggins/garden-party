@@ -9,15 +9,16 @@ export const SEASON_START = new Date('2026-03-20'); // used for photo-date filte
 // seasonMax: max times per season (null = unlimited)
 // requiresAlert: only available if plant has this alert
 export const ACTION_DEFS = {
-  water:     { label:'Water',       emoji:'💧', warmth:10,  cooldownDays:1,  seasonMax:null,  alwaysAvailable:true },
-  neem:      { label:'Neem Oil',    emoji:'🛡️', warmth:20,  cooldownDays:10, seasonMax:null,  requiresType:['climbing-rose','rose'] },
-  prune:     { label:'Prune',       emoji:'✂️', warmth:15,  cooldownDays:30, seasonMax:3 },
-  train:     { label:'Train/Tie',   emoji:'🪢', warmth:25,  cooldownDays:7,  seasonMax:null },
-  fertilize: { label:'Fertilize',   emoji:'🌿', warmth:15,  cooldownDays:30, seasonMax:3 },
-  photo:     { label:'Photograph',  emoji:'📸', warmth:15,  cooldownDays:0,  seasonMax:null,  alwaysAvailable:true },
-  visit:     { label:'Just visited',emoji:'👀', warmth:5,   cooldownDays:1,  seasonMax:null,  alwaysAvailable:true },
-  plant:     { label:'Plant here',  emoji:'🌱', warmth:30,  cooldownDays:0,  seasonMax:1 },
-  worms:     { label:'Add worms',   emoji:'🪱', warmth:20,  cooldownDays:60, seasonMax:2 },
+  water:     { label:'Water',       emoji:'💧', cooldownDays:1,  seasonMax:null,  alwaysAvailable:true },
+  neem:      { label:'Neem Oil',    emoji:'🛡️', cooldownDays:10, seasonMax:null,  requiresType:['climbing-rose','rose'] },
+  prune:     { label:'Prune',       emoji:'✂️', cooldownDays:30, seasonMax:3 },
+  train:     { label:'Train/Tie',   emoji:'🪢', cooldownDays:7,  seasonMax:null },
+  fertilize: { label:'Fertilize',   emoji:'🌿', cooldownDays:30, seasonMax:3 },
+  photo:     { label:'Photograph',  emoji:'📸', cooldownDays:0,  seasonMax:null,  alwaysAvailable:true },
+  visit:     { label:'Just visited',emoji:'👀', cooldownDays:1,  seasonMax:null,  alwaysAvailable:true },
+  plant:     { label:'Plant here',  emoji:'🌱', cooldownDays:0,  seasonMax:1 },
+  worms:     { label:'Add worms',   emoji:'🪱', cooldownDays:60, seasonMax:2 },
+  note:      { label:'Observation', emoji:'📝', cooldownDays:0,  seasonMax:null,  alwaysAvailable:true },
 };
 
 // ── HOW-TO INSTRUCTIONS (shown before doing the action) ───────────────────

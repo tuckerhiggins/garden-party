@@ -4,14 +4,13 @@ import { ACTION_DEFS } from '../data/plants';
 
 // ── localStorage fallbacks (identical to old App.js behavior) ─────────────
 const LS = {
-  care: 'gp_care_v4', warmth: 'gp_warmth_v4',
+  care: 'gp_care_v4',
   expenses: 'gp_expenses_v4', positions: 'gp_pos_v4', growth: 'gp_growth_v4',
 };
 const lsLoad = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const lsSave = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
 export function useGardenData({ user }) {
-  const [warmth, setWarmthState] = useState(() => lsLoad(LS.warmth, 0));
   const [careLog, setCareLogState] = useState(() => lsLoad(LS.care, {}));
   const [expenses, setExpensesState] = useState(() => lsLoad(LS.expenses, []));
   const [positions, setPositionsState] = useState(() => lsLoad(LS.positions, {}));
@@ -26,12 +25,10 @@ export function useGardenData({ user }) {
       const [
         { data: careRows },
         { data: stateRows },
-        { data: gardenRow },
         { data: expenseRows },
       ] = await Promise.all([
         supabase.from('care_log').select('*').order('created_at'),
         supabase.from('plant_state').select('*'),
-        supabase.from('garden_state').select('*').single(),
         supabase.from('expenses').select('*').order('created_at'),
       ]);
 
@@ -41,12 +38,12 @@ export function useGardenData({ user }) {
           if (!log[row.plant_id]) log[row.plant_id] = [];
           log[row.plant_id].push({
             action: row.action, label: row.label, emoji: row.emoji,
-            earned: row.earned, withEmma: row.with_emma,
+            withEmma: row.with_emma,
             date: row.created_at, plantName: row.plant_name,
           });
         });
         setCareLogState(log);
-        lsSave(LS.care, log); // write back so next cold load is instant + accurate
+        lsSave(LS.care, log);
       }
 
       if (stateRows) {
@@ -59,7 +56,6 @@ export function useGardenData({ user }) {
         if (Object.keys(gr).length) { setGrowthState(gr); lsSave(LS.growth, gr); }
       }
 
-      if (gardenRow) { setWarmthState(gardenRow.warmth); lsSave(LS.warmth, gardenRow.warmth); }
       if (expenseRows) {
         const exps = expenseRows.map(r => ({
           id: r.id, desc: r.description, cents: r.cents,
@@ -75,7 +71,7 @@ export function useGardenData({ user }) {
     loadFromSupabase().catch(() => setDbLoading(false));
   }, [user]);
 
-  // Realtime: care log + warmth
+  // Realtime: care log + plant state
   useEffect(() => {
     if (!supabase) return;
 
@@ -87,18 +83,13 @@ export function useGardenData({ user }) {
             ...prev,
             [row.plant_id]: [...(prev[row.plant_id] || []), {
               action: row.action, label: row.label, emoji: row.emoji,
-              earned: row.earned, withEmma: row.with_emma,
+              withEmma: row.with_emma,
               date: row.created_at, plantName: row.plant_name,
             }],
           };
           lsSave(LS.care, u);
           return u;
         });
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'garden_state' }, payload => {
-        const w = payload.new.warmth;
-        setWarmthState(w);
-        lsSave(LS.warmth, w);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'plant_state' }, payload => {
         const row = payload.new;
@@ -113,39 +104,26 @@ export function useGardenData({ user }) {
 
   // ── WRITE OPERATIONS ──────────────────────────────────────────────────────
   const logAction = useCallback(async (key, plant, withEmma, customLabel) => {
-    const def = ACTION_DEFS[key]; if (!def) return 0;
-    const mult = withEmma ? 2 : 1;
-    const earned = def.warmth * mult;
+    const def = ACTION_DEFS[key]; if (!def) return;
     const label = customLabel || def.label;
 
     if (supabase && user) {
-      // Fetch current warmth from Supabase to avoid stale-closure race condition
-      // (can happen if action fires before loadFromSupabase completes after login)
-      const { data: gs } = await supabase.from('garden_state').select('warmth').eq('id', 1).single();
-      const currentWarmth = gs?.warmth ?? warmth;
-      const newWarmth = Math.min(1000, currentWarmth + earned);
-      await Promise.all([
-        supabase.from('care_log').insert({
-          plant_id: plant.id, action: key, label, emoji: def.emoji,
-          earned, with_emma: withEmma, plant_name: plant.name, logged_by: user.id,
-        }),
-        supabase.from('garden_state').update({ warmth: newWarmth }).eq('id', 1),
-      ]);
-      // State updates come via realtime subscription
+      await supabase.from('care_log').insert({
+        plant_id: plant.id, action: key, label, emoji: def.emoji,
+        with_emma: withEmma, plant_name: plant.name, logged_by: user.id,
+      });
+      // State update comes via realtime subscription
     } else {
-      // localStorage fallback
       const entry = {
         action: key, label, emoji: def.emoji,
-        date: new Date().toISOString(), withEmma, earned, plantName: plant.name,
+        date: new Date().toISOString(), withEmma, plantName: plant.name,
       };
       setCareLogState(prev => {
         const u = { ...prev, [plant.id]: [...(prev[plant.id] || []), entry] };
         lsSave(LS.care, u); return u;
       });
-      setWarmthState(w => { const nw = Math.min(1000, w + earned); lsSave(LS.warmth, nw); return nw; });
     }
-    return earned;
-  }, [user, warmth]);
+  }, [user]);
 
   const updateGrowth = useCallback(async (plantId, val) => {
     setGrowthState(prev => { const u = { ...prev, [plantId]: val }; lsSave(LS.growth, u); return u; });
@@ -161,17 +139,6 @@ export function useGardenData({ user }) {
     }
   }, [user]);
 
-  const addWarmth = useCallback(async (amount) => {
-    if (supabase && user) {
-      const { data: gs } = await supabase.from('garden_state').select('warmth').eq('id', 1).single();
-      const currentWarmth = gs?.warmth ?? warmth;
-      const newWarmth = Math.min(1000, currentWarmth + amount);
-      await supabase.from('garden_state').update({ warmth: newWarmth }).eq('id', 1);
-    } else {
-      setWarmthState(w => { const nw = Math.min(1000, w + amount); lsSave(LS.warmth, nw); return nw; });
-    }
-  }, [user, warmth]);
-
   const addExpense = useCallback(async (desc, cents, plantId) => {
     const exp = { id: Date.now(), desc, cents, plantId: plantId || null, date: new Date().toISOString() };
     setExpensesState(prev => { const u = [...prev, exp]; lsSave(LS.expenses, u); return u; });
@@ -183,7 +150,7 @@ export function useGardenData({ user }) {
   }, [user]);
 
   return {
-    warmth, careLog, expenses, positions, growth, dbLoading,
-    logAction, updateGrowth, movePosition, addExpense, addWarmth,
+    careLog, expenses, positions, growth, dbLoading,
+    logAction, updateGrowth, movePosition, addExpense,
   };
 }

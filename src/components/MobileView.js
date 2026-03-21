@@ -650,8 +650,7 @@ function MobileJournal({ plants, frontPlants = [], careLog, portraits = {} }) {
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               <div style={{ fontSize: 11, color: '#b09070', fontFamily: SERIF }}>{fmtDate(e.date)}</div>
-              {e.earned > 0 && <div style={{ fontSize: 11, color, fontFamily: SERIF }}>+{e.earned}♥</div>}
-            </div>
+              </div>
           </div>
         );
       })}
@@ -742,7 +741,7 @@ function MobileSignIn({ signIn }) {
 
 // ── MAIN MOBILE VIEW ───────────────────────────────────────────────────────
 export function MobileView({
-  plants, frontPlants = [], careLog, warmth, weather,
+  plants, frontPlants = [], careLog, weather,
   onAction, onPortraitUpdate, onGrowthUpdate, allPhotos = {}, onAddPhoto,
   portraits = {}, role, signIn, signOut, seasonOpen, onGoFront,
 }) {
@@ -803,7 +802,7 @@ export function MobileView({
     const def = ACTION_DEFS[key];
     if (def) {
       const displayLabel = customLabel || def.label;
-      setFlash(`${def.emoji} ${displayLabel} · +${def.warmth}♥`);
+      setFlash(`${def.emoji} ${displayLabel}`);
       setTimeout(() => setFlash(null), 2000);
     }
   }
@@ -834,20 +833,6 @@ export function MobileView({
           GARDEN PARTY
         </span>
         <div style={{ flex: 1 }}/>
-        {/* Warmth bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{
-            width: 48, height: 5, background: 'rgba(255,255,255,0.1)',
-            borderRadius: 3, overflow: 'hidden',
-          }}>
-            <div style={{
-              width: `${warmth / 10}%`, height: '100%',
-              background: warmth >= 1000 ? '#f0d040' : C.uiGold,
-              borderRadius: 3, transition: 'width .4s',
-            }}/>
-          </div>
-          <span style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold }}>{warmth}♥</span>
-        </div>
         {/* Front garden nav */}
         {onGoFront && (
           <button onClick={onGoFront}

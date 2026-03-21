@@ -84,7 +84,7 @@ function BotanicalEmblem() {
   );
 }
 
-export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = {}, weather = null, warmth = 0, oracle = null, seasonOpenerText = null, isNight = false }) {
+export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = {}, weather = null, oracle = null, seasonOpenerText = null }) {
   const [hoveredId, setHoveredId]     = useState(null);
   const [showEnter, setShowEnter]     = useState(false);
   const [enterHover, setEnterHover]   = useState(false);
@@ -263,7 +263,7 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
         {hov && plant && (() => {
           const tx = Math.max(90, Math.min(lx, VW - 90));
           const pruneNeeded = v.dead >= 3;
-          const tooltipH = plant.poem ? 80 : 58;
+          const tooltipH = 58;
           return (
             <g>
               <rect x={tx - 90} y={base - h - 14 - tooltipH} width={180} height={tooltipH}
@@ -297,15 +297,6 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
                   fontFamily='"Crimson Pro", Georgia, serif' fontSize={11}
                   fill="#e87040">
                   ⚠ prune
-                </text>
-              )}
-              {/* Poem first line */}
-              {plant.poem && (
-                <text x={tx} y={base - h - tooltipH + 54}
-                  textAnchor="middle"
-                  fontFamily='"Cormorant Garamond", Georgia, serif' fontSize={11} fontStyle="italic"
-                  fill="#c8b890" opacity={0.70}>
-                  {plant.poem.split('\n')[0]}
                 </text>
               )}
               {/* "click for more" hint */}
@@ -362,17 +353,6 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
             </span>
           </div>
         )}
-        <div style={{
-          background: 'rgba(16,8,3,0.58)', backdropFilter: 'blur(6px)',
-          border: '1px solid rgba(200,165,90,0.18)', borderRadius: 8,
-          padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 5,
-        }}>
-          <span style={{ fontSize: 11, color: warmth >= 1000 ? '#f0d040' : '#d4a830' }}>♥</span>
-          <span style={{
-            fontFamily: '"Press Start 2P", monospace', fontSize: 7,
-            color: warmth >= 1000 ? '#f0d040' : '#c8a030',
-          }}>{warmth} / 1k</span>
-        </div>
       </div>
 
       {/* ── ORACLE / SEASON OPENER TEXT — fades in with enter prompt ── */}
@@ -806,20 +786,6 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
                 </div>
               </div>
             </div>
-            {/* Poem */}
-            {plant.poem && (
-              <div style={{
-                fontFamily: '"Cormorant Garamond", Georgia, serif',
-                fontSize: 13, fontStyle: 'italic', color: '#d8c8a0',
-                lineHeight: 1.75, marginBottom: 9,
-                borderLeft: '2px solid rgba(232,64,112,0.35)',
-                paddingLeft: 9,
-              }}>
-                {plant.poem.split('\n').map((line, i) => (
-                  <React.Fragment key={i}>{line}{i < plant.poem.split('\n').length - 1 && <br/>}</React.Fragment>
-                ))}
-              </div>
-            )}
             {/* Status row */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
