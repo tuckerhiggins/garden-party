@@ -12,7 +12,7 @@ function fmtForecastDay(day, index) {
 }
 
 // Builds a lean garden context object for the system prompt
-function buildGardenContext({ plants, careLog, warmth, weather, seasonOpen, seasonBlocking, portraits = {} }) {
+function buildGardenContext({ plants, careLog, weather, seasonOpen, seasonBlocking, portraits = {} }) {
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
@@ -56,14 +56,13 @@ function buildGardenContext({ plants, careLog, warmth, weather, seasonOpen, seas
     weather: weather ? `${Math.round(weather.temp)}°F, ${weather.poem}` : null,
     forecast,
     rainDays: rainDays.length ? rainDays.join(', ') : 'none in the next 6 days',
-    warmth,
     seasonOpen: seasonOpen ?? true,
     seasonBlocking: seasonBlocking ?? null,
     plants: contextPlants,
   };
 }
 
-export function OracleChat({ plants, careLog, warmth, weather, seasonOpen, seasonBlocking, portraits = {}, style }) {
+export function OracleChat({ plants, careLog, weather, seasonOpen, seasonBlocking, portraits = {}, style }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -87,7 +86,7 @@ export function OracleChat({ plants, careLog, warmth, weather, seasonOpen, seaso
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
     try {
-      const gardenContext = buildGardenContext({ plants, careLog, warmth, weather, seasonOpen, seasonBlocking, portraits });
+      const gardenContext = buildGardenContext({ plants, careLog, weather, seasonOpen, seasonBlocking, portraits });
 
       const res = await fetch('/api/oracle-chat', {
         method: 'POST',
@@ -142,7 +141,7 @@ export function OracleChat({ plants, careLog, warmth, weather, seasonOpen, seaso
     } finally {
       setStreaming(false);
     }
-  }, [messages, plants, careLog, warmth, weather, streaming, portraits]);
+  }, [messages, plants, careLog, weather, streaming, portraits]);
 
   const STARTERS = [
     "What's actually happening out here right now?",

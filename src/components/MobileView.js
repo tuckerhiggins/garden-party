@@ -924,7 +924,7 @@ export function MobileView({
 
         {tab === 'oracle' && (
           <OracleChat
-            plants={plants} careLog={careLog} warmth={warmth} weather={weather}
+            plants={[...plants, ...frontPlants]} careLog={careLog} weather={weather}
             style={{ height: '100%' }}
           />
         )}

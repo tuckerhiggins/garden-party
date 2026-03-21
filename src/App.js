@@ -1363,14 +1363,15 @@ export default function App() {
   // Oracle — fetch once per day on mount, after weather loads
   useEffect(() => {
     if (!weather) return; // wait for weather
-    const photoContext = TERRACE_PLANTS
+    const allGardenPlants = [...TERRACE_PLANTS, ...frontPlants];
+    const photoContext = allGardenPlants
       .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
       .map(p => {
         const all = allPhotos[p.id] || [];
         return { name: p.name, count: all.length, lastDate: all[all.length - 1]?.date ?? null };
       });
     const totalPhotos = photoContext.reduce((s, p) => s + p.count, 0);
-    fetchOracle({ weather, plants: TERRACE_PLANTS, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits, role })
+    fetchOracle({ weather, plants: allGardenPlants, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits, role })
       .then(setOracle)
       .catch(() => {}); // fail silently in local dev
   }, [weather, role]);
@@ -1770,9 +1771,8 @@ export default function App() {
         {/* ── ORACLE VIEW ── */}
         {mode==='oracle'&&(
           <OracleChat
-            plants={terracePlants}
+            plants={[...terracePlants, ...frontPlants]}
             careLog={careLog}
-            warmth={warmth}
             weather={weather}
             seasonOpen={seasonOpen}
             seasonBlocking={seasonBlocking}

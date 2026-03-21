@@ -536,9 +536,10 @@ export function PlantPortrait({ plant, aiSvg }) {
     case 'evergreen':     return <EvergreenPortrait isXmas={false}/>;
     case 'evergreen-xmas':return <EvergreenPortrait isXmas={true}/>;
     case 'rose':          return <DKORosePortrait/>;
+    case 'magnolia':      return <HydrangeaPortrait/>;
     case 'worm':          return <WormPortrait/>;
     case 'stone-pot':     return <StonePotPortrait/>;
     case 'empty-pot':     return <EmptyPotPortrait potColor={plant.color||'#c0c0b8'}/>;
-    default:              return <EmptyPotPortrait potColor={plant.color||'#c0c0b8'}/>;
+    default:              return <ServiceberryPortrait/>;
   }
 }
