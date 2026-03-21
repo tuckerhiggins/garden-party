@@ -66,7 +66,10 @@ export async function fetchOracle({ weather, plants, careLog, seasonOpen, season
     });
   }
   const weatherToken = weatherEvents.length > 0 ? weatherEvents.map(e => e.slice(0, 10)).join('').replace(/\W/g, '') : 'clear';
-  const cacheKey = `oracle_${new Date().toISOString().slice(0, 10)}_p${totalPhotos}_v${portraitCacheToken}_w${weatherToken.slice(0, 12)}_r${role}`;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayCareCount = Object.values(careLog).flat()
+    .filter(e => e.date?.slice(0, 10) === todayStr).length;
+  const cacheKey = `oracle_${todayStr}_p${totalPhotos}_v${portraitCacheToken}_w${weatherToken.slice(0, 12)}_c${todayCareCount}_r${role}`;
 
   const needsWater = plants.filter(p => {
     if (!p.actions?.includes('water')) return false;
@@ -148,7 +151,7 @@ ${weatherEvents.length > 0 ? `\nWEATHER ALERT — next 72 hours:\n${weatherEvent
 ${visualNotes.length > 0 ? `\nRECENT PHOTO OBSERVATIONS:\n${visualNotes.join('\n')}` : ''}
 ${hasBriefing ? 'Lead with the specific action Tucker needs to take because of the weather event.' : 'Give Tucker one specific, useful observation about what\'s happening right now.'}`;
 
-  return cachedClaude(cacheKey, systemPrompt, userPrompt, 160);
+  return cachedClaude(cacheKey, systemPrompt, userPrompt, 280);
 }
 
 // ── PLANT BRIEFING ────────────────────────────────────────────────────────
@@ -272,7 +275,7 @@ ${weatherEvents.length ? `Weather note: ${weatherEvents.join('; ')}.` : `Today: 
 ${recentNote ? `Recent observation — ${recentNote}` : ''}
 One sentence from the garden this morning.`;
 
-  return cachedClaude(cacheKey, systemPrompt, userPrompt, 60, 24 * 60 * 60 * 1000);
+  return cachedClaude(cacheKey, systemPrompt, userPrompt, 100, 24 * 60 * 60 * 1000);
 }
 
 // ── MISSED CARE VOICE ─────────────────────────────────────────────────────

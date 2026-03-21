@@ -402,7 +402,7 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLo
               fontSize:15, color:'#2a1808', lineHeight:1.65,
               fontStyle: m.role === 'assistant' ? 'italic' : 'normal',
             }}>
-              {m.content || (chatLoading && i === messages.length - 1 ? '…' : '')}
+              {(m.content || '').replace(/<(diagram|photo-request)>[\s\S]*/g, '').trim() || (chatLoading && i === messages.length - 1 ? '…' : '')}
             </div>
             {m.photoRequest && (
               <div style={{ marginTop:6, background:'rgba(212,168,48,0.08)',

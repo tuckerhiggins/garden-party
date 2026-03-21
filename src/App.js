@@ -1306,7 +1306,7 @@ function ActionModal({ plant, actionKey, careLog, portraits, weather, onLog, onC
               fontSize:13, color:'#2a1808', lineHeight:1.65,
               fontStyle: m.role === 'assistant' ? 'italic' : 'normal',
             }}>
-              {m.content || (chatLoading && i === messages.length - 1 ? '…' : '')}
+              {(m.content || '').replace(/<(diagram|photo-request)>[\s\S]*/g, '').trim() || (chatLoading && i === messages.length - 1 ? '…' : '')}
             </div>
             {m.photoRequest && (
               <div style={{ marginTop:5, background:'rgba(212,168,48,0.08)',
@@ -1818,9 +1818,15 @@ export default function App() {
     };
   }, [terracePlants, weather, allPhotos]);
 
-  // Oracle — fetch once per day on mount, after weather loads
+  // Re-run oracle when today's care count changes so recommendations stay current
+  const todayCareCount = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return Object.values(careLog).flat().filter(e => e.date?.slice(0, 10) === today).length;
+  }, [careLog]);
+
+  // Oracle — fetch on mount (after weather loads) and whenever care is logged today
   useEffect(() => {
-    if (!weather) return; // wait for weather
+    if (!weather) return;
     const allGardenPlants = [...TERRACE_PLANTS, ...frontPlants];
     const photoContext = allGardenPlants
       .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
@@ -1831,8 +1837,8 @@ export default function App() {
     const totalPhotos = photoContext.reduce((s, p) => s + p.count, 0);
     fetchOracle({ weather, plants: allGardenPlants, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits, role })
       .then(setOracle)
-      .catch(() => {}); // fail silently in local dev
-  }, [weather, role]);
+      .catch(() => {});
+  }, [weather, role, todayCareCount]);
 
   // Season opener — show once when season first opens
   useEffect(() => {
