@@ -7,7 +7,7 @@
 //   currentStage: string     — current stage name (must match an entry in stages)
 //   stageHistory: [{stage, date}]  — automatic log of stage transitions
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabase';
 
 function sanitizeSvg(svg) {
@@ -22,6 +22,34 @@ export function usePortraits({ user }) {
   const [portraits, setPortraits] = useState(() => {
     try { return JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}'); } catch { return {}; }
   });
+  const setPortraitsRef = useRef(setPortraits);
+  setPortraitsRef.current = setPortraits;
+
+  function mergeSupabaseRows(data, prev) {
+    const merged = { ...prev };
+    data.forEach(row => {
+      const existing = prev[row.plant_id] || {};
+      const sbDate = row.updated_at ? new Date(row.updated_at).getTime() : 0;
+      const localDate = existing.date ? new Date(existing.date).getTime() : 0;
+      if (sbDate >= localDate || !existing.svg) {
+        const stagesData = row.stages_data || {};
+        merged[row.plant_id] = {
+          svg: sanitizeSvg(row.svg) || existing.svg || null,
+          visualNote: row.visual_note || existing.visualNote || null,
+          growth: row.growth ?? existing.growth ?? null,
+          bloomState: row.bloom_state || existing.bloomState || null,
+          foliageState: row.foliage_state || existing.foliageState || null,
+          history: row.history || existing.history || [],
+          stages: stagesData.stages || existing.stages || [],
+          currentStage: stagesData.currentStage || existing.currentStage || null,
+          stageHistory: stagesData.stageHistory || existing.stageHistory || [],
+          analyzing: false,
+          date: row.updated_at || existing.date,
+        };
+      }
+    });
+    return merged;
+  }
 
   // Load from Supabase whenever user changes (login/logout)
   useEffect(() => {
@@ -29,35 +57,35 @@ export function usePortraits({ user }) {
     supabase.from('plant_portraits').select('*')
       .then(({ data, error }) => {
         if (error || !data || data.length === 0) return;
-        setPortraits(prev => {
-          const merged = { ...prev };
-          data.forEach(row => {
-            const existing = prev[row.plant_id] || {};
-            const sbDate = row.updated_at ? new Date(row.updated_at).getTime() : 0;
-            const localDate = existing.date ? new Date(existing.date).getTime() : 0;
-            if (sbDate >= localDate || !existing.svg) {
-              const stagesData = row.stages_data || {};
-              merged[row.plant_id] = {
-                svg: sanitizeSvg(row.svg) || existing.svg || null,
-                visualNote: row.visual_note || existing.visualNote || null,
-                growth: row.growth ?? existing.growth ?? null,
-                bloomState: row.bloom_state || existing.bloomState || null,
-                foliageState: row.foliage_state || existing.foliageState || null,
-                history: row.history || existing.history || [],
-                stages: stagesData.stages || existing.stages || [],
-                currentStage: stagesData.currentStage || existing.currentStage || null,
-                stageHistory: stagesData.stageHistory || existing.stageHistory || [],
-                analyzing: false,
-                date: row.updated_at || existing.date,
-              };
-            }
-          });
+        setPortraitsRef.current(prev => {
+          const merged = mergeSupabaseRows(data, prev);
           try { localStorage.setItem('gp_portraits_v1', JSON.stringify(merged)); } catch {}
           return merged;
         });
       })
       .catch(() => {});
   }, [user]);
+
+  // Re-fetch portraits when page becomes visible (handles cross-device sync
+  // when realtime isn't enabled for plant_portraits table in Supabase)
+  useEffect(() => {
+    if (!supabase) return;
+    function onVisible() {
+      if (document.visibilityState !== 'visible') return;
+      supabase.from('plant_portraits').select('*')
+        .then(({ data, error }) => {
+          if (error || !data || data.length === 0) return;
+          setPortraitsRef.current(prev => {
+            const merged = mergeSupabaseRows(data, prev);
+            try { localStorage.setItem('gp_portraits_v1', JSON.stringify(merged)); } catch {}
+            return merged;
+          });
+        })
+        .catch(() => {});
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   // Realtime: push portrait updates from the other device
   useEffect(() => {
@@ -157,15 +185,15 @@ export function usePortraits({ user }) {
           },
         };
         // Try with stages_data first; if column doesn't exist yet, fall back to base payload
-        supabase.from('plant_portraits').upsert(withStages)
+        supabase.from('plant_portraits').upsert(withStages, { onConflict: 'plant_id' })
           .then(({ error }) => {
             if (error) {
               // stages_data column not yet migrated — sync portrait data without it
-              supabase.from('plant_portraits').upsert(basePayload).catch(() => {});
+              supabase.from('plant_portraits').upsert(basePayload, { onConflict: 'plant_id' }).catch(() => {});
             }
           })
           .catch(() => {
-            supabase.from('plant_portraits').upsert(basePayload).catch(() => {});
+            supabase.from('plant_portraits').upsert(basePayload, { onConflict: 'plant_id' }).catch(() => {});
           });
       }
 
