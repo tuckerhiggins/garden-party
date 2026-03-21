@@ -61,7 +61,7 @@ function actionStatus(plant, key, careLog, seasonOpen) {
 }
 
 // ── PHOTO helpers ──────────────────────────────────────────────────────────
-async function compressImage(file, maxPx = 900, quality = 0.78) {
+async function compressImage(file, maxPx = 800, quality = 0.72) {
   return new Promise(resolve => {
     const img = new Image();
     const url = URL.createObjectURL(file);

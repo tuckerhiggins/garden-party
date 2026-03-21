@@ -91,6 +91,17 @@ export function usePhotos({ user }) {
         await supabase.from('plant_photos').insert({
           plant_id: plantId, storage_path: storagePath, taken_at: date,
         });
+        // Swap dataUrl for the public URL — frees up localStorage space on iOS
+        const { data: urlData } = supabase.storage.from('plant-photos').getPublicUrl(storagePath);
+        if (urlData?.publicUrl) {
+          setAllPhotos(prev => {
+            const updated = (prev[plantId] || []).map(p =>
+              p.dataUrl === dataUrl ? { url: urlData.publicUrl, date, storagePath } : p
+            );
+            saveToLS(plantId, updated);
+            return { ...prev, [plantId]: updated };
+          });
+        }
       } catch (e) {
         console.warn('Photo upload failed:', e);
       }

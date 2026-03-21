@@ -1,5 +1,9 @@
 {
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ]
+  ],
+  "functions": {
+    "api/analyze-plant.js": { "maxDuration": 60 },
+    "api/oracle-chat.js": { "maxDuration": 60 }
+  }
 }
