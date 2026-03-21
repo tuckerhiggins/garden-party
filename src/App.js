@@ -258,7 +258,7 @@ const TERRACE_GROUPS = [
   { key:'wisteria',       label:'Wisteria',              types:['wisteria'] },
   { key:'climbing-rose',  label:'Zéphirine Drouhin',     types:['climbing-rose','lavender'] },
   { key:'hydrangea',      label:'Pinnacle Lime Hydrangeas (4)', types:['hydrangea'] },
-  { key:'gifts',          label:'The Gifts',             types:['serviceberry','maple'] },
+  { key:'trees',          label:'Trees',                 types:['serviceberry','maple'] },
   { key:'evergreen',      label:'Evergreens',            types:['evergreen','evergreen-xmas'] },
   { key:'additions',      label:'New Additions',         types:['custom','annual','herb','fern','succulent','grass'] },
 ];
@@ -859,7 +859,7 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait,
           </div>
         )}
         {plant.special === 'gift' && (
-          <div style={{fontSize:10,color:'#5080a8',marginBottom:6,fontFamily:SERIF}}>★ Gift from a friend</div>
+          <div style={{fontSize:10,color:'#5080a8',marginBottom:6,fontFamily:SERIF}}>★ From Lexie</div>
         )}
         {plant.special === 'xmas' && (
           <div style={{fontSize:10,color:'#806020',marginBottom:6,fontFamily:SERIF}}>🎄 Was the Christmas tree</div>
@@ -1032,8 +1032,8 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
             {/* Badges */}
             <div style={{marginBottom:10}}>
               {plant.special==='wedding'&&<div style={{fontSize:11,color:'#a07030',marginBottom:4,fontFamily:SERIF}}>♥ Wedding gift for Emma</div>}
+              {plant.special==='gift'&&<div style={{fontSize:11,color:'#5080a8',marginBottom:4,fontFamily:SERIF}}>★ From Lexie</div>}
               {plant.special==='xmas'&&<div style={{fontSize:11,color:'#806020',marginBottom:4,fontFamily:SERIF}}>🎄 Was the Christmas tree</div>}
-              {plant.special==='gift'&&<div style={{fontSize:11,color:'#5080a8',marginBottom:4,fontFamily:SERIF}}>★ Gift from a friend</div>}
               {plant.special==='zephirine'&&<div style={{fontSize:11,color:'#c03058',marginBottom:4,fontFamily:SERIF}}>🌹 Thornless · Deep pink · Fragrant</div>}
             </div>
             {/* History log */}
