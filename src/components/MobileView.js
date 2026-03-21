@@ -1364,22 +1364,6 @@ export function MobileView({
   const prevAnalyzingRef = useRef({});
   const [completedThisSession, setCompletedThisSession] = useState(() => new Set());
 
-  // Seed session counter from today's care log so it survives page reloads
-  useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const doneToday = new Set();
-    for (const [plantId, entries] of Object.entries(careLog)) {
-      for (const entry of entries) {
-        if (entry.date?.startsWith(today)) {
-          doneToday.add(`${plantId}:${entry.action}`);
-        }
-      }
-    }
-    if (doneToday.size > 0) {
-      setCompletedThisSession(prev => new Set([...doneToday, ...prev]));
-    }
-  }, [careVersion]); // careVersion changes when careLog is updated
-
   function handleMarkDone(item) {
     setCompletedThisSession(prev => new Set([...prev, item.key]));
     handleAction(item.actionKey, item.plant);
@@ -1403,6 +1387,22 @@ export function MobileView({
           .catch(() => {});
       });
   }, [careVersion, weather]); // intentional: portraits/careLog refs change too often
+
+  // Seed session counter from today's care log so it survives page reloads
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const doneToday = new Set();
+    for (const [plantId, entries] of Object.entries(careLog)) {
+      for (const entry of entries) {
+        if (entry.date?.startsWith(today)) {
+          doneToday.add(`${plantId}:${entry.action}`);
+        }
+      }
+    }
+    if (doneToday.size > 0) {
+      setCompletedThisSession(prev => new Set([...doneToday, ...prev]));
+    }
+  }, [careVersion]); // careVersion changes when careLog is updated
 
   // Total active plants — passed to TodayAgenda for "N plants resting" count
   const totalActivePlants = useMemo(
