@@ -1578,7 +1578,8 @@ export default function App() {
   const isMobile = useIsMobile();
   const [flash, setFlash] = useState(null);
   const [showExpense, setShowExpense] = useState(false);
-  const [expInput, setExpInput] = useState({desc:'',amount:'',plantId:''});
+  const [expTab, setExpTab] = useState('log'); // 'log' | 'ledger'
+  const [expInput, setExpInput] = useState({desc:'',amount:'',group:'',category:''});
   const [draggingId, setDraggingId] = useState(null);
   const [oracle, setOracle] = useState(null);
   const [morningBrief, setMorningBrief] = useState(null);
@@ -1837,9 +1838,9 @@ export default function App() {
   const addExpense = () => {
     const amt = parseFloat(expInput.amount);
     if (!expInput.desc || isNaN(amt) || amt <= 0) return;
-    addExpenseDb(expInput.desc, Math.round(amt * 100), expInput.plantId || null);
-    setExpInput({ desc: '', amount: '', plantId: '' });
-    setShowExpense(false);
+    addExpenseDb(expInput.desc, Math.round(amt * 100), null, expInput.group || null, expInput.category || null);
+    setExpInput({ desc: '', amount: '', group: '', category: '' });
+    setExpTab('ledger');
     setFlash(`💰 $${amt.toFixed(2)} logged`);
     setTimeout(() => setFlash(null), 2000);
   };
@@ -2220,59 +2221,235 @@ export default function App() {
       </div>{/* end body: sidebar + content */}
 
       {/* ── EXPENSE MODAL ── */}
-      {showExpense&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.6)',display:'flex',
-          alignItems:'center',justifyContent:'center',zIndex:200}}>
-          <div style={{width:380,background:'#faf6ee',border:`1px solid ${C.cardBorder}`,borderRadius:10,overflow:'hidden',boxShadow:'0 8px 40px rgba(0,0,0,.25)'}}>
-            <div style={{padding:'14px 16px',borderBottom:`1px solid ${C.cardBorder}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span style={{fontFamily:MONO,fontSize:9,color:'#5a3818'}}>LOG EXPENSE</span>
-              <button onClick={()=>setShowExpense(false)} style={{background:'none',border:'none',color:'#b09070',fontSize:22,cursor:'pointer',padding:0}}>&times;</button>
-            </div>
-            <div style={{padding:'16px',display:'flex',flexDirection:'column',gap:10}}>
-              {[{label:'WHAT DID YOU BUY?',key:'desc',ph:'Neem oil, new trowel, roses...',type:'text'},
-                {label:'AMOUNT ($)',key:'amount',ph:'0.00',type:'number'}].map(f=>(
-                <div key={f.key}>
-                  <div style={{fontFamily:MONO,fontSize:7,color:'#a08060',marginBottom:4}}>{f.label}</div>
-                  <input type={f.type} value={expInput[f.key]} onChange={e=>setExpInput(p=>({...p,[f.key]:e.target.value}))}
-                    placeholder={f.ph} step={f.type==='number'?'.01':undefined}
-                    style={{width:'100%',background:'#fff',border:`1px solid ${C.cardBorder}`,borderRadius:5,
-                      padding:'8px 10px',color:'#2a1808',fontSize:13,outline:'none',
-                      boxSizing:'border-box',fontFamily:SERIF}}/>
-                </div>
-              ))}
-              <div>
-                <div style={{fontFamily:MONO,fontSize:7,color:'#a08060',marginBottom:4}}>FOR WHICH PLANT?</div>
-                <select value={expInput.plantId} onChange={e=>setExpInput(p=>({...p,plantId:e.target.value}))}
-                  style={{width:'100%',background:'#fff',border:`1px solid ${C.cardBorder}`,borderRadius:5,
-                    padding:'8px 10px',color:'#2a1808',fontSize:13,fontFamily:SERIF,outline:'none',boxSizing:'border-box'}}>
-                  <option value="">General / garden supplies</option>
-                  {ALL_PLANTS.filter(p=>p.health!=='empty'&&p.health!=='memorial').map(p=>(
-                    <option key={p.id} value={p.id}>{p.name}{p.subtitle?` (${p.subtitle})`:''}</option>
+      {showExpense&&(()=>{
+        const EXP_CATS = [
+          {key:'plants',label:'Plants',emoji:'🪴'},{key:'soil',label:'Soil',emoji:'🌱'},
+          {key:'fertilizer',label:'Fertilizer',emoji:'🧪'},{key:'pest',label:'Pest Control',emoji:'🛡️'},
+          {key:'tools',label:'Tools',emoji:'🪚'},{key:'other',label:'Other',emoji:'📦'},
+        ];
+        const EXP_GROUPS = [
+          {key:'',label:'Whole Garden',emoji:'🌿'},{key:'wisteria',label:'Wisteria',emoji:'💜'},
+          {key:'climbing-roses',label:'Climbing Roses',emoji:'🌹'},{key:'lavender',label:'Lavender',emoji:'🌸'},
+          {key:'hydrangea',label:'Hydrangea',emoji:'💧'},{key:'serviceberry',label:'Serviceberry',emoji:'🌳'},
+          {key:'maple',label:'Japanese Maple',emoji:'🍁'},{key:'evergreens',label:'Evergreens',emoji:'🌲'},
+          {key:'emmas-roses',label:"Emma's Roses",emoji:'🌹'},
+        ];
+        // Ledger computations
+        const byCategory = {};
+        const byGroup = {};
+        for (const e of expenses) {
+          const cat = e.category || 'other';
+          byCategory[cat] = (byCategory[cat] || 0) + e.cents;
+          const grp = e.group || '';
+          byGroup[grp] = (byGroup[grp] || 0) + e.cents;
+        }
+        // Weekly buckets for sparkline
+        const weekBuckets = {};
+        for (const e of expenses) {
+          const d = new Date(e.date);
+          const week = `${d.getFullYear()}-W${String(Math.ceil((d - new Date(d.getFullYear(),0,1)) / 604800000)).padStart(2,'0')}`;
+          weekBuckets[week] = (weekBuckets[week] || 0) + e.cents;
+        }
+        const weekKeys = Object.keys(weekBuckets).sort();
+        const maxWeek = Math.max(...Object.values(weekBuckets), 1);
+        const inputStyle = {width:'100%',background:'#fff',border:`1px solid ${C.cardBorder}`,borderRadius:5,padding:'8px 10px',color:'#2a1808',fontSize:13,outline:'none',boxSizing:'border-box',fontFamily:SERIF};
+        const labelStyle = {fontFamily:MONO,fontSize:7,color:'#a08060',marginBottom:5};
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}}>
+            <div style={{width:460,maxHeight:'90vh',background:'#faf6ee',border:`1px solid ${C.cardBorder}`,borderRadius:10,overflow:'hidden',boxShadow:'0 8px 40px rgba(0,0,0,.25)',display:'flex',flexDirection:'column'}}>
+              {/* Header */}
+              <div style={{padding:'12px 16px',borderBottom:`1px solid ${C.cardBorder}`,display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+                <div style={{display:'flex',gap:0}}>
+                  {['log','ledger'].map(t=>(
+                    <button key={t} onClick={()=>setExpTab(t)}
+                      style={{background:expTab===t?'#2a1808':'none',border:`1px solid ${expTab===t?'#2a1808':C.cardBorder}`,
+                        borderRadius:t==='log'?'4px 0 0 4px':'0 4px 4px 0',
+                        padding:'5px 12px',cursor:'pointer',fontFamily:MONO,fontSize:7,
+                        color:expTab===t?'#f0e4cc':'#a08060'}}>
+                      {t==='log'?'LOG':'LEDGER'}
+                    </button>
                   ))}
-                </select>
+                </div>
+                <button onClick={()=>setShowExpense(false)} style={{background:'none',border:'none',color:'#b09070',fontSize:22,cursor:'pointer',padding:0}}>&times;</button>
               </div>
-              {expenses.length>0&&(
-                <div style={{background:'rgba(160,130,80,.08)',borderRadius:5,padding:'8px 10px'}}>
-                  <div style={{fontFamily:MONO,fontSize:7,color:'#a08060',marginBottom:4}}>SEASON TOTAL</div>
-                  <div style={{fontSize:18,color:'#5a3818',fontWeight:600,fontFamily:SERIF}}>${(totalSpend/100).toFixed(2)}</div>
-                  <div style={{marginTop:4,maxHeight:72,overflowY:'auto'}}>
-                    {[...expenses].reverse().slice(0,5).map((e,i)=>(
-                      <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#907050',padding:'2px 0',fontFamily:SERIF}}>
-                        <span>{e.desc}</span><span>${(e.cents/100).toFixed(2)}</span>
-                      </div>
-                    ))}
+
+              <div style={{overflowY:'auto',flex:1}}>
+              {expTab==='log'?(
+                <div style={{padding:'16px',display:'flex',flexDirection:'column',gap:12}}>
+                  {/* Description */}
+                  <div>
+                    <div style={labelStyle}>WHAT DID YOU BUY?</div>
+                    <input type="text" value={expInput.desc} onChange={e=>setExpInput(p=>({...p,desc:e.target.value}))}
+                      placeholder="Neem oil, new trowel, bag of soil..." style={inputStyle}
+                      onKeyDown={e=>{ if(e.key==='Enter') addExpense(); }}/>
                   </div>
+                  {/* Amount */}
+                  <div>
+                    <div style={labelStyle}>AMOUNT ($)</div>
+                    <input type="number" value={expInput.amount} onChange={e=>setExpInput(p=>({...p,amount:e.target.value}))}
+                      placeholder="0.00" step=".01" style={inputStyle}/>
+                  </div>
+                  {/* Category pills */}
+                  <div>
+                    <div style={labelStyle}>CATEGORY</div>
+                    <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                      {EXP_CATS.map(c=>(
+                        <button key={c.key} onClick={()=>setExpInput(p=>({...p,category:p.category===c.key?'':c.key}))}
+                          style={{padding:'5px 10px',borderRadius:20,cursor:'pointer',fontFamily:SERIF,fontSize:12,
+                            background:expInput.category===c.key?'rgba(180,120,20,0.15)':'#fff',
+                            border:`1px solid ${expInput.category===c.key?'rgba(180,120,20,0.5)':C.cardBorder}`,
+                            color:expInput.category===c.key?'#7a4a08':'#5a3818'}}>
+                          {c.emoji} {c.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Group pills */}
+                  <div>
+                    <div style={labelStyle}>FOR</div>
+                    <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                      {EXP_GROUPS.map(g=>(
+                        <button key={g.key} onClick={()=>setExpInput(p=>({...p,group:p.group===g.key&&g.key!==''?'':g.key}))}
+                          style={{padding:'5px 10px',borderRadius:20,cursor:'pointer',fontFamily:SERIF,fontSize:12,
+                            background:expInput.group===g.key?'rgba(180,120,20,0.15)':'#fff',
+                            border:`1px solid ${expInput.group===g.key?'rgba(180,120,20,0.5)':C.cardBorder}`,
+                            color:expInput.group===g.key?'#7a4a08':'#5a3818'}}>
+                          {g.emoji} {g.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <button onClick={addExpense}
+                    style={{background:'#2a1808',border:'none',borderRadius:6,padding:'11px',
+                      color:'#f0e4cc',cursor:'pointer',fontFamily:MONO,fontSize:8,marginTop:2}}>
+                    LOG EXPENSE
+                  </button>
+                </div>
+              ):(
+                /* LEDGER VIEW */
+                <div style={{padding:'16px',display:'flex',flexDirection:'column',gap:16}}>
+                  {/* Season total */}
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+                    <div>
+                      <div style={labelStyle}>SEASON TOTAL</div>
+                      <div style={{fontSize:32,fontWeight:600,color:'#2a1808',fontFamily:SERIF,lineHeight:1}}>${(totalSpend/100).toFixed(2)}</div>
+                      <div style={{fontSize:11,color:'#a08060',fontFamily:SERIF,marginTop:3}}>{expenses.length} purchase{expenses.length!==1?'s':''}</div>
+                    </div>
+                    <button onClick={()=>setExpTab('log')}
+                      style={{background:'rgba(180,120,20,0.12)',border:'1px solid rgba(180,120,20,0.3)',borderRadius:6,
+                        padding:'7px 12px',cursor:'pointer',fontFamily:MONO,fontSize:7,color:'#7a4a08'}}>
+                      + LOG
+                    </button>
+                  </div>
+
+                  {/* Weekly spend bars */}
+                  {weekKeys.length>1&&(
+                    <div>
+                      <div style={labelStyle}>BY WEEK</div>
+                      <div style={{display:'flex',alignItems:'flex-end',gap:4,height:48}}>
+                        {weekKeys.map(w=>(
+                          <div key={w} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                            <div style={{width:'100%',background:'#d4a830',borderRadius:'2px 2px 0 0',
+                              height:`${Math.round((weekBuckets[w]/maxWeek)*44)}px`,minHeight:2}}/>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{display:'flex',justifyContent:'space-between',marginTop:3}}>
+                        <span style={{fontFamily:MONO,fontSize:5,color:'#c0a880'}}>
+                          {weekKeys[0]?.replace(/^\d+-W/,'Wk ')}
+                        </span>
+                        <span style={{fontFamily:MONO,fontSize:5,color:'#c0a880'}}>
+                          {weekKeys[weekKeys.length-1]?.replace(/^\d+-W/,'Wk ')}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* By category */}
+                  {Object.keys(byCategory).length>0&&(
+                    <div>
+                      <div style={labelStyle}>BY CATEGORY</div>
+                      <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                        {Object.entries(byCategory).sort(([,a],[,b])=>b-a).map(([cat,total])=>{
+                          const catDef = EXP_CATS.find(c=>c.key===cat);
+                          return (
+                            <div key={cat}>
+                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                                <span style={{fontFamily:SERIF,fontSize:12,color:'#5a3818'}}>{catDef?.emoji||'📦'} {catDef?.label||cat}</span>
+                                <span style={{fontFamily:SERIF,fontSize:12,color:'#7a4a08',fontWeight:600}}>${(total/100).toFixed(2)}</span>
+                              </div>
+                              <div style={{height:5,background:'#ede8dc',borderRadius:3}}>
+                                <div style={{height:'100%',width:`${Math.round((total/totalSpend)*100)}%`,background:'#d4a830',borderRadius:3}}/>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* By group */}
+                  {Object.keys(byGroup).length>0&&(
+                    <div>
+                      <div style={labelStyle}>BY AREA</div>
+                      <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                        {Object.entries(byGroup).sort(([,a],[,b])=>b-a).map(([grp,total])=>{
+                          const grpDef = EXP_GROUPS.find(g=>g.key===grp);
+                          return (
+                            <div key={grp||'garden'}>
+                              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                                <span style={{fontFamily:SERIF,fontSize:12,color:'#5a3818'}}>{grpDef?.emoji||'🌿'} {grpDef?.label||'Whole Garden'}</span>
+                                <span style={{fontFamily:SERIF,fontSize:12,color:'#7a4a08',fontWeight:600}}>${(total/100).toFixed(2)}</span>
+                              </div>
+                              <div style={{height:5,background:'#ede8dc',borderRadius:3}}>
+                                <div style={{height:'100%',width:`${Math.round((total/totalSpend)*100)}%`,background:'rgba(180,120,20,0.55)',borderRadius:3}}/>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Full expense list */}
+                  {expenses.length>0&&(
+                    <div>
+                      <div style={labelStyle}>ALL PURCHASES</div>
+                      <div style={{display:'flex',flexDirection:'column',gap:0}}>
+                        {[...expenses].reverse().map((e,i)=>{
+                          const catDef = EXP_CATS.find(c=>c.key===e.category);
+                          const grpDef = EXP_GROUPS.find(g=>g.key===(e.group||''));
+                          return (
+                            <div key={e.id||i} style={{display:'flex',alignItems:'center',gap:10,
+                              padding:'8px 0',borderBottom:`1px solid ${C.cardBorder}`}}>
+                              <span style={{fontSize:16,flexShrink:0}}>{catDef?.emoji||'📦'}</span>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontFamily:SERIF,fontSize:13,color:'#2a1808',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.desc}</div>
+                                <div style={{fontFamily:SERIF,fontSize:11,color:'#a08060'}}>
+                                  {grpDef?.label||'Whole Garden'}
+                                  {e.date && ` · ${new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`}
+                                </div>
+                              </div>
+                              <div style={{fontFamily:SERIF,fontSize:14,color:'#5a3818',fontWeight:600,flexShrink:0}}>${(e.cents/100).toFixed(2)}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {expenses.length===0&&(
+                    <div style={{textAlign:'center',padding:'24px 0',color:'#c0a880',fontFamily:SERIF,fontSize:13,fontStyle:'italic'}}>
+                      No expenses logged yet this season.
+                    </div>
+                  )}
                 </div>
               )}
-              <button onClick={addExpense}
-                style={{background:'#2a1808',border:'none',borderRadius:6,padding:'10px',
-                  color:'#f0e4cc',cursor:'pointer',fontFamily:MONO,fontSize:8,marginTop:2}}>
-                LOG EXPENSE
-              </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── PLANT SHOP MODAL ── */}
       {showShop && (

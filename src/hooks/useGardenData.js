@@ -167,8 +167,8 @@ export function useGardenData({ user }) {
     }
   }, [user]);
 
-  const addExpense = useCallback(async (desc, cents, plantId) => {
-    const exp = { id: Date.now(), desc, cents, plantId: plantId || null, date: new Date().toISOString() };
+  const addExpense = useCallback(async (desc, cents, plantId, group, category) => {
+    const exp = { id: Date.now(), desc, cents, plantId: plantId || null, group: group || null, category: category || null, date: new Date().toISOString() };
     setExpensesState(prev => { const u = [...prev, exp]; lsSave(LS.expenses, u); return u; });
     if (supabase && user) {
       await supabase.from('expenses').insert({
