@@ -19,6 +19,7 @@ export const ACTION_DEFS = {
   plant:     { label:'Plant here',  emoji:'🌱', cooldownDays:0,  seasonMax:1 },
   worms:     { label:'Add worms',   emoji:'🪱', cooldownDays:60, seasonMax:2 },
   note:      { label:'Observation', emoji:'📝', cooldownDays:0,  seasonMax:null,  alwaysAvailable:true },
+  tend:      { label:'Tend',        emoji:'✨', cooldownDays:0,  seasonMax:null,  alwaysAvailable:true },
 };
 
 // ── HOW-TO INSTRUCTIONS (shown before doing the action) ───────────────────

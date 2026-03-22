@@ -1858,7 +1858,7 @@ export default function App() {
   const ONCE_PER_DAY = new Set(['water','fertilize','prune','neem','train','repot','worms']);
   const doAction = useCallback(async (key, plant, customLabel) => {
     const def = ACTION_DEFS[key];
-    if (!def && key !== 'custom') return;
+    if (!def && key !== 'tend') return;
     const isWithEmma = role === 'emma';
 
     // Duplicate check — warn if this action was already logged today for this plant
@@ -1925,8 +1925,8 @@ export default function App() {
     const todayStr = new Date().toISOString().slice(0, 10);
     return attentionItemsForBrief.filter(item => {
       const entries = careLog[item.plant.id] || [];
-      if (item.action === 'custom') {
-        return !entries.some(e => e.action === 'custom' && e.label === (item.task?.label || '') && e.date?.startsWith(todayStr));
+      if (item.action === 'tend') {
+        return !entries.some(e => e.action === 'tend' && e.label === (item.task?.label || '') && e.date?.startsWith(todayStr));
       }
       return !entries.some(e => e.action === item.action && e.date?.startsWith(todayStr));
     }).slice(0, 6);

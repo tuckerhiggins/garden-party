@@ -20,7 +20,7 @@ const C = {
 const BRIEF_ACTION_COLORS = {
   water: '#4a8ac8', fertilize: '#5a9a40', prune: '#c87030',
   neem: '#7050a8', train: '#a07840', worms: '#806030',
-  repot: '#c05040', custom: '#c09820',
+  repot: '#c05040', tend: '#c09820',
 };
 
 // Parse [key] markers in brief text into styled inline spans
@@ -648,7 +648,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
   // All oracle-recommended tasks that are currently actionable (no cap)
   const oracleTasks = (briefing?.tasks || [])
     .filter(t => t.key !== 'water')
-    .filter(t => t.key === 'custom' || !ACTION_DEFS[t.key] || actionStatus(plant, t.key, careLog, seasonOpen).available);
+    .filter(t => t.key === 'tend' || !ACTION_DEFS[t.key] || actionStatus(plant, t.key, careLog, seasonOpen).available);
   // Fall back to Visit when oracle hasn't loaded or recommends nothing
   const showVisit = !briefing || oracleTasks.length === 0;
 
@@ -803,7 +803,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
             return (
               <button key={`${t.key}:${t.label}`}
                 onClick={() => {
-                  if (t.key === 'custom' || t.optional) {
+                  if (t.key === 'tend' || t.optional) {
                     onStartAction ? onStartAction(plant, t.key, t) : onAction(t.key, plant, t.label);
                   } else {
                     onStartAction ? onStartAction(plant, t.key) : onAction(t.key, plant);
@@ -1280,7 +1280,7 @@ function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seaso
     // AI-recommended tasks (may include novel/custom tasks not in plant.actions)
     for (const task of briefTasks) {
       if (AGENDA_SKIP_ACTIONS.has(task.key)) continue;
-      if (task.key !== 'custom' && !actionStatus(plant, task.key, careLog, seasonOpen).available) continue;
+      if (task.key !== 'tend' && !actionStatus(plant, task.key, careLog, seasonOpen).available) continue;
       if (task.key === 'water' && hasRainSoon && !isUrgent) continue;
       if (task.key === 'neem' && hasRainSoon) continue;
 
@@ -1289,7 +1289,7 @@ function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seaso
       if (!isWeekend && priority === 'routine') continue;
 
       items.push({
-        key: task.key === 'custom' ? `${plant.id}:custom:${task.label || ''}` : `${plant.id}:${task.key}`,
+        key: task.key === 'tend' ? `${plant.id}:tend:${task.label || ''}` : `${plant.id}:${task.key}`,
         plant, plantId: plant.id, plantName: plant.name,
         plantType: plant.type, plantHealth: plant.health,
         actionKey: task.key, task,
@@ -1357,7 +1357,7 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
   const def = ACTION_DEFS[item.actionKey];
   const rowEmoji = def?.emoji || item.task?.emoji || '✨';
   const rowLabel = def?.label || item.task?.label || item.actionKey;
-  const isOptional = item.task?.optional === true || item.actionKey === 'custom';
+  const isOptional = item.task?.optional === true || item.actionKey === 'tend';
   const tierColors = {
     urgent:      { border: 'rgba(200,80,30,0.35)', bg: 'rgba(200,80,30,0.06)', accent: '#b84018', dot: '#c85020' },
     recommended: { border: 'rgba(72,120,32,0.28)', bg: 'rgba(72,120,32,0.05)', accent: '#3a6818', dot: '#487820' },
@@ -2129,7 +2129,7 @@ export function MobileView({
   function handleMarkDone(item) {
     completedKeysRef.current.add(item.key);
     setCompletedCount(n => n + 1);
-    handleAction(item.actionKey, item.plant, item.actionKey === 'custom' ? item.task?.label : undefined);
+    handleAction(item.actionKey, item.plant, item.actionKey === 'tend' ? item.task?.label : undefined);
   }
 
   // Version string that changes when any plant's last care action changes
@@ -2189,8 +2189,8 @@ export function MobileView({
       for (const entry of entries) {
         if (!entry.date?.startsWith(todayStr)) continue;
         if (skipActions.has(entry.action)) continue;
-        const key = entry.action === 'custom'
-          ? `${plantId}:custom:${entry.label || ''}`
+        const key = entry.action === 'tend'
+          ? `${plantId}:tend:${entry.label || ''}`
           : `${plantId}:${entry.action}`;
         if (seen.has(key)) continue;
         seen.add(key);

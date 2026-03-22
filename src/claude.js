@@ -172,7 +172,7 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
   const portrait = portraits?.[plant.id] || {};
   const currentStage = portrait.currentStage || null;
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
-  const cacheKey = `plantbrief9_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
+  const cacheKey = `plantbrief10_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
 
   const lastWater = [...entries].reverse().find(e => e.action === 'water');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
@@ -212,7 +212,7 @@ Respond as JSON only — no other text:
 }
 
 For standard actions use key: water / fertilize / neem / prune / train / repot / worms
-For any novel or custom task use key: custom
+For any novel or custom task use key: tend
 The label should be specific, not generic ("Remove the crossing cane at the base" not just "Prune").
 Instructions: 2–4 sentences, specific to this plant and moment. Include the why, not just the how.
 Add "optional": true to any task that is educational or optional — something Tucker can skip this visit without harm. Add "optional": false (or omit) for tasks that genuinely need doing soon.`;
@@ -366,7 +366,7 @@ export async function fetchMorningBrief({ plants, careLog, weather, portraits, a
     ? requiredTasks.map(t => `${t.plantName}: ${t.label || t.actionKey}`).join('; ')
     : null;
 
-  const systemPrompt = `You are the garden speaking to Tucker and Emma at the start of their day on the Brooklyn terrace. One sentence. Present tense. Weave in today's most important care task naturally if there is one — the sentence should read like a garden speaking, not a to-do list. When you reference a care action from today's task list, mark it inline like this: the lemon needs a [water] before the afternoon heat, or the rose has a cane to [prune] at the base. Use only these keys in brackets: water, fertilize, prune, neem, train, worms, repot, custom. Do not use brackets for general observations. Never generic, never a greeting. Do not mention plants already cared for today.`;
+  const systemPrompt = `You are the garden speaking to Tucker and Emma at the start of their day on the Brooklyn terrace. One sentence. Present tense. Weave in today's most important care task naturally if there is one — the sentence should read like a garden speaking, not a to-do list. When you reference a care action from today's task list, mark it inline like this: the lemon needs a [water] before the afternoon heat, or the rose has a cane to [prune] at the base. Use only these keys in brackets: water, fertilize, prune, neem, train, worms, repot, tend. Do not use brackets for general observations. Never generic, never a greeting. Do not mention plants already cared for today.`;
 
   const userPrompt = `Today: ${today}. Brooklyn Zone 7b, early spring.
 ${taskSummary ? `Today's care tasks: ${taskSummary}.` : needsWater.length ? `Needs water: ${needsWater.join(', ')}.` : 'Watering up to date.'}
@@ -452,7 +452,7 @@ Respond as JSON only — no other text:
 {
   "weather": "1-2 sentences: today's conditions + notable next 5 days. Flag anything actionable (rain → skip water, frost → protect, heat → extra water). Be specific with temps and dates.",
   "garden": "2-3 sentences: what is actually happening biologically across the garden right now. Phenological stage, soil temps, root activity, dormancy break, visible changes. Ground this in Zone 7b late-March specifics.",
-  "today": "1-3 sentences covering every required task from TODAY'S TASKS (skip completed ones and optional ones). For each care action you mention, embed its key in brackets inline: e.g. 'Give the lemon a [water] — soil is dry after five days' or 'The rose needs a [prune] to remove the crossing cane'. Use only these keys: water, fertilize, prune, neem, train, worms, repot, custom. Then in a final sentence mention any optional tasks lightly ('if you have time...'). If rain is coming adjust accordingly.",
+  "today": "1-3 sentences covering every required task from TODAY'S TASKS (skip completed ones and optional ones). For each care action you mention, embed its key in brackets inline: e.g. 'Give the lemon a [water] — soil is dry after five days' or 'The rose needs a [prune] to remove the crossing cane'. Use only these keys: water, fertilize, prune, neem, train, worms, repot, tend. Then in a final sentence mention any optional tasks lightly ('if you have time...'). If rain is coming adjust accordingly.",
   "watch": "1 sentence: one specific thing to monitor or anticipate in the next 7 days — pest emergence, weather window, phenological milestone, or timing decision."
 }`;
 
@@ -613,7 +613,7 @@ Speak the season-opening message.`;
 // Detects explicit care actions in a free-text note.
 // Returns [{ key, label }] — only actions the user says they actually completed.
 export async function parseNoteActions(noteText, plantName) {
-  const systemPrompt = `Parse a garden care note to find explicit completed actions. Return a JSON array. Each item: {"key": one of water/fertilize/neem/prune/train/repot/worms/custom, "label": short specific description of what was done}. Return [] for pure observations, questions, or future plans — only include things the user says they did.`;
+  const systemPrompt = `Parse a garden care note to find explicit completed actions. Return a JSON array. Each item: {"key": one of water/fertilize/neem/prune/train/repot/worms/tend, "label": short specific description of what was done}. Return [] for pure observations, questions, or future plans — only include things the user says they did.`;
   const userPrompt = `Plant: ${plantName}\nNote: "${noteText}"`;
   try {
     const raw = await callClaude(systemPrompt, userPrompt, 150);

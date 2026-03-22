@@ -7,7 +7,7 @@ import { fetchJournalEntry } from '../claude';
 const BRIEF_ACTION_COLORS = {
   water: '#4a8ac8', fertilize: '#5a9a40', prune: '#c87030',
   neem: '#7050a8', train: '#a07840', worms: '#806030',
-  repot: '#c05040', custom: '#c09820',
+  repot: '#c05040', tend: '#c09820',
 };
 
 function renderBriefText(text) {

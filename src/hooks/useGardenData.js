@@ -10,6 +10,15 @@ const LS = {
 const lsLoad = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const lsSave = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
+// Normalize legacy 'custom' key → 'tend' on load
+function normalizeLegacyKeys(log) {
+  const result = {};
+  for (const [plantId, entries] of Object.entries(log)) {
+    result[plantId] = entries.map(e => e.action === 'custom' ? { ...e, action: 'tend' } : e);
+  }
+  return result;
+}
+
 // Actions where only one log per day is meaningful — keep the last entry per (plant, action, day)
 const DEDUP_KEYS = new Set(['water','fertilize','prune','neem','train','repot','worms']);
 
@@ -31,7 +40,7 @@ function dedupeLog(log) {
 }
 
 export function useGardenData({ user }) {
-  const [careLog, setCareLogState] = useState(() => dedupeLog(lsLoad(LS.care, {})));
+  const [careLog, setCareLogState] = useState(() => dedupeLog(normalizeLegacyKeys(lsLoad(LS.care, {}))));
   const [expenses, setExpensesState] = useState(() => lsLoad(LS.expenses, []));
   const [positions, setPositionsState] = useState(() => lsLoad(LS.positions, {}));
   const [growth, setGrowthState] = useState(() => lsLoad(LS.growth, {}));
@@ -74,7 +83,7 @@ export function useGardenData({ user }) {
             const pending = localEntries.filter(e => new Date(e.date).getTime() > latestSb + 1000);
             if (pending.length) merged[plantId] = [...sbEntries, ...pending];
           });
-          const deduped = dedupeLog(merged);
+          const deduped = dedupeLog(normalizeLegacyKeys(merged));
           lsSave(LS.care, deduped);
           return deduped;
         });
@@ -148,8 +157,7 @@ export function useGardenData({ user }) {
   // ── WRITE OPERATIONS ──────────────────────────────────────────────────────
   const logAction = useCallback(async (key, plant, withEmma, customLabel) => {
     const def = ACTION_DEFS[key];
-    // Custom tasks (key === 'custom') have no ACTION_DEFS entry; use provided label + generic emoji
-    if (!def && key !== 'custom') return;
+    if (!def && key !== 'tend') return;
     const label = customLabel || def?.label || key;
     const emoji = def?.emoji || '✨';
     const entry = {
