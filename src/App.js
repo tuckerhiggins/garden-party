@@ -1942,9 +1942,9 @@ export default function App() {
   const URGENT_SET = new Set(['thirsty','overlooked','struggling']);
   const needsCareCount = gardenPlants.terrace.filter(p=> seasonOpen && URGENT_SET.has(p.health)).length;
 
-  // Map info panel data
+  // Map info panel data — includes both terrace and front/Emma's Rose Garden plants
   const attentionItems = useMemo(() =>
-    gardenPlants.terrace
+    [...gardenPlants.terrace, ...frontPlants]
       .filter(p => p.health !== 'memorial')
       .flatMap(p => (p.actions || [])
         .filter(a => {
@@ -1954,7 +1954,7 @@ export default function App() {
         .map(a => ({ plant: p, action: a, def: ACTION_DEFS[a] }))
       )
       .slice(0, 6),
-    [gardenPlants.terrace, careLog, seasonOpen]);
+    [gardenPlants.terrace, frontPlants, careLog, seasonOpen]);
 
   const recentCare = useMemo(() => {
     const all = gardenPlants.terrace.flatMap(p =>
