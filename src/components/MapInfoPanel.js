@@ -308,13 +308,19 @@ export function MapInfoPanel({
                       padding: '10px 12px 12px 13px',
                     }}>
                       {task?.reason && (
-                        <div style={{ fontFamily: SERIF, fontSize: 12, color: 'rgba(240,220,170,0.55)', fontStyle: 'italic', marginBottom: 6, lineHeight: 1.5 }}>
-                          {task.reason}
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(212,168,48,0.45)', letterSpacing: 0.5, marginBottom: 3 }}>WHY NOW</div>
+                          <div style={{ fontFamily: SERIF, fontSize: 12, color: 'rgba(240,220,170,0.62)', fontStyle: 'italic', lineHeight: 1.5 }}>
+                            {task.reason}
+                          </div>
                         </div>
                       )}
                       {task?.instructions && (
-                        <div style={{ fontFamily: SERIF, fontSize: 12.5, color: 'rgba(240,228,200,0.82)', lineHeight: 1.7, marginBottom: 10 }}>
-                          {task.instructions}
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(212,168,48,0.45)', letterSpacing: 0.5, marginBottom: 3 }}>HOW TO</div>
+                          <div style={{ fontFamily: SERIF, fontSize: 12.5, color: 'rgba(240,228,200,0.85)', lineHeight: 1.7 }}>
+                            {task.instructions}
+                          </div>
                         </div>
                       )}
                       {/* Action buttons */}

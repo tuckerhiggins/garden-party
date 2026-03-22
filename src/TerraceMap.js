@@ -1149,7 +1149,7 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
   const [hovId, setHovId] = useState(null);
   const [pinnedId, setPinnedId] = useState(null);
   const [pinnedBriefings, setPinnedBriefings] = useState({});
-  const [expandedTaskIdx, setExpandedTaskIdx] = useState(null); // index of task with expanded instructions
+
   const [cookiePetted, setCookiePetted] = useState(false);
   const [actionFlash, setActionFlash] = useState(null); // {x, y, key}
   const leaveTimerRef = useRef(null);
@@ -1943,7 +1943,6 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                     aiTasks.map((task, idx) => {
                       const def = ACTION_DEFS[task.key];
                       const emoji = def?.emoji || '🌿';
-                      const isExpanded = expandedTaskIdx === idx;
                       return (
                         <div key={idx} style={{ marginBottom: 9 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
@@ -1963,24 +1962,6 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                           {task.reason && (
                             <div style={{ fontSize: 10.5, color: 'rgba(212,190,140,0.52)', lineHeight: 1.4, marginTop: 2, marginLeft: 18 }}>
                               {task.reason}
-                            </div>
-                          )}
-                          {task.instructions && (
-                            <div style={{ marginTop: 5 }}>
-                              <button
-                                onClick={e => { e.stopPropagation(); setExpandedTaskIdx(isExpanded ? null : idx); }}
-                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                                  fontFamily: '"Press Start 2P", monospace', fontSize: 5, color: 'rgba(212,168,48,0.5)',
-                                  letterSpacing: 0.3 }}>
-                                {isExpanded ? 'HIDE ▴' : 'HOW TO ▾'}
-                              </button>
-                              {isExpanded && (
-                                <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(248,236,210,0.92)', lineHeight: 1.75,
-                                  background: 'rgba(0,0,0,0.35)', borderRadius: 5, padding: '9px 11px',
-                                  borderLeft: '2px solid rgba(212,168,48,0.50)' }}>
-                                  {task.instructions}
-                                </div>
-                              )}
                             </div>
                           )}
                         </div>
