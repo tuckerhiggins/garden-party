@@ -1268,7 +1268,7 @@ function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seaso
       if (!isWeekend && priority === 'routine') continue;
 
       items.push({
-        key: `${plant.id}:${task.key}:${task.label || ''}`,
+        key: task.key === 'custom' ? `${plant.id}:custom:${task.label || ''}` : `${plant.id}:${task.key}`,
         plant, plantId: plant.id, plantName: plant.name,
         plantType: plant.type, plantHealth: plant.health,
         actionKey: task.key, task,
@@ -1960,7 +1960,9 @@ export function MobileView({
       for (const entry of entries) {
         if (!entry.date?.startsWith(todayStr)) continue;
         if (skipActions.has(entry.action)) continue;
-        const key = `${plantId}:${entry.action}`;
+        const key = entry.action === 'custom'
+          ? `${plantId}:custom:${entry.label || ''}`
+          : `${plantId}:${entry.action}`;
         if (seen.has(key)) continue;
         seen.add(key);
         const plant = allPlantsFlat.find(p => p.id === plantId);
