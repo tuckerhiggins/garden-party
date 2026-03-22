@@ -1950,9 +1950,15 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                             <span style={{ fontSize: 12, color: 'rgba(240,228,200,0.88)', flex: 1, lineHeight: 1.4 }}>
                               {emoji} {task.label}
                             </span>
-                            <span style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5.5, color: '#d4a830',
-                              background: 'rgba(212,168,48,0.14)', border: '1px solid rgba(212,168,48,0.38)',
-                              padding: '2px 5px', borderRadius: 3, flexShrink: 0 }}>NOW ★</span>
+                            {task.optional ? (
+                              <span style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5.5, color: 'rgba(160,200,120,0.7)',
+                                background: 'rgba(80,120,40,0.14)', border: '1px solid rgba(80,120,40,0.30)',
+                                padding: '2px 5px', borderRadius: 3, flexShrink: 0 }}>EXPLORE ✦</span>
+                            ) : (
+                              <span style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5.5, color: '#d4a830',
+                                background: 'rgba(212,168,48,0.14)', border: '1px solid rgba(212,168,48,0.38)',
+                                padding: '2px 5px', borderRadius: 3, flexShrink: 0 }}>NOW ★</span>
+                            )}
                           </div>
                           {task.reason && (
                             <div style={{ fontSize: 10.5, color: 'rgba(212,190,140,0.52)', lineHeight: 1.4, marginTop: 2, marginLeft: 18 }}>

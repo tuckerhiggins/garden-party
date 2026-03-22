@@ -111,7 +111,7 @@ function parseOracleMsg(raw) {
   return { text: text.trim(), diagram, photoRequest };
 }
 
-function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLog, onClose }) {
+function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, weather, onLog, onClose }) {
   const def = ACTION_DEFS[actionKey];
   const color = plantColor(plant.type);
   const [mode, setMode] = React.useState(null); // null | 'confirm' | 'help'
@@ -149,7 +149,8 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLo
 
   React.useEffect(() => {
     if (mode === 'help' && messages.length === 0) {
-      sendChat(`I'm about to ${def.label.toLowerCase()} my ${plant.name}. Walk me through exactly what to do.`);
+      const actionLabel = def?.label || task?.label || actionKey;
+      sendChat(`I'm about to ${actionLabel.toLowerCase()} my ${plant.name}. Walk me through exactly what to do.${task?.instructions ? ' Here are the basic instructions: ' + task.instructions : ''}`);
     }
   }, [mode]); // eslint-disable-line
 
@@ -164,7 +165,7 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLo
     setInput(''); setChatPhoto(null); setChatLoading(true);
     try {
       await streamGardenChat({
-        messages: nextMsgs, plantContext: buildContext(), action: def.label,
+        messages: nextMsgs, plantContext: buildContext(), action: def?.label || task?.label || actionKey,
         onChunk: chunk => setMessages(m => {
           const c = [...m];
           c[c.length - 1] = { ...c[c.length - 1], content: c[c.length - 1].content + chunk };
@@ -191,8 +192,8 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLo
     let feedback = '';
     try {
       await streamGardenChat({
-        messages: [{ role: 'user', content: `I just ${def.label.toLowerCase()}d my ${plant.name}. Here's a photo — did I do it right? One or two sentences.`, images: [dataUrl] }],
-        plantContext: buildContext(), action: def.label,
+        messages: [{ role: 'user', content: `I just ${(def?.label || task?.label || actionKey).toLowerCase()}d my ${plant.name}. Here's a photo — did I do it right? One or two sentences.`, images: [dataUrl] }],
+        plantContext: buildContext(), action: def?.label || task?.label || actionKey,
         onChunk: chunk => { feedback += chunk; setConfirmFeedback(feedback); },
       });
     } catch { setConfirmFeedback(mobileAffirmation(actionKey)); }
@@ -217,8 +218,8 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLo
           <div style={{ width:36, height:4, borderRadius:2, background:'rgba(160,130,80,0.25)' }}/>
         </div>
         <div style={{ padding:'12px 20px 20px' }}>
-          <div style={{ fontSize:28, marginBottom:4 }}>{def.emoji}</div>
-          <div style={{ fontSize:20, color:'#2a1808', fontWeight:600, fontFamily:SERIF }}>{def.label}</div>
+          <div style={{ fontSize:28, marginBottom:4 }}>{def?.emoji || task?.emoji || '✨'}</div>
+          <div style={{ fontSize:20, color:'#2a1808', fontWeight:600, fontFamily:SERIF }}>{def?.label || task?.label || actionKey}</div>
           <div style={{ fontSize:13, color:'#907050', fontFamily:SERIF, marginBottom:24 }}>{plant.name}</div>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             <button onClick={() => setMode('help')}
@@ -264,7 +265,7 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLo
         display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
         fontFamily:SERIF, padding:32, textAlign:'center' }}>
         <div style={{ fontSize:48, marginBottom:12 }}>✓</div>
-        <div style={{ fontSize:20, color:'#2a1808', fontWeight:600, marginBottom:10 }}>{def.label} logged</div>
+        <div style={{ fontSize:20, color:'#2a1808', fontWeight:600, marginBottom:10 }}>{def?.label || task?.label || actionKey} logged</div>
         {confirmFeedback && (
           <div style={{ fontSize:15, color:'#605040', fontStyle:'italic', lineHeight:1.75,
             maxWidth:280, marginBottom:32, fontFamily:SERIF }}>{confirmFeedback}</div>
@@ -286,7 +287,7 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLo
           <div>
             <button onClick={() => setMode(null)} style={{ background:'none', border:'none',
               color:'#b09070', cursor:'pointer', fontSize:15, fontFamily:SERIF, padding:0, marginRight:10 }}>←</button>
-            <span style={{ fontSize:15, color:'#2a1808', fontWeight:600 }}>{def.emoji} {def.label}</span>
+            <span style={{ fontSize:15, color:'#2a1808', fontWeight:600 }}>{def?.emoji || task?.emoji || '✨'} {def?.label || task?.label || actionKey}</span>
           </div>
           <button onClick={onClose} style={{ background:'none', border:'none',
             color:'#b09070', cursor:'pointer', fontSize:26, lineHeight:1, padding:'0 4px' }}>&times;</button>
@@ -334,7 +335,7 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLo
             style={{ background:color, border:'none', borderRadius:12, padding:'16px',
               color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:9, letterSpacing:.3,
               opacity:(confirmPhoto && !confirmFeedback) ? 0.4 : 1 }}>
-            ✓ LOG {def.label.toUpperCase()}
+            ✓ LOG {(def?.label || task?.label || actionKey).toUpperCase()}
           </button>
           {!confirmPhoto && (
             <button onClick={() => { onLog(); setConfirmed(true); setConfirmFeedback(mobileAffirmation(actionKey)); }}
@@ -363,7 +364,7 @@ function MobileActionSheet({ plant, actionKey, careLog, portraits, weather, onLo
             color:'#b09070', cursor:'pointer', fontSize:16, padding:'0 8px 0 0',
             WebkitTapHighlightColor:'transparent' }}>←</button>
           <div>
-            <span style={{ fontSize:14, color:'#4a2c10', fontWeight:600 }}>{def.emoji} {def.label}</span>
+            <span style={{ fontSize:14, color:'#4a2c10', fontWeight:600 }}>{def?.emoji || task?.emoji || '✨'} {def?.label || task?.label || actionKey}</span>
             <span style={{ fontSize:12, color:'#a08060', marginLeft:6, fontStyle:'italic' }}>{plant.name}</span>
           </div>
         </div>
@@ -781,8 +782,8 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
             return (
               <button key={`${t.key}:${t.label}`}
                 onClick={() => {
-                  if (t.key === 'custom') {
-                    onAction('custom', plant, t.label);
+                  if (t.key === 'custom' || t.optional) {
+                    onStartAction ? onStartAction(plant, t.key, t) : onAction(t.key, plant, t.label);
                   } else {
                     onStartAction ? onStartAction(plant, t.key) : onAction(t.key, plant);
                   }
@@ -1236,7 +1237,7 @@ function GardenAccordion({
 // ── AGENDA ─────────────────────────────────────────────────────────────────
 const AGENDA_SKIP_ACTIONS = new Set(['photo', 'visit', 'note', 'plant']);
 const AGENDA_URGENT_HEALTH = new Set(['struggling', 'thirsty', 'overlooked']);
-const AGENDA_TIER = { urgent: 0, recommended: 1, routine: 2 };
+const AGENDA_TIER = { urgent: 0, recommended: 1, routine: 2, optional: 3 };
 const AGENDA_HEALTH_SEV = { struggling: 0, thirsty: 1, overlooked: 2 };
 
 function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen }) {
@@ -1262,7 +1263,8 @@ function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seaso
       if (task.key === 'water' && hasRainSoon && !isUrgent) continue;
       if (task.key === 'neem' && hasRainSoon) continue;
 
-      const priority = isUrgent ? 'urgent' : hasFrostSoon ? 'urgent' : 'recommended';
+      const isTaskOptional = task.optional === true;
+      const priority = isTaskOptional ? 'optional' : isUrgent ? 'urgent' : hasFrostSoon ? 'urgent' : 'recommended';
       if (!isWeekend && priority === 'routine') continue;
 
       items.push({
@@ -1334,11 +1336,13 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
   const def = ACTION_DEFS[item.actionKey];
   const rowEmoji = def?.emoji || item.task?.emoji || '✨';
   const rowLabel = def?.label || item.task?.label || item.actionKey;
+  const isOptional = item.task?.optional === true || item.actionKey === 'custom';
   const tierColors = {
     urgent:      { border: 'rgba(200,80,30,0.35)', bg: 'rgba(200,80,30,0.06)', accent: '#b84018', dot: '#c85020' },
     recommended: { border: 'rgba(72,120,32,0.28)', bg: 'rgba(72,120,32,0.05)', accent: '#3a6818', dot: '#487820' },
     routine:     { border: 'rgba(160,130,80,0.22)', bg: 'rgba(250,246,238,0.9)', accent: '#7a5c30', dot: '#907050' },
-  }[item.priority];
+    optional:    { border: 'rgba(80,120,80,0.22)', bg: 'rgba(80,120,80,0.04)', accent: '#507050', dot: '#608060' },
+  }[isOptional ? 'optional' : item.priority];
 
   return (
     <div
@@ -1375,6 +1379,9 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
             letterSpacing: .4, textDecoration: completed ? 'line-through' : 'none' }}>
             {item.plantName.toUpperCase()}
           </span>
+          {isOptional && !completed && (
+            <span style={{ fontFamily: MONO, fontSize: 5.5, color: '#507050', border: '1px solid rgba(80,120,80,0.30)', borderRadius: 6, padding: '1px 5px' }}>EXPLORE</span>
+          )}
           <span style={{ fontSize: 13 }}>{rowEmoji}</span>
           <span style={{ fontFamily: SERIF, fontSize: 12, color: completed ? '#b0a080' : tierColors.accent }}>
             {rowLabel}
@@ -1600,7 +1607,7 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
             key={item.key}
             item={item}
             completed={isCompleted(item)}
-            onTap={i => i.actionKey === 'custom' ? onMarkDone(i) : onStartAction(i.plant, i.actionKey)}
+            onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
             onDone={onMarkDone}
             portrait={portraits[item.plantId]}
           />
@@ -2008,8 +2015,8 @@ export function MobileView({
     setTimeout(() => setFlash(null), 2000);
   }
 
-  function handleStartAction(plant, key) {
-    setActionSession({ plant, key });
+  function handleStartAction(plant, key, task = null) {
+    setActionSession({ plant, key, task });
   }
 
   const TABS = [
@@ -2138,10 +2145,11 @@ export function MobileView({
         <MobileActionSheet
           plant={actionSession.plant}
           actionKey={actionSession.key}
+          task={actionSession.task}
           careLog={careLog}
           portraits={portraits}
           weather={weather}
-          onLog={() => handleAction(actionSession.key, actionSession.plant)}
+          onLog={() => handleAction(actionSession.key, actionSession.plant, actionSession.task?.label)}
           onClose={() => setActionSession(null)}
         />
       )}

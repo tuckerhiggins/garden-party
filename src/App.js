@@ -1503,22 +1503,6 @@ function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPla
         </p>
       ) : null}
 
-      {careEntries.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: narrative ? 12 : 4 }}>
-          {careEntries.map((e, i) => (
-            <span key={i} style={{
-              fontSize: 10, fontFamily: MONO,
-              background: e.withEmma ? 'rgba(232,64,112,0.06)' : 'rgba(160,130,80,0.07)',
-              border: `1px solid ${e.withEmma ? 'rgba(232,64,112,0.18)' : 'rgba(160,130,80,0.16)'}`,
-              borderRadius: 12, padding: '2px 8px',
-              color: e.withEmma ? '#c04060' : '#907050',
-            }}>
-              {e.plantName} · {e.label}
-            </span>
-          ))}
-        </div>
-      )}
-
       {photos.length > 0 && (
         <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
           {photos.slice(0, 6).map((ph, i) => (
@@ -2171,6 +2155,8 @@ export default function App() {
                     warmth={warmth}
                     morningBrief={morningBrief}
                     fullBrief={dailyBrief}
+                    portraits={portraits}
+                    allPhotos={allPhotos}
                   />
                 )}
                 {sel && (

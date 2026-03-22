@@ -172,7 +172,7 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
   const portrait = portraits?.[plant.id] || {};
   const currentStage = portrait.currentStage || null;
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
-  const cacheKey = `plantbrief6_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
+  const cacheKey = `plantbrief7_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
 
   const lastWater = [...entries].reverse().find(e => e.action === 'water');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
@@ -205,7 +205,8 @@ Respond as JSON only — no other text:
       "key": "water",
       "label": "Water deeply at the base",
       "reason": "5 days since last water, new growth is active",
-      "instructions": "Water slowly at the base for about 60 seconds until you see drainage. Spring root growth responds better to a deep soak than a quick splash — the roots are pushing down right now and you want to wet the full root zone."
+      "instructions": "Water slowly at the base for about 60 seconds until you see drainage. Spring root growth responds better to a deep soak than a quick splash — the roots are pushing down right now and you want to wet the full root zone.",
+      "optional": false
     }
   ]
 }
@@ -213,7 +214,8 @@ Respond as JSON only — no other text:
 For standard actions use key: water / fertilize / neem / prune / train / repot / worms
 For any novel or custom task use key: custom
 The label should be specific, not generic ("Remove the crossing cane at the base" not just "Prune").
-Instructions: 2–4 sentences, specific to this plant and moment. Include the why, not just the how.`;
+Instructions: 2–4 sentences, specific to this plant and moment. Include the why, not just the how.
+Add "optional": true to any task that is educational or optional — something Tucker can skip this visit without harm. Add "optional": false (or omit) for tasks that genuinely need doing soon.`;
 
   const userPrompt = `Plant: ${plant.name}${plant.species ? ` (${plant.species})` : ''}, ${plant.type}.
 Health: ${plant.health}. Today: ${today}. Zone 7b, early spring — day ${Math.max(0, Math.floor((Date.now() - new Date('2026-03-20').getTime()) / 86400000))} of season 2.

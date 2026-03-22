@@ -2,6 +2,7 @@
 // Redesigned: urgency-first, warmth as ambient bar, brief as journal note
 
 import React, { useState } from 'react';
+import { fetchJournalEntry } from '../claude';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO  = '"Press Start 2P", monospace';
@@ -68,6 +69,76 @@ function Section({ label, children, accent, noBorder }) {
   );
 }
 
+function PanelJournalLog({ careLog, plants, portraits, allPhotos }) {
+  const [entries, setEntries] = React.useState({});
+
+  const activeDays = React.useMemo(() => {
+    const days = {};
+    const ensure = d => { if (!days[d]) days[d] = { care: [], obs: [], photos: 0 }; return days[d]; };
+    Object.entries(careLog).forEach(([plantId, es]) => {
+      const plant = plants.find(p => p.id === plantId);
+      if (!plant) return;
+      es.forEach(e => ensure(e.date.slice(0,10)).care.push({ plantName: plant.name, label: e.label, action: e.action, withEmma: !!e.withEmma, plantId }));
+    });
+    plants.forEach(p => {
+      const port = portraits?.[p.id];
+      if (port?.visualNote && port.date) ensure(port.date.slice(0,10)).obs.push({ plantId: p.id, plantName: p.name, visualNote: port.visualNote, bloomState: port.bloomState, foliageState: port.foliageState, stage: port.currentStage });
+      (port?.history || []).forEach(h => { if (h.visualNote && h.date) { const b = ensure(h.date.slice(0,10)); if (!b.obs.some(o => o.plantId === p.id && o.visualNote === h.visualNote)) b.obs.push({ plantId: p.id, plantName: p.name, visualNote: h.visualNote, bloomState: h.bloomState, foliageState: h.foliageState, stage: h.stage }); }});
+      (allPhotos?.[p.id] || []).forEach(ph => { const d = (ph.date || '').slice(0,10); if (d) ensure(d).photos++; });
+    });
+    return Object.entries(days).sort(([a],[b]) => b.localeCompare(a)).slice(0, 3);
+  }, [careLog, plants, portraits, allPhotos]);
+
+  React.useEffect(() => {
+    activeDays.forEach(([dateStr, day]) => {
+      if (entries[dateStr] !== undefined) return;
+      setEntries(prev => ({ ...prev, [dateStr]: 'loading' }));
+      fetchJournalEntry({
+        dateStr,
+        careEntries: day.care,
+        portraitObservations: day.obs,
+        photoCount: day.photos,
+        plantHistories: [],
+      }).then(text => setEntries(prev => ({ ...prev, [dateStr]: text || null })))
+        .catch(() => setEntries(prev => ({ ...prev, [dateStr]: null })));
+    });
+  }, [activeDays.map(([d]) => d).join(',')]); // eslint-disable-line
+
+  if (activeDays.length === 0) return null;
+
+  return (
+    <div style={{ borderTop: `1px solid ${RULE}`, padding: '12px 16px 11px' }}>
+      <div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: .6, marginBottom: 9, color: GOLD, opacity: .90 }}>
+        GARDEN LOG
+      </div>
+      {activeDays.map(([dateStr, day]) => {
+        const text = entries[dateStr];
+        const label = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const isToday = dateStr === new Date().toISOString().slice(0,10);
+        const hasEmma = day.care.some(e => e.withEmma);
+        return (
+          <div key={dateStr} style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+              <span style={{ fontFamily: SERIF, fontSize: 10.5, color: DIM }}>{label}</span>
+              {isToday && <span style={{ fontFamily: MONO, fontSize: 5.5, color: GOLD, border: `1px solid rgba(212,168,48,0.3)`, borderRadius: 8, padding: '1px 5px' }}>TODAY</span>}
+              {hasEmma && <span style={{ fontSize: 10, color: '#e84070' }}>♥</span>}
+            </div>
+            {text === 'loading' ? (
+              <div style={{ fontFamily: SERIF, fontSize: 12, color: DIM, fontStyle: 'italic' }}>…</div>
+            ) : text ? (
+              <div style={{ fontFamily: SERIF, fontSize: 12, color: MUTED, lineHeight: 1.65, fontStyle: 'italic' }}>{text}</div>
+            ) : day.care.length > 0 ? (
+              <div style={{ fontFamily: SERIF, fontSize: 11.5, color: DIM }}>
+                {[...new Set(day.care.map(e => e.plantName))].join(', ')}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function MapInfoPanel({
   plants = [],
   careLog = {},
@@ -83,6 +154,8 @@ export function MapInfoPanel({
   morningBrief = null,
   fullBrief = null,
   onSelectPlant,
+  portraits = {},
+  allPhotos = {},
 }) {
   const [briefExpanded, setBriefExpanded] = useState(false);
   const [weatherExpanded, setWeatherExpanded] = useState(false);
@@ -176,6 +249,7 @@ export function MapInfoPanel({
               const pc = plantColor(plant.type);
               const itemEmoji = def?.emoji || task?.emoji || '✨';
               const itemLabel = def?.label || task?.label || action;
+              const isOptional = task?.optional === true;
               return (
                 <div key={`${plant.id}-${action}-${task?.label || ''}`}
                   onClick={() => onSelectPlant?.(plant)}
@@ -183,13 +257,13 @@ export function MapInfoPanel({
                     display: 'flex', alignItems: 'center', gap: 9,
                     padding: '8px 10px 8px 0',
                     borderRadius: 7, cursor: 'pointer',
-                    border: '1px solid rgba(200,112,32,0.16)',
-                    background: 'rgba(200,112,32,0.06)',
+                    border: isOptional ? '1px solid rgba(160,130,80,0.16)' : '1px solid rgba(200,112,32,0.16)',
+                    background: isOptional ? 'rgba(160,130,80,0.04)' : 'rgba(200,112,32,0.06)',
                     transition: 'background .12s',
                     overflow: 'hidden', position: 'relative',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(200,112,32,0.13)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(200,112,32,0.06)'}
+                  onMouseEnter={e => e.currentTarget.style.background = isOptional ? 'rgba(160,130,80,0.09)' : 'rgba(200,112,32,0.13)'}
+                  onMouseLeave={e => e.currentTarget.style.background = isOptional ? 'rgba(160,130,80,0.04)' : 'rgba(200,112,32,0.06)'}
                 >
                   {/* 4px plant-color accent bar */}
                   <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
@@ -199,12 +273,17 @@ export function MapInfoPanel({
                       {plant.name}
                       {plant.subtitle && <span style={{ fontSize: 10, color: MUTED }}> · {plant.subtitle}</span>}
                     </div>
-                    <div style={{ fontFamily: SERIF, fontSize: 11, color: MUTED, marginTop: 1 }}>{itemLabel}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 1 }}>
+                      <span style={{ fontFamily: SERIF, fontSize: 11, color: isOptional ? 'rgba(160,130,80,0.55)' : MUTED }}>{itemLabel}</span>
+                      {isOptional && (
+                        <span style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(160,130,80,0.55)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 4, padding: '1px 4px' }}>EXPLORE</span>
+                      )}
+                    </div>
                   </div>
                   {/* Health dot + chevron */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, paddingRight: 4 }}>
                     <div style={{ width: 7, height: 7, borderRadius: '50%', background: hc }}/>
-                    <span style={{ fontSize: 8, color: 'rgba(200,112,32,0.50)', fontFamily: MONO }}>▸</span>
+                    <span style={{ fontSize: 8, color: isOptional ? 'rgba(160,130,80,0.40)' : 'rgba(200,112,32,0.50)', fontFamily: MONO }}>▸</span>
                   </div>
                 </div>
               );
@@ -317,49 +396,7 @@ export function MapInfoPanel({
         </Section>
       )}
 
-      {/* ── Garden Log (renamed Recent) ── */}
-      {recentCare.length > 0 && (
-        <Section label="GARDEN LOG">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {recentCare.map((e, i) => {
-              const pc = plantColor(e.plant.type);
-              return (
-                <div key={i}
-                  onClick={() => onSelectPlant?.(e.plant)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 9,
-                    padding: '7px 10px 7px 0',
-                    background: e.withEmma ? 'rgba(212,168,48,0.04)' : 'rgba(255,255,255,0.02)',
-                    border: `1px solid ${e.withEmma ? 'rgba(212,168,48,0.12)' : RULE}`,
-                    borderRadius: 7, cursor: 'pointer',
-                    transition: 'background .12s', overflow: 'hidden',
-                  }}
-                  onMouseEnter={ev => ev.currentTarget.style.background = e.withEmma ? 'rgba(212,168,48,0.09)' : 'rgba(255,255,255,0.05)'}
-                  onMouseLeave={ev => ev.currentTarget.style.background = e.withEmma ? 'rgba(212,168,48,0.04)' : 'rgba(255,255,255,0.02)'}
-                >
-                  <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .65 }}/>
-                  <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{e.emoji}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {e.plant.name}
-                      {e.plant.subtitle && <span style={{ color: MUTED, fontSize: 10 }}> · {e.plant.subtitle}</span>}
-                    </div>
-                    <div style={{ fontFamily: SERIF, fontSize: 11, color: MUTED, marginTop: 1 }}>{e.label}</div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0, paddingRight: 2 }}>
-                    <div style={{ fontFamily: SERIF, fontSize: 10, color: DIM }}>{fmtRelative(e.date)}</div>
-                    {e.withEmma && (
-                      <div style={{ fontSize: 9, color: 'rgba(212,168,48,0.75)', marginTop: 1, fontFamily: SERIF, fontStyle: 'italic' }}>
-                        ♥ Emma
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Section>
-      )}
+      <PanelJournalLog careLog={careLog} plants={plants} portraits={portraits} allPhotos={allPhotos} />
 
       {/* ── Coverage — single summary line ── */}
       <Section label="DOCUMENTED">
