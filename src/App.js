@@ -1966,6 +1966,12 @@ export default function App() {
     return all.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
   }, [gardenPlants.terrace, careLog]);
 
+  const recentPhotoCount = useMemo(() => {
+    const cutoff = Date.now() - 10 * 86400000;
+    const active = gardenPlants.terrace.filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
+    return active.filter(p => (allPhotos[p.id] || []).some(photo => new Date(photo.date).getTime() >= cutoff)).length;
+  }, [gardenPlants.terrace, allPhotos]);
+
   // Mobile — always go straight to MobileView, skip the front scene
   if (isMobile) {
     return (
@@ -2267,6 +2273,7 @@ export default function App() {
                     seasonBlocking={seasonBlocking}
                     photoCount={photoCount}
                     activePlantCount={activePlantCount}
+                    recentPhotoCount={recentPhotoCount}
                     attentionItems={attentionItems}
                     recentCare={recentCare}
                     onSelectPlant={p=>setSel(p)}
