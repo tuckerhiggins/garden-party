@@ -367,7 +367,8 @@ export async function fetchDailyBrief({ plants, careLog, weather, portraits, age
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
   // Invalidate when today's care changes (same pattern as fetchMorningBrief)
   const todayCareToken = Object.values(careLog).flat().filter(e => e.date?.startsWith(today)).length;
-  const cacheKey = `dailybrief2_${today}_${rainToken}_${todayCareToken}`;
+  const taskToken = agendaTasks.length;
+  const cacheKey = `dailybrief3_${today}_${rainToken}_${todayCareToken}_t${taskToken}`;
 
   const cached = lsGet(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.data;

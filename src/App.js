@@ -1690,18 +1690,50 @@ export default function App() {
       .catch(() => {});
   }, [weather, role, todayCareCount]);
 
+  // Attention items — what needs doing today, weather-aware
+  // Computed here (before the brief useEffect) so the brief can use it as context.
+  // Water: show when overdue (not covered by alwaysAvailable filter).
+  // Neem: suppress when rain ≥60% in next 24h — consistent with AI behavior.
+  const attentionItemsForBrief = useMemo(() => {
+    const rainSoon = weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60) ?? false;
+    const SKIP = new Set(['photo', 'visit', 'note', 'plant']);
+    return [...gardenPlants.terrace, ...frontPlants]
+      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
+      .flatMap(p => (p.actions || [])
+        .filter(a => {
+          if (SKIP.has(a)) return false;
+          const def = ACTION_DEFS[a];
+          if (!def) return false;
+          if (a === 'neem' && rainSoon) return false;
+          if (a === 'water') {
+            const entries = (careLog[p.id] || []).filter(e => e.action === 'water');
+            if (!entries.length) return true;
+            const last = new Date(entries[entries.length - 1].date);
+            return (Date.now() - last.getTime()) / 86400000 > 1;
+          }
+          return !def.alwaysAvailable && actionStatus(p, a, careLog, seasonOpen).available;
+        })
+        .map(a => ({ plant: p, action: a, def: ACTION_DEFS[a] }))
+      )
+      .slice(0, 8);
+  }, [gardenPlants.terrace, frontPlants, careLog, seasonOpen, weather]);
+
   // Morning brief + daily brief — shared by desktop MapInfoPanel and mobile Today tab
   // Re-fetches when today's care count changes; cachedClaude handles deduplication
   useEffect(() => {
     if (!weather) return;
     const allPlants = [...gardenPlants.terrace, ...frontPlants];
+    const agendaTasks = attentionItemsForBrief.map(item => ({
+      plantName: item.plant.name, plantId: item.plant.id,
+      actionKey: item.action, priority: 'medium',
+    }));
     fetchMorningBrief({ plants: allPlants, careLog, weather, portraits })
       .then(brief => { if (brief) setMorningBrief(brief); })
       .catch(() => {});
-    fetchDailyBrief({ plants: allPlants, careLog, weather, portraits })
+    fetchDailyBrief({ plants: allPlants, careLog, weather, portraits, agendaTasks })
       .then(brief => { if (brief) setDailyBrief(brief); })
       .catch(() => {});
-  }, [weather, todayCareCount]);
+  }, [weather, todayCareCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Season opener — show once when season first opens
   useEffect(() => {
@@ -1770,19 +1802,8 @@ export default function App() {
   const URGENT_SET = new Set(['thirsty','overlooked','struggling']);
   const needsCareCount = gardenPlants.terrace.filter(p=> seasonOpen && URGENT_SET.has(p.health)).length;
 
-  // Map info panel data — includes both terrace and front/Emma's Rose Garden plants
-  const attentionItems = useMemo(() =>
-    [...gardenPlants.terrace, ...frontPlants]
-      .filter(p => p.health !== 'memorial')
-      .flatMap(p => (p.actions || [])
-        .filter(a => {
-          const def = ACTION_DEFS[a];
-          return def && !def.alwaysAvailable && actionStatus(p, a, careLog, seasonOpen).available;
-        })
-        .map(a => ({ plant: p, action: a, def: ACTION_DEFS[a] }))
-      )
-      .slice(0, 6),
-    [gardenPlants.terrace, frontPlants, careLog, seasonOpen]);
+  // Map info panel data — weather-aware list computed above; slice to 6 for display
+  const attentionItems = attentionItemsForBrief.slice(0, 6);
 
   const recentCare = useMemo(() => {
     const all = gardenPlants.terrace.flatMap(p =>
