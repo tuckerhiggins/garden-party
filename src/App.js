@@ -1816,6 +1816,29 @@ export default function App() {
     const def = ACTION_DEFS[key];
     if (!def && key !== 'custom') return;
     const isWithEmma = role === 'emma';
+
+    // Notes: parse first — log as detected care actions if found, else as a note
+    if (key === 'note' && customLabel) {
+      parseNoteActions(customLabel, plant.name).then(async actions => {
+        if (actions.length > 0) {
+          for (const act of actions) {
+            await logAction(act.key, plant, isWithEmma, act.label);
+          }
+          const firstDef = ACTION_DEFS[actions[0].key];
+          setFlash(`${firstDef?.emoji || '✨'} ${actions[0].label}${isWithEmma ? ' with Emma' : ''}${actions.length > 1 ? ` +${actions.length - 1} more` : ''}`);
+        } else {
+          await logAction('note', plant, isWithEmma, customLabel);
+          setFlash(`📝 ${customLabel}${isWithEmma ? ' with Emma' : ''}`);
+        }
+        setTimeout(() => setFlash(null), 2500);
+      }).catch(async () => {
+        await logAction('note', plant, isWithEmma, customLabel);
+        setFlash(`📝 ${customLabel}${isWithEmma ? ' with Emma' : ''}`);
+        setTimeout(() => setFlash(null), 2500);
+      });
+      return;
+    }
+
     const syncError = await logAction(key, plant, isWithEmma, customLabel);
     const displayLabel = customLabel || def?.label || key;
     const emoji = def?.emoji || '✨';
@@ -1824,14 +1847,6 @@ export default function App() {
       : `${emoji} ${displayLabel}${isWithEmma ? ' with Emma' : ''}`
     );
     setTimeout(() => setFlash(null), syncError ? 5000 : 2500);
-    // If it's a note, parse it in the background for any care actions mentioned
-    if (key === 'note' && customLabel) {
-      parseNoteActions(customLabel, plant.name).then(actions => {
-        for (const act of actions) {
-          logAction(act.key, plant, isWithEmma, act.label);
-        }
-      }).catch(() => {});
-    }
   }, [role, logAction]);
 
   // Expense

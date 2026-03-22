@@ -1934,9 +1934,9 @@ function MobileSpend({ expenses = [], onAddExpense }) {
 
   const pillStyle = (active) => ({
     padding:'5px 10px', borderRadius:20, cursor:'pointer', fontFamily:SERIF, fontSize:13,
-    background: active ? 'rgba(212,168,48,0.18)' : 'rgba(255,255,255,0.06)',
-    border: `1px solid ${active ? 'rgba(212,168,48,0.55)' : 'rgba(160,130,80,0.20)'}`,
-    color: active ? '#f0d080' : 'rgba(240,228,200,0.65)',
+    background: active ? 'rgba(212,168,48,0.18)' : '#fff',
+    border: `1px solid ${active ? '#d4a830' : 'rgba(160,130,80,0.25)'}`,
+    color: active ? '#2a1808' : '#5a3818',
   });
 
   return (
@@ -1944,30 +1944,30 @@ function MobileSpend({ expenses = [], onAddExpense }) {
       {/* Season total + log button */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
         <div>
-          <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.55)',letterSpacing:.5,marginBottom:4}}>SEASON TOTAL</div>
-          <div style={{fontSize:34,fontWeight:600,color:'rgba(240,228,200,0.95)',fontFamily:SERIF,lineHeight:1}}>${(totalSpend/100).toFixed(2)}</div>
-          <div style={{fontSize:11,color:'rgba(240,228,200,0.40)',fontFamily:SERIF,marginTop:2}}>{expenses.length} purchase{expenses.length!==1?'s':''}</div>
+          <div style={{fontFamily:MONO,fontSize:6,color:'#a08060',letterSpacing:.5,marginBottom:4}}>SEASON TOTAL</div>
+          <div style={{fontSize:34,fontWeight:600,color:'#2a1808',fontFamily:SERIF,lineHeight:1}}>${(totalSpend/100).toFixed(2)}</div>
+          <div style={{fontSize:11,color:'#907050',fontFamily:SERIF,marginTop:2}}>{expenses.length} purchase{expenses.length!==1?'s':''}</div>
         </div>
         <button onClick={()=>setShowForm(v=>!v)}
-          style={{padding:'8px 14px',background:'rgba(212,168,48,0.14)',border:'1px solid rgba(212,168,48,0.35)',
-            borderRadius:7,cursor:'pointer',fontFamily:MONO,fontSize:7,color:'rgba(212,168,48,0.9)'}}>
+          style={{padding:'8px 14px',background:'rgba(212,168,48,0.14)',border:'1px solid rgba(212,168,48,0.5)',
+            borderRadius:7,cursor:'pointer',fontFamily:MONO,fontSize:7,color:'#2a1808'}}>
           {showForm?'CANCEL':'+ LOG'}
         </button>
       </div>
 
       {/* Log form */}
       {showForm && (
-        <div style={{background:'rgba(0,0,0,0.25)',borderRadius:10,padding:'14px',display:'flex',flexDirection:'column',gap:11,border:'1px solid rgba(160,130,80,0.18)'}}>
+        <div style={{background:'rgba(160,130,80,0.06)',borderRadius:10,padding:'14px',display:'flex',flexDirection:'column',gap:11,border:'1px solid rgba(160,130,80,0.18)'}}>
           <input value={form.desc} onChange={e=>setForm(p=>({...p,desc:e.target.value}))}
             placeholder="What did you buy?" onKeyDown={e=>{if(e.key==='Enter')submit();}}
-            style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(160,130,80,0.25)',borderRadius:6,
-              padding:'9px 12px',color:'rgba(240,228,200,0.9)',fontSize:14,fontFamily:SERIF,outline:'none'}}/>
+            style={{background:'#fff',border:'1px solid rgba(160,130,80,0.30)',borderRadius:6,
+              padding:'9px 12px',color:'#2a1808',fontSize:14,fontFamily:SERIF,outline:'none'}}/>
           <input type="number" value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))}
             placeholder="Amount ($)" step=".01"
-            style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(160,130,80,0.25)',borderRadius:6,
-              padding:'9px 12px',color:'rgba(240,228,200,0.9)',fontSize:14,fontFamily:SERIF,outline:'none'}}/>
+            style={{background:'#fff',border:'1px solid rgba(160,130,80,0.30)',borderRadius:6,
+              padding:'9px 12px',color:'#2a1808',fontSize:14,fontFamily:SERIF,outline:'none'}}/>
           <div>
-            <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.5)',marginBottom:6}}>CATEGORY</div>
+            <div style={{fontFamily:MONO,fontSize:6,color:'#a08060',marginBottom:6}}>CATEGORY</div>
             <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
               {EXP_CATS.map(c=>(
                 <button key={c.key} onClick={()=>setForm(p=>({...p,category:p.category===c.key?'':c.key}))}
@@ -1976,7 +1976,7 @@ function MobileSpend({ expenses = [], onAddExpense }) {
             </div>
           </div>
           <div>
-            <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.5)',marginBottom:6}}>FOR</div>
+            <div style={{fontFamily:MONO,fontSize:6,color:'#a08060',marginBottom:6}}>FOR</div>
             <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
               {EXP_GROUPS.map(g=>(
                 <button key={g.key} onClick={()=>setForm(p=>({...p,group:p.group===g.key&&g.key!==''?'':g.key}))}
@@ -1985,8 +1985,8 @@ function MobileSpend({ expenses = [], onAddExpense }) {
             </div>
           </div>
           <button onClick={submit}
-            style={{background:'rgba(212,168,48,0.20)',border:'1px solid rgba(212,168,48,0.45)',borderRadius:7,
-              padding:'11px',cursor:'pointer',fontFamily:MONO,fontSize:8,color:'rgba(212,168,48,0.95)'}}>
+            style={{background:'rgba(212,168,48,0.20)',border:'1px solid rgba(212,168,48,0.55)',borderRadius:7,
+              padding:'11px',cursor:'pointer',fontFamily:MONO,fontSize:8,color:'#2a1808'}}>
             LOG EXPENSE
           </button>
         </div>
@@ -1996,7 +1996,7 @@ function MobileSpend({ expenses = [], onAddExpense }) {
         {/* Monthly SVG chart */}
         {months.length >= 2 && (
           <div>
-            <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.55)',letterSpacing:.5,marginBottom:8}}>THIS SEASON</div>
+            <div style={{fontFamily:MONO,fontSize:6,color:'#a08060',letterSpacing:.5,marginBottom:8}}>THIS SEASON</div>
             <svg width="100%" viewBox={`0 0 ${svgW} ${svgH}`} style={{overflow:'visible'}}>
               <polyline points={pts} fill="none" stroke="#d4a830" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               {months.map((m, i) => {
@@ -2004,7 +2004,7 @@ function MobileSpend({ expenses = [], onAddExpense }) {
                 const y = svgH-6-Math.round((m.total/maxMonth)*(svgH-16));
                 return <React.Fragment key={m.label}>
                   <circle cx={x} cy={y} r="3" fill="#d4a830"/>
-                  <text x={x} y={svgH+2} textAnchor="middle" fontSize="8" fill="rgba(212,168,48,0.5)" fontFamily="sans-serif">{m.label}</text>
+                  <text x={x} y={svgH+2} textAnchor="middle" fontSize="8" fill="#a08060" fontFamily="sans-serif">{m.label}</text>
                 </React.Fragment>;
               })}
             </svg>
@@ -2014,14 +2014,14 @@ function MobileSpend({ expenses = [], onAddExpense }) {
         {/* By category */}
         {Object.keys(byCategory).length > 0 && (
           <div>
-            <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.55)',letterSpacing:.5,marginBottom:8}}>BY CATEGORY</div>
+            <div style={{fontFamily:MONO,fontSize:6,color:'#a08060',letterSpacing:.5,marginBottom:8}}>BY CATEGORY</div>
             {Object.entries(byCategory).sort(([,a],[,b])=>b-a).map(([cat,total])=>{
               const def = EXP_CATS.find(c=>c.key===cat);
               return (
                 <div key={cat} style={{marginBottom:8}}>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
-                    <span style={{fontFamily:SERIF,fontSize:13,color:'rgba(240,228,200,0.75)'}}>{def?.emoji||'📦'} {def?.label||cat}</span>
-                    <span style={{fontFamily:SERIF,fontSize:13,color:'rgba(212,168,48,0.9)',fontWeight:600}}>${(total/100).toFixed(2)}</span>
+                    <span style={{fontFamily:SERIF,fontSize:13,color:'#5a3818'}}>{def?.emoji||'📦'} {def?.label||cat}</span>
+                    <span style={{fontFamily:SERIF,fontSize:13,color:'#2a1808',fontWeight:600}}>${(total/100).toFixed(2)}</span>
                   </div>
                   <div style={{height:5,background:'rgba(160,130,80,0.15)',borderRadius:3}}>
                     <div style={{height:'100%',width:`${Math.round((total/totalSpend)*100)}%`,background:'#d4a830',borderRadius:3}}/>
@@ -2035,17 +2035,17 @@ function MobileSpend({ expenses = [], onAddExpense }) {
         {/* By group */}
         {Object.keys(byGroup).length > 0 && (
           <div>
-            <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.55)',letterSpacing:.5,marginBottom:8}}>BY AREA</div>
+            <div style={{fontFamily:MONO,fontSize:6,color:'#a08060',letterSpacing:.5,marginBottom:8}}>BY AREA</div>
             {Object.entries(byGroup).sort(([,a],[,b])=>b-a).map(([grp,total])=>{
               const def = EXP_GROUPS.find(g=>g.key===grp);
               return (
                 <div key={grp||'garden'} style={{marginBottom:8}}>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
-                    <span style={{fontFamily:SERIF,fontSize:13,color:'rgba(240,228,200,0.75)'}}>{def?.emoji||'🌿'} {def?.label||'Whole Garden'}</span>
-                    <span style={{fontFamily:SERIF,fontSize:13,color:'rgba(212,168,48,0.9)',fontWeight:600}}>${(total/100).toFixed(2)}</span>
+                    <span style={{fontFamily:SERIF,fontSize:13,color:'#5a3818'}}>{def?.emoji||'🌿'} {def?.label||'Whole Garden'}</span>
+                    <span style={{fontFamily:SERIF,fontSize:13,color:'#2a1808',fontWeight:600}}>${(total/100).toFixed(2)}</span>
                   </div>
                   <div style={{height:5,background:'rgba(160,130,80,0.15)',borderRadius:3}}>
-                    <div style={{height:'100%',width:`${Math.round((total/totalSpend)*100)}%`,background:'rgba(212,168,48,0.6)',borderRadius:3}}/>
+                    <div style={{height:'100%',width:`${Math.round((total/totalSpend)*100)}%`,background:'rgba(212,168,48,0.7)',borderRadius:3}}/>
                   </div>
                 </div>
               );
@@ -2055,7 +2055,7 @@ function MobileSpend({ expenses = [], onAddExpense }) {
 
         {/* Full list */}
         <div>
-          <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.55)',letterSpacing:.5,marginBottom:8}}>ALL PURCHASES</div>
+          <div style={{fontFamily:MONO,fontSize:6,color:'#a08060',letterSpacing:.5,marginBottom:8}}>ALL PURCHASES</div>
           {[...expenses].reverse().map((e,i)=>{
             const catDef = EXP_CATS.find(c=>c.key===e.category);
             const grpDef = EXP_GROUPS.find(g=>g.key===(e.group||''));
@@ -2064,13 +2064,13 @@ function MobileSpend({ expenses = [], onAddExpense }) {
                 padding:'9px 0',borderBottom:'1px solid rgba(160,130,80,0.12)'}}>
                 <span style={{fontSize:18,flexShrink:0}}>{catDef?.emoji||'📦'}</span>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontFamily:SERIF,fontSize:14,color:'rgba(240,228,200,0.88)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.desc}</div>
-                  <div style={{fontFamily:SERIF,fontSize:11,color:'rgba(240,228,200,0.40)'}}>
+                  <div style={{fontFamily:SERIF,fontSize:14,color:'#2a1808',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.desc}</div>
+                  <div style={{fontFamily:SERIF,fontSize:11,color:'#907050'}}>
                     {grpDef?.label||'Whole Garden'}
                     {e.date && ` · ${new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`}
                   </div>
                 </div>
-                <div style={{fontFamily:SERIF,fontSize:15,color:'rgba(212,168,48,0.9)',fontWeight:600,flexShrink:0}}>${(e.cents/100).toFixed(2)}</div>
+                <div style={{fontFamily:SERIF,fontSize:15,color:'#2a1808',fontWeight:600,flexShrink:0}}>${(e.cents/100).toFixed(2)}</div>
               </div>
             );
           })}
@@ -2078,7 +2078,7 @@ function MobileSpend({ expenses = [], onAddExpense }) {
       </>)}
 
       {expenses.length === 0 && !showForm && (
-        <div style={{textAlign:'center',padding:'40px 0',color:'rgba(240,228,200,0.30)',fontFamily:SERIF,fontSize:14,fontStyle:'italic'}}>
+        <div style={{textAlign:'center',padding:'40px 0',color:'#b09070',fontFamily:SERIF,fontSize:14,fontStyle:'italic'}}>
           Nothing logged yet — the season is young.
         </div>
       )}
