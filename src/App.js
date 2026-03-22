@@ -7,7 +7,7 @@ import { TERRACE_PLANTS, FRONT_PLANTS, ACTION_DEFS, ACTION_HOWTO } from './data/
 import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
-import { fetchOracle, fetchSeasonOpener, fetchMissedCareVoice, fetchPlantBriefing, streamGardenChat } from './claude';
+import { fetchOracle, fetchSeasonOpener, fetchMissedCareVoice, fetchPlantBriefing, streamGardenChat, fetchMorningBrief, fetchDailyBrief } from './claude';
 import { usePortraits } from './hooks/usePortraits';
 import { usePhotos } from './hooks/usePhotos';
 import { useAuth } from './hooks/useAuth';
@@ -1759,6 +1759,8 @@ export default function App() {
   const [expInput, setExpInput] = useState({desc:'',amount:'',plantId:''});
   const [draggingId, setDraggingId] = useState(null);
   const [oracle, setOracle] = useState(null);
+  const [morningBrief, setMorningBrief] = useState(null);
+  const [dailyBrief, setDailyBrief] = useState(null);
   const { portraits, updatePortrait } = usePortraits({ user });
   const { allPhotos, addPhoto } = usePhotos({ user });
   const [customPlants, setCustomPlants] = useState(() => {
@@ -1859,6 +1861,22 @@ export default function App() {
       .then(setOracle)
       .catch(() => {});
   }, [weather, role, todayCareCount]);
+
+  // Morning brief + daily brief — shared by desktop MapInfoPanel and mobile Today tab
+  useEffect(() => {
+    if (!weather) return;
+    const allPlants = [...gardenPlants.terrace, ...frontPlants];
+    if (!morningBrief) {
+      fetchMorningBrief({ plants: allPlants, careLog, weather, portraits })
+        .then(brief => { if (brief) setMorningBrief(brief); })
+        .catch(() => {});
+    }
+    if (!dailyBrief) {
+      fetchDailyBrief({ plants: allPlants, careLog, weather, portraits })
+        .then(brief => { if (brief) setDailyBrief(brief); })
+        .catch(() => {});
+    }
+  }, [weather]);
 
   // Season opener — show once when season first opens
   useEffect(() => {
@@ -2252,6 +2270,8 @@ export default function App() {
                     recentCare={recentCare}
                     onSelectPlant={p=>setSel(p)}
                     warmth={warmth}
+                    morningBrief={morningBrief}
+                    fullBrief={dailyBrief}
                   />
                 )}
                 {hov && !sel && (

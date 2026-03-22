@@ -1,7 +1,7 @@
 // MapInfoPanel — right-side dashboard for the terrace map view
 // Shows season status, warmth, weather forecast, needs-care, recent log, coverage
 
-import React from 'react';
+import React, { useState } from 'react';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO  = '"Press Start 2P", monospace';
@@ -83,8 +83,11 @@ export function MapInfoPanel({
   attentionItems = [],
   recentCare = [],
   warmth = 0,
+  morningBrief = null,
+  fullBrief = null,
   onSelectPlant,
 }) {
+  const [briefExpanded, setBriefExpanded] = useState(false);
   const forecast = weather?.forecast?.slice(0, 6) ?? [];
   const warmthPct = Math.min(warmth / 10, 100);
   const atCeremony = warmth >= 1000;
@@ -152,6 +155,51 @@ export function MapInfoPanel({
           {atCeremony ? '🔥 Fire pit tonight ♥' : 'with Emma = 2× warmth'}
         </div>
       </div>
+
+      {/* ── Morning brief ── */}
+      {morningBrief && (
+        <div
+          onClick={() => fullBrief && setBriefExpanded(e => !e)}
+          style={{
+            margin: '10px 16px 0',
+            background: briefExpanded ? 'rgba(212,168,48,0.10)' : AMBER,
+            border: `1px solid ${briefExpanded ? 'rgba(212,168,48,0.28)' : AMBER_BORDER}`,
+            borderRadius: 9, padding: '11px 13px',
+            cursor: fullBrief ? 'pointer' : 'default',
+            transition: 'background .15s, border-color .15s',
+          }}
+        >
+          <div style={{ fontFamily: SERIF, fontSize: 13, color: 'rgba(240,220,170,0.88)', fontStyle: 'italic', lineHeight: 1.6 }}>
+            {morningBrief}
+          </div>
+          {!briefExpanded && fullBrief && (
+            <div style={{ fontFamily: MONO, fontSize: 6, color: 'rgba(160,130,80,0.50)', marginTop: 6, letterSpacing: .4 }}>
+              DAILY BRIEF ▾
+            </div>
+          )}
+          {briefExpanded && fullBrief && (
+            <div style={{ marginTop: 11, paddingTop: 11, borderTop: `1px solid ${RULE}` }}>
+              {[
+                { key: 'weather', label: 'WEATHER' },
+                { key: 'garden',  label: 'GARDEN STATE' },
+                { key: 'today',   label: 'TODAY' },
+                { key: 'watch',   label: 'WATCH' },
+              ].filter(s => fullBrief[s.key]).map(s => (
+                <div key={s.key} style={{ marginBottom: 10 }}>
+                  <div style={{ fontFamily: MONO, fontSize: 6, color: GOLD, letterSpacing: .5, marginBottom: 4 }}>{s.label}</div>
+                  <div style={{ fontFamily: SERIF, fontSize: 12, color: TEXT, lineHeight: 1.65 }}>{fullBrief[s.key]}</div>
+                </div>
+              ))}
+              <div style={{ fontFamily: MONO, fontSize: 6, color: 'rgba(160,130,80,0.50)', marginTop: 4, letterSpacing: .4 }}>▴ CLOSE</div>
+            </div>
+          )}
+        </div>
+      )}
+      {!morningBrief && (
+        <div style={{ margin: '10px 16px 0', padding: '10px 13px', borderRadius: 9, border: `1px solid ${RULE}` }}>
+          <div style={{ fontFamily: SERIF, fontSize: 12, color: DIM, fontStyle: 'italic' }}>Reading the garden…</div>
+        </div>
+      )}
 
       {/* ── Weather ── */}
       {weather && (
