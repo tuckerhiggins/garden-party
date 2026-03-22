@@ -62,6 +62,7 @@ export function MapInfoPanel({
   activePlantCount = 0,
   attentionItems = [],
   recentCare = [],
+  warmth = 0,
   onSelectPlant,
 }) {
   const forecast = weather?.forecast?.slice(0, 6) ?? [];
@@ -101,6 +102,32 @@ export function MapInfoPanel({
           </div>
         )}
       </div>
+
+      {/* ── Warmth ── */}
+      <Section label="WARMTH">
+        <div style={{marginBottom:4}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:5}}>
+            <span style={{fontFamily:SERIF,fontSize:12,color:TEXT}}>
+              {warmth} <span style={{color:MUTED,fontSize:11}}>/ 1000</span>
+            </span>
+            <span style={{fontFamily:MONO,fontSize:6,color:warmth>=1000?'#f0a030':GOLD,letterSpacing:.3}}>
+              {warmth >= 1000 ? '🔥 CEREMONY' : `${Math.round(warmth/10)}%`}
+            </span>
+          </div>
+          <div style={{height:5,background:'rgba(255,255,255,0.07)',borderRadius:3,overflow:'hidden',
+            border:'1px solid rgba(160,130,80,0.14)'}}>
+            <div style={{
+              width:`${Math.min(warmth/10,100)}%`,
+              height:'100%',
+              background: warmth >= 1000 ? '#f0a030' : 'linear-gradient(90deg,#a06820,#d4a830)',
+              borderRadius:3, transition:'width .4s',
+            }}/>
+          </div>
+          <div style={{fontFamily:SERIF,fontSize:10,color:'rgba(212,168,48,0.45)',marginTop:4,fontStyle:'italic'}}>
+            {warmth >= 1000 ? 'Fire pit tonight ♥' : 'with Emma = 2× warmth'}
+          </div>
+        </div>
+      </Section>
 
       {/* ── Weather ── */}
       {weather && (

@@ -84,15 +84,18 @@ function BotanicalEmblem() {
   );
 }
 
-export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = {}, weather = null, oracle = null, seasonOpenerText = null }) {
+export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = {}, weather = null, oracle = null, seasonOpenerText = null, skipDelay = false, warmth = 0 }) {
   const [hoveredId, setHoveredId]     = useState(null);
   const [showEnter, setShowEnter]     = useState(false);
   const [enterHover, setEnterHover]   = useState(false);
+  const [visible, setVisible] = useState(skipDelay);
+  useEffect(() => { if (!skipDelay) { const t = setTimeout(() => setVisible(true), 50); return () => clearTimeout(t); } }, [skipDelay]);
 
   useEffect(() => {
+    if (skipDelay) { setShowEnter(true); return; }
     const t = setTimeout(() => setShowEnter(true), 1600);
     return () => clearTimeout(t);
-  }, []);
+  }, [skipDelay]);
 
   const hour = new Date().getHours();
   const isNight = hour < 6 || hour >= 20;
@@ -424,10 +427,16 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
       <svg
         viewBox={`0 0 ${VW} ${VH}`}
         width="100%" height="100%"
-        style={{ display: 'block', background: '#6a7e8e' }}
+        style={{ display: 'block', background: '#6a7e8e', opacity: visible ? 1 : 0, transition: skipDelay ? 'none' : 'opacity 0.2s ease-in' }}
         preserveAspectRatio="xMidYMid slice"
       >
         <defs>
+          <style>{`
+            @keyframes fpPulse {
+              0%, 100% { opacity: 0.70; }
+              50%       { opacity: 1.0; }
+            }
+          `}</style>
           {/* Depth blur filters */}
           <filter id="bgBlur"    x="-25%" y="-25%" width="150%" height="150%">
             <feGaussianBlur stdDeviation="11"/>
@@ -451,8 +460,8 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
             <stop offset="35%"  stopColor={skyMid}/>
             <stop offset="100%" stopColor={skyBot}/>
           </linearGradient>
-          {/* Terrace fire glow — night only */}
-          {isNight && (
+          {/* Terrace fire glow — night only, or ceremony warmth */}
+          {(isNight || warmth >= 1000) && (
             <radialGradient id="fireGlowG" cx="50%" cy="0%" r="60%">
               <stop offset="0%"   stopColor="#f0a030" stopOpacity="0.32"/>
               <stop offset="100%" stopColor="#f0a030" stopOpacity="0"/>
@@ -522,8 +531,17 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
             ].map(([cx,cy,r],i) => (
               <circle key={i} cx={cx} cy={cy} r={r} fill="#e8e8d8" opacity={0.55+i%3*0.1}/>
             ))}
+          </>
+        )}
+        {(isNight || warmth >= 1000) && (
+          <>
             {/* Terrace fire glow — warm bloom from rooftop above */}
             <rect x="0" y="0" width={VW} height="260" fill="url(#fireGlowG)"/>
+            {warmth >= 1000 && (
+              <rect x="200" y="0" width={VW - 400} height="180"
+                fill="rgba(240,140,20,0.12)"
+                style={{animation:'fpPulse 2.4s ease-in-out infinite'}}/>
+            )}
           </>
         )}
 

@@ -18,6 +18,7 @@ import { MobileView } from './components/MobileView';
 import { compressChatImage } from './utils/compressChatImage';
 import { PlantShopModal } from './components/PlantShopModal';
 import { MapInfoPanel } from './components/MapInfoPanel';
+import { getPhenologicalStage } from './utils/phenology';
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 640);
@@ -599,6 +600,9 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOp
   const primaryPlant = groupPlants[0] || hovPlant;
 
   const URGENT_HEALTH = new Set(['thirsty','overlooked','struggling']);
+  const URGENT_BG      = 'rgba(200,80,20,0.30)';
+  const URGENT_BG_HOV  = 'rgba(200,80,20,0.50)';
+  const URGENT_FG      = '#f0a070';
 
   useEffect(() => {
     setBriefing(null);
@@ -632,6 +636,15 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOp
         <div style={{ padding:'10px 22px 10px', borderBottom:'1px solid rgba(160,130,80,0.10)',
           fontStyle:'italic', fontSize:11.5, color:'rgba(200,170,110,0.65)', lineHeight:1.5 }}>
           {portraits[primaryPlant.id].visualNote}
+        </div>
+      )}
+
+      {/* Poem */}
+      {primaryPlant.poem && (
+        <div style={{ padding:'12px 22px 10px', borderBottom:'1px solid rgba(160,130,80,0.10)',
+          fontFamily:SERIF, fontStyle:'italic', fontSize:12.5, lineHeight:1.7,
+          color:'rgba(212,190,140,0.55)', whiteSpace:'pre-line' }}>
+          {primaryPlant.poem}
         </div>
       )}
 
@@ -671,6 +684,7 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOp
         const needsWater = actionStatus(p,'water',careLog,seasonOpen).available && URGENT_HEALTH.has(p.health);
         const justLogged = confirmed[p.id];
         const color = plantColor(p.type);
+        const stage = portraits?.[p.id]?.currentStage || getPhenologicalStage(p.type);
 
         // All non-trivial available actions
         const allAvailable = Object.keys(ACTION_DEFS).filter(a => {
@@ -705,6 +719,12 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOp
               </div>
             </div>
 
+            {stage && (
+              <div style={{ fontSize:11, color:'rgba(212,190,140,0.42)', marginBottom:5, fontStyle:'italic' }}>
+                {stage}
+              </div>
+            )}
+
             {/* Last watered */}
             {daysSinceWater !== null && needsWater && URGENT_HEALTH.has(p.health) ? (
               <MissedCareVoice plant={p} daysSinceWater={daysSinceWater}/>
@@ -731,12 +751,12 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOp
                   return (
                     <button onClick={() => handleAction(p, 'water')}
                       style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:8,
-                        cursor:'pointer', border:'none', textAlign:'left',
-                        background: urgent ? 'rgba(200,80,20,0.30)' : 'rgba(255,255,255,0.06)',
-                        color: urgent ? '#f0a070' : 'rgba(240,228,200,0.60)',
+                        cursor:'pointer', border:'none', textAlign:'left', minHeight:44,
+                        background: urgent ? URGENT_BG : 'rgba(255,255,255,0.06)',
+                        color: urgent ? URGENT_FG : 'rgba(240,228,200,0.60)',
                         transition:'all .12s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = urgent ? 'rgba(200,80,20,0.50)' : 'rgba(255,255,255,0.14)'}
-                      onMouseLeave={e => e.currentTarget.style.background = urgent ? 'rgba(200,80,20,0.30)' : 'rgba(255,255,255,0.06)'}>
+                      onMouseEnter={e => e.currentTarget.style.background = urgent ? URGENT_BG_HOV : 'rgba(255,255,255,0.14)'}
+                      onMouseLeave={e => e.currentTarget.style.background = urgent ? URGENT_BG : 'rgba(255,255,255,0.06)'}>
                       <span style={{ fontSize:14 }}>💧</span>
                       <span style={{ fontSize:12, fontFamily:SERIF }}>Water</span>
                     </button>
@@ -751,7 +771,7 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOp
                       return (
                         <button key={a} onClick={() => handleAction(p, a)}
                           style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:8,
-                            cursor:'pointer', textAlign:'left',
+                            cursor:'pointer', textAlign:'left', minHeight:44,
                             background:'rgba(212,168,48,0.14)',
                             border:'1px solid rgba(212,168,48,0.35)',
                             color:'#d4a830', transition:'all .12s' }}
@@ -772,7 +792,7 @@ function MapPlantCard({ hovPlant, plants: allPlants, careLog, onAction, seasonOp
                   return (
                     <button key={a} onClick={() => handleAction(p, a)}
                       style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:8,
-                        cursor:'pointer', border:'none', textAlign:'left',
+                        cursor:'pointer', border:'none', textAlign:'left', minHeight:44,
                         background:'rgba(255,255,255,0.05)',
                         color:'rgba(240,228,200,0.55)', transition:'all .12s' }}
                       onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.12)'}
@@ -1857,6 +1877,22 @@ export default function App() {
     }
   }, [seasonOpener]);
 
+  // ── WARMTH ─────────────────────────────────────────────────────────────
+  const WARMTH_PTS = { water:10, neem:30, prune:50, fertilize:40, train:25, photo:15, visit:5, note:8, worms:35 };
+  const WARMTH_CAP = 1000;
+  const warmth = useMemo(() => {
+    const cutoff = new Date('2026-03-20').getTime(); // season start
+    let pts = 0;
+    Object.values(careLog).forEach(entries => {
+      entries.forEach(e => {
+        if (new Date(e.date).getTime() < cutoff) return;
+        const base = WARMTH_PTS[e.action] ?? 0;
+        pts += e.withEmma ? base * 2 : base;
+      });
+    });
+    return Math.min(pts, WARMTH_CAP);
+  }, [careLog]);
+
   // Care action
   const doAction = useCallback(async (key, plant, customLabel) => {
     const def = ACTION_DEFS[key]; if (!def) return;
@@ -1945,6 +1981,7 @@ export default function App() {
           plants={frontPlants}
           growth={growth}
           weather={weather}
+          skipDelay={seasonOpenerDismissed}
           oracle={isOpener ? null : oracle}
           seasonOpenerText={isOpener ? seasonOpener : null}
           selectedId={isOpener ? null : sel}
@@ -1959,6 +1996,7 @@ export default function App() {
               }
             : () => { setScene('game'); setMode('garden'); setGardenView('map'); }
           }
+          warmth={warmth}
         />
       </div>
     );
@@ -2189,9 +2227,14 @@ export default function App() {
                       onHover={setHov}
                       onDescend={()=>setScene('front')}
                       onAction={(k,p)=>doAction(k,p)}
+                      onPetCookie={() => {
+                        const wisteria = mapPlants.find(p => p.type === 'wisteria');
+                        if (wisteria) doAction('visit', wisteria);
+                      }}
                       seasonOpen={seasonOpen}
                       portraits={portraits}
                       careLog={careLog}
+                      warmth={warmth}
                     />
                   </div>
                 </div>
@@ -2208,6 +2251,7 @@ export default function App() {
                     attentionItems={attentionItems}
                     recentCare={recentCare}
                     onSelectPlant={p=>setSel(p)}
+                    warmth={warmth}
                   />
                 )}
                 {hov && !sel && (

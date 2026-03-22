@@ -1,6 +1,8 @@
 // claude.js — client-side Claude helper with localStorage caching
 // Calls /api/claude (Vercel serverless function) — never exposes API key in browser
 
+import { getPhenologicalStage } from './utils/phenology';
+
 const LS_PREFIX = 'gp_claude_';
 
 function lsGet(key) {
@@ -204,7 +206,7 @@ Rain rules (non-negotiable):
 
   const userPrompt = `Plant: ${plant.name}${plant.species ? ` (${plant.species})` : ''}, ${plant.type}.
 Health: ${plant.health}. Today: ${today}. Early spring, Zone 7b.
-${currentStage ? `Current phenological stage: ${currentStage}.` : ''}
+Current phenological stage: ${currentStage || getPhenologicalStage(plant.type)}.
 ${daysSinceWater !== null ? `Last watered ${daysSinceWater} day${daysSinceWater !== 1 ? 's' : ''} ago.` : 'No water logged.'}
 ${recentActions ? `Recent care: ${recentActions}.` : ''}
 ${visualNote ? `Last photo observation: "${visualNote}"` : ''}
@@ -370,10 +372,10 @@ export async function fetchDailyBrief({ plants, careLog, weather, portraits, age
     const lastWater = [...entries].reverse().find(e => e.action === 'water');
     const daysAgo = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
     const port = portraits?.[p.id];
-    const stage = port?.currentStage || null;
+    const stage = port?.currentStage || getPhenologicalStage(p.type);
     const note = port?.visualNote && !port.analyzing ? port.visualNote : null;
     const parts = [`${p.name} (${p.type}, ${p.health})`];
-    if (stage) parts.push(`stage: ${stage}`);
+    parts.push(`stage: ${stage}`);
     if (daysAgo !== null) parts.push(`watered ${daysAgo}d ago`);
     if (note) parts.push(`obs: "${note}"`);
     return parts.join(', ');

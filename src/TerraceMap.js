@@ -43,10 +43,10 @@ function healthMod(health) {
   switch(health) {
     case 'thriving':   return { leafOp:1.0, vib:1.0, droop:0,    shift:0,    stemOp:0.88 };
     case 'content':    return { leafOp:0.92,vib:0.95,droop:0,    shift:0,    stemOp:0.85 };
-    case 'recovering': return { leafOp:0.72,vib:0.72,droop:0.08, shift:0.18, stemOp:0.78 };
-    case 'thirsty':    return { leafOp:0.60,vib:0.62,droop:0.18, shift:0.38, stemOp:0.72 };
-    case 'overlooked': return { leafOp:0.48,vib:0.50,droop:0.28, shift:0.52, stemOp:0.65 };
-    case 'struggling': return { leafOp:0.32,vib:0.32,droop:0.48, shift:0.78, stemOp:0.55 };
+    case 'recovering': return { leafOp:0.70,vib:0.70,droop:0.10, shift:0.22, stemOp:0.76 };
+    case 'thirsty':    return { leafOp:0.55,vib:0.58,droop:0.22, shift:0.44, stemOp:0.68 };
+    case 'overlooked': return { leafOp:0.42,vib:0.44,droop:0.34, shift:0.60, stemOp:0.60 };
+    case 'struggling': return { leafOp:0.26,vib:0.28,droop:0.58, shift:0.88, stemOp:0.50 };
     case 'resting':    return { leafOp:0.04,vib:0.55,droop:0,    shift:0,    stemOp:0.60 };
     default:           return { leafOp:0.80,vib:0.80,droop:0,    shift:0,    stemOp:0.80 };
   }
@@ -249,13 +249,23 @@ function WisteriaFence({ wisteriaPlants, selectedId, hoveredId }) {
               </g>
             )}
             {z.g > 0.60 && (() => {
-              const amt = Math.min(1, (z.g - 0.60) * 2.5);
+              const wisBloomSeason = DAYS < 30 ? 0
+                : DAYS < 42 ? (DAYS - 30) / 12
+                : DAYS < 60 ? 1.0
+                : DAYS < 75 ? 1 - (DAYS - 60) / 15
+                : 0;
+              const amt = Math.min(1, (z.g - 0.60) * 2.5) * wisBloomSeason;
+              if (amt <= 0) return null;
               return (
                 <g opacity={amt}>
                   <circle cx={FW * 0.18} cy={z.upTop + 2} r={4.0} fill="#9860c8"/>
                   <circle cx={FW * 0.46} cy={z.upTop - 2} r={3.5} fill="#a870d8"/>
                   <circle cx={FW * 0.76} cy={z.upTop + 3} r={3.8} fill="#9060c0"/>
                   <circle cx={FW * 0.32} cy={z.upTop + 7} r={3.0} fill="#b080dc"/>
+                  <circle cx={FW * 0.28} cy={z.upTop + 10} r={3.2} fill="#8850be"/>
+                  <circle cx={FW * 0.58} cy={z.upTop + 8}  r={3.5} fill="#a070d0"/>
+                  <circle cx={FW * 0.12} cy={z.upTop + 11} r={2.8} fill="#7040b0"/>
+                  <circle cx={FW * 0.65} cy={z.upTop + 12} r={3.0} fill="#9868c8"/>
                 </g>
               );
             })()}
@@ -426,7 +436,7 @@ function SelRing({ cx, cy, r, color, selected, hovered }) {
   return (
     <>
       {selected && <circle cx={cx} cy={cy} r={r} fill="none" stroke="#d4a830"
-        strokeWidth={2.2} strokeDasharray="5 3" opacity={0.95}/>}
+        strokeWidth={2.5} opacity={0.95}/>}
       {hovered && !selected && <circle cx={cx} cy={cy} r={r - 5} fill="none"
         stroke={color} strokeWidth={1.2} opacity={0.40}/>}
     </>
@@ -557,6 +567,15 @@ function ServiceberryPlant({ cx, cy, g, health, selected, hovered }) {
     ? Math.min(1, Math.max(0, 1 - DAYS * 0.01))
     : Math.max(0, 1 - (DAYS - 25) / 20);
   const flowerAmt = flowerAmtRaw * m.leafOp;
+
+  // White blossom cluster — peaks Day 12–35, gone by Day 40
+  const blossomPeakAmt = DAYS < 12 ? 0
+    : DAYS < 22 ? (DAYS - 12) / 10   // ramp up
+    : DAYS < 30 ? 1.0                  // peak
+    : DAYS < 40 ? 1 - (DAYS - 30) / 10 // fade
+    : 0;
+  const blossomAmt = blossomPeakAmt * m.leafOp;
+
   const leafAmtRaw = DAYS < 15
     ? 0
     : Math.min(1, Math.max(g * 0.8, (DAYS - 15) / 40));
@@ -673,6 +692,17 @@ function ServiceberryPlant({ cx, cy, g, health, selected, hovered }) {
           ));
         })
       ))}
+
+      {blossomAmt > 0.05 && (
+        <g opacity={blossomAmt * 0.88}>
+          <circle cx={cx-18} cy={cy-110} r={7}  fill="white" opacity={0.90}/>
+          <circle cx={cx-4}  cy={cy-122} r={8}  fill="white" opacity={0.85}/>
+          <circle cx={cx+14} cy={cy-116} r={6}  fill="white" opacity={0.88}/>
+          <circle cx={cx-10} cy={cy-98}  r={5}  fill="white" opacity={0.82}/>
+          <circle cx={cx+6}  cy={cy-104} r={6}  fill="white" opacity={0.80}/>
+          <circle cx={cx+20} cy={cy-100} r={5}  fill="#fff8f0" opacity={0.75}/>
+        </g>
+      )}
 
       <GreyPot cx={cx} cy={cy} r={17} tint="#8c8a88"/>
 
@@ -1077,8 +1107,10 @@ function CookieSVG({ pose }) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
-export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, seasonOpen, portraits = {}, careLog = {} }) {
+export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0 }) {
   const [hovId, setHovId] = useState(null);
+  const [cookiePetted, setCookiePetted] = useState(false);
+  const [actionFlash, setActionFlash] = useState(null); // {x, y, key}
   const leaveTimerRef = useRef(null);
   const cookieRef = useRef(null);
   if (!cookieRef.current) {
@@ -1156,7 +1188,7 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
       setHovId(onDoor ? null : hit.id);
     } else {
       if (!leaveTimerRef.current) {
-        leaveTimerRef.current = setTimeout(() => { setHovId(null); leaveTimerRef.current = null; }, 440);
+        leaveTimerRef.current = setTimeout(() => { setHovId(null); leaveTimerRef.current = null; }, 200);
       }
     }
   }, [dragId, svgPt, hitTest, onMove]);
@@ -1246,6 +1278,15 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           }
           .fp-flame{animation:fp-flicker 2.3s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 90%}
           .fp-ember{animation:fp-ember 3.1s ease-in-out infinite}
+          @keyframes fpPulse {
+            0%, 100% { opacity: 0.70; }
+            50%       { opacity: 1.0; }
+          }
+          @keyframes cookiePet {
+            0%   { opacity: 0.92; transform: translateY(0px); }
+            60%  { opacity: 0.70; transform: translateY(-12px); }
+            100% { opacity: 0;    transform: translateY(-22px); }
+          }
         `}</style>
 
         {/* Warm basketweave deck pattern — 80×80 unit, 4 quadrants */}
@@ -1287,6 +1328,10 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
           <stop offset="60%" stopColor="rgba(0,0,0,0)"/>
           <stop offset="100%" stopColor="rgba(0,0,0,0.18)"/>
+        </radialGradient>
+        <radialGradient id="fpCeremonyGlow">
+          <stop offset="0%" stopColor="#f0a030" stopOpacity="0.55"/>
+          <stop offset="100%" stopColor="#f0a030" stopOpacity="0"/>
         </radialGradient>
       </defs>
 
@@ -1570,6 +1615,13 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         );
       })()}
 
+      {warmth >= 1000 && (
+        <g style={{pointerEvents:'none'}}>
+          <ellipse cx={fpCX} cy={fpCY} rx={55} ry={40}
+            fill="url(#fpCeremonyGlow)" style={{animation:'fpPulse 2.4s ease-in-out infinite'}}/>
+        </g>
+      )}
+
       {/* ── Grill: compact rectangular gas grill, against Wall 2 ── */}
       {(() => {
         const gH = Math.round(SCALE * 4.375);
@@ -1646,11 +1698,37 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         const cx = couchX + cookieRef.current.xOff;
         const cy = couchMainTop + Math.round(couchMainLen * cookieRef.current.yFrac);
         return (
-          <g transform={`translate(${cx},${cy})`} style={{pointerEvents:'none'}}>
+          <g transform={`translate(${cx},${cy})`}
+            style={{pointerEvents:'auto', cursor:'pointer'}}
+            onClick={() => {
+              if (cookiePetted) return;
+              setCookiePetted(true);
+              onPetCookie?.();
+              setTimeout(() => setCookiePetted(false), 1800);
+            }}>
             <CookieSVG pose={cookieRef.current.pose}/>
+            {cookiePetted && (
+              <text x={0} y={-28} textAnchor="middle"
+                fontFamily="'Crimson Pro', Georgia, serif" fontSize={13}
+                fill="#d4a830" opacity={0.92}
+                style={{animation:'cookiePet 1.8s ease-out forwards', pointerEvents:'none'}}>
+                +5 ♥
+              </text>
+            )}
           </g>
         );
       })()}
+
+      {/* ── Action feedback ripple ── */}
+      {actionFlash && (
+        <g style={{pointerEvents:'none'}}>
+          <circle cx={actionFlash.x} cy={actionFlash.y} r={28} fill="none"
+            stroke="#d4a830" strokeWidth={2} opacity={0.70}
+            style={{animation:'terraceRipple 0.9s ease-out forwards'}}/>
+          <circle cx={actionFlash.x} cy={actionFlash.y} r={14} fill="rgba(212,168,48,0.18)"
+            style={{animation:'terraceRippleFill 0.9s ease-out forwards'}}/>
+        </g>
+      )}
 
       {/* ── Hover tooltip ── */}
       {hovId && (() => {
@@ -1708,7 +1786,7 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
               if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
             }}
             onMouseLeave={() => {
-              leaveTimerRef.current = setTimeout(() => { setHovId(null); leaveTimerRef.current = null; }, 440);
+              leaveTimerRef.current = setTimeout(() => { setHovId(null); leaveTimerRef.current = null; }, 200);
             }}
           >
             {/* drop shadow */}
@@ -1745,7 +1823,13 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
 
             {/* Quick water button */}
             {showWaterBtn && (
-              <g style={{ cursor:'pointer' }} onClick={e => { e.stopPropagation(); onAction('water', hp); }}>
+              <g style={{ cursor:'pointer' }} onClick={e => {
+                e.stopPropagation();
+                onAction('water', hp);
+                const pt = WALL4_TYPES.has(hp.type) ? pxyW4(hp.pos) : pxy(hp.pos);
+                setActionFlash({ x: pt.x, y: pt.y, key: 'water' });
+                setTimeout(() => setActionFlash(null), 900);
+              }}>
                 <rect x={bx+PAD} y={btnY} width={btnW} height={ROW+4} rx={4}
                   fill={waterUrgent ? 'rgba(200,100,30,0.35)' : 'rgba(255,255,255,0.07)'}
                   stroke={waterUrgent ? 'rgba(220,130,60,0.55)' : 'rgba(255,255,255,0.14)'} strokeWidth={0.7}/>
@@ -1759,6 +1843,17 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
       })()}
 
       </g>{/* end visual layer */}
+
+      <style>{`
+        @keyframes terraceRipple {
+          0%   { opacity: 0.80; }
+          100% { opacity: 0; }
+        }
+        @keyframes terraceRippleFill {
+          0%   { opacity: 0.30; }
+          100% { opacity: 0; }
+        }
+      `}</style>
 
     </svg>
   );
