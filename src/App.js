@@ -1740,16 +1740,19 @@ export default function App() {
     if (!weather) return;
     const allPlants = [...gardenPlants.terrace, ...frontPlants];
     const agendaTasks = attentionItemsForBrief.map(item => ({
-      plantName: item.plant.name, plantId: item.plant.id,
-      actionKey: item.action, priority: 'medium',
+      plantName: item.plant.name,
+      actionKey: item.action,
+      label: item.task?.label || null,
+      reason: item.task?.reason || null,
+      optional: item.task?.optional || false,
     }));
-    fetchMorningBrief({ plants: allPlants, careLog, weather, portraits })
+    fetchMorningBrief({ plants: allPlants, careLog, weather, portraits, agendaTasks })
       .then(brief => { if (brief) setMorningBrief(brief); })
       .catch(() => {});
     fetchDailyBrief({ plants: allPlants, careLog, weather, portraits, agendaTasks })
       .then(brief => { if (brief) setDailyBrief(brief); })
       .catch(() => {});
-  }, [weather, todayCareCount]);
+  }, [weather, todayCareCount, attentionItemsForBrief.length]);
 
   // Fetch plant briefings for all active plants in the background.
   // Staggered to avoid hammering the API simultaneously; cachedClaude handles dedup.

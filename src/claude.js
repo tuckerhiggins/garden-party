@@ -315,13 +315,14 @@ export async function fetchDailyAgenda({ candidateTasks, weather, careLog, portr
 // ── MORNING BRIEF ─────────────────────────────────────────────────────────
 // One ambient sentence from the garden at the top of the Care tab each day.
 // Proactive — surfaces weather, what needs attention, or a quiet observation.
-export async function fetchMorningBrief({ plants, careLog, weather, portraits }) {
+export async function fetchMorningBrief({ plants, careLog, weather, portraits, agendaTasks = [] }) {
   const today = new Date().toISOString().slice(0, 10);
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
   // Invalidate when today's care changes — count of actions logged today
   const todayCareToken = Object.values(careLog).flat()
     .filter(e => e.date?.startsWith(today)).length;
-  const cacheKey = `morningbrief4_${today}_${rainToken}_${todayCareToken}`;
+  const taskToken = agendaTasks.filter(t => !t.optional).map(t => t.label || t.actionKey).join(',').slice(0, 60);
+  const cacheKey = `morningbrief5_${today}_${rainToken}_${todayCareToken}_${taskToken}`;
 
   const needsWater = plants
     .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && p.actions?.includes('water'))
@@ -359,10 +360,15 @@ export async function fetchMorningBrief({ plants, careLog, weather, portraits })
     })
     .find(Boolean);
 
+  const requiredTasks = agendaTasks.filter(t => !t.optional);
+  const taskSummary = requiredTasks.length
+    ? requiredTasks.map(t => `${t.plantName}: ${t.label || t.actionKey}`).join('; ')
+    : null;
+
   const systemPrompt = `You are the garden speaking to Tucker and Emma at the start of their day on the Brooklyn terrace. One sentence. Present tense. Specific to what's actually happening — the weather, a plant that needs attention, or a quiet observation worth noticing. Never generic, never a list, never a greeting. Do not mention plants that have already been cared for today.`;
 
   const userPrompt = `Today: ${today}. Brooklyn Zone 7b, early spring.
-${needsWater.length ? `Needs water: ${needsWater.join(', ')}.` : 'Watering up to date.'}
+${taskSummary ? `Today's care tasks: ${taskSummary}.` : needsWater.length ? `Needs water: ${needsWater.join(', ')}.` : 'Watering up to date.'}
 ${todayCare.length ? `Already cared for today: ${todayCare.join(', ')}.` : ''}
 ${weatherEvents.length ? `Weather note: ${weatherEvents.join('; ')}.` : `Today: ${weather?.forecast?.[0]?.label || 'clear'}, ${weather?.forecast?.[0]?.high || '—'}°F.`}
 ${recentNote ? `Recent observation — ${recentNote}` : ''}
@@ -380,8 +386,8 @@ export async function fetchDailyBrief({ plants, careLog, weather, portraits, age
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
   // Invalidate when today's care changes (same pattern as fetchMorningBrief)
   const todayCareToken = Object.values(careLog).flat().filter(e => e.date?.startsWith(today)).length;
-  const taskToken = agendaTasks.length;
-  const cacheKey = `dailybrief3_${today}_${rainToken}_${todayCareToken}_t${taskToken}`;
+  const taskToken = agendaTasks.map(t => t.label || t.actionKey).join(',').slice(0, 80);
+  const cacheKey = `dailybrief4_${today}_${rainToken}_${todayCareToken}_${taskToken}`;
 
   const cached = lsGet(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.data;
@@ -420,9 +426,15 @@ export async function fetchDailyBrief({ plants, careLog, weather, portraits, age
     return parts.join(', ');
   }).join('\n');
 
-  // Today's tasks
+  // Today's tasks — use specific AI-generated labels and reasons when available
   const taskList = agendaTasks.length
-    ? agendaTasks.map(t => `${t.plantName} — ${t.actionKey} (${t.priority})`).join(', ')
+    ? agendaTasks.map(t => {
+        const label = t.label || t.actionKey;
+        const parts = [`${t.plantName} — ${label}`];
+        if (t.reason) parts.push(`(${t.reason})`);
+        if (t.optional) parts.push('[optional]');
+        return parts.join(' ');
+      }).join('\n')
     : 'none computed yet';
 
   const systemPrompt = `You are a garden intelligence system generating a daily briefing for Tucker and Emma's Brooklyn rooftop garden (Zone 7b, Park Slope, late March). You have access to weather data, plant states, recent care history, and today's task list.
