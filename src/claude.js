@@ -343,6 +343,88 @@ One sentence from the garden this morning.`;
   return cachedClaude(cacheKey, systemPrompt, userPrompt, 150, 24 * 60 * 60 * 1000);
 }
 
+// ── DAILY BRIEF ───────────────────────────────────────────────────────────
+// Structured daily garden briefing — sectioned, practical, scientific.
+// Expanded view behind the one-liner morning brief on the Today tab.
+export async function fetchDailyBrief({ plants, careLog, weather, portraits, agendaTasks = [] }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const todayFull = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
+  const lastCareDate = Object.values(careLog).flat().map(e => e.date).sort().pop()?.slice(0, 10) ?? '0';
+  const cacheKey = `dailybrief1_${today}_${rainToken}_${lastCareDate}`;
+
+  const cached = lsGet(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+
+  const allPlants = plants.filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
+
+  // Weather context
+  const forecast = weather?.forecast?.slice(0, 5).map((d, i) => {
+    const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+    return `${label}: ${d.high}°/${d.low}°F, ${d.label}, ${d.precipChance}% rain`;
+  }).join(' · ') ?? 'unavailable';
+
+  // Plant states
+  const plantStates = allPlants.map(p => {
+    const entries = careLog[p.id] || [];
+    const lastWater = [...entries].reverse().find(e => e.action === 'water');
+    const daysAgo = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
+    const port = portraits?.[p.id];
+    const stage = port?.currentStage || null;
+    const note = port?.visualNote && !port.analyzing ? port.visualNote : null;
+    const parts = [`${p.name} (${p.type}, ${p.health})`];
+    if (stage) parts.push(`stage: ${stage}`);
+    if (daysAgo !== null) parts.push(`watered ${daysAgo}d ago`);
+    if (note) parts.push(`obs: "${note}"`);
+    return parts.join(', ');
+  }).join('\n');
+
+  // Today's tasks
+  const taskList = agendaTasks.length
+    ? agendaTasks.map(t => `${t.plantName} — ${t.actionKey} (${t.priority})`).join(', ')
+    : 'none computed yet';
+
+  const systemPrompt = `You are a garden intelligence system generating a daily briefing for Tucker and Emma's Brooklyn rooftop garden (Zone 7b, Park Slope, late March). You have access to weather data, plant states, recent care history, and today's task list.
+
+Generate a structured, practical, scientifically grounded daily garden briefing. Think field notes meets zone 7b phenology calendar. Be specific to what's actually happening in this garden right now — not generic advice.
+
+Respond as JSON only — no other text:
+{
+  "weather": "1-2 sentences: today's conditions + notable next 5 days. Flag anything actionable (rain → skip water, frost → protect, heat → extra water). Be specific with temps and dates.",
+  "garden": "2-3 sentences: what is actually happening biologically across the garden right now. Phenological stage, soil temps, root activity, dormancy break, visible changes. Ground this in Zone 7b late-March specifics.",
+  "today": "1-2 sentences: what needs doing today and specifically why. Priority order. Reference the actual plants and actions if a task list is available.",
+  "watch": "1 sentence: one specific thing to monitor or anticipate in the next 7 days — pest emergence, weather window, phenological milestone, or timing decision."
+}`;
+
+  const userPrompt = `Date: ${todayFull}. Brooklyn Zone 7b.
+Current conditions: ${weather ? `${Math.round(weather.temp)}°F, ${weather.poem}` : 'unknown'}.
+5-day forecast: ${forecast}
+
+PLANT STATES:
+${plantStates}
+
+TODAY'S TASKS: ${taskList}
+
+Write the daily briefing.`;
+
+  try {
+    const raw = await callClaude(systemPrompt, userPrompt, 500);
+    const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    const parsed = JSON.parse(clean);
+    const data = {
+      weather: parsed.weather || null,
+      garden: parsed.garden || null,
+      today: parsed.today || null,
+      watch: parsed.watch || null,
+    };
+    const midnight = new Date(); midnight.setHours(24, 0, 0, 0);
+    lsSet(cacheKey, { data, expiresAt: midnight.getTime() });
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 // ── MISSED CARE VOICE ─────────────────────────────────────────────────────
 // Shame-free accountability — one sentence from the garden about an overdue plant
 export async function fetchMissedCareVoice(plant, daysSinceWater) {

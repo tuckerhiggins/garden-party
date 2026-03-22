@@ -4,7 +4,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { OracleChat } from './OracleChat';
 import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
-import { fetchPlantBriefing, fetchMorningBrief, fetchDailyAgenda, streamGardenChat } from '../claude';
+import { fetchPlantBriefing, fetchMorningBrief, fetchDailyAgenda, fetchDailyBrief, streamGardenChat } from '../claude';
 import { compressChatImage } from '../utils/compressChatImage';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
@@ -1364,6 +1364,7 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
   totalActivePlants = 0, morningBrief, fullBrief, onStartAction, portraits, completedThisSession,
   doneTodayItems = [], onMarkDone, onOpenAsk }) {
   const [briefExpanded, setBriefExpanded] = React.useState(false);
+  const essentialsDoneLatchRef = React.useRef(false);
 
   // Merge deterministic items with AI-enriched agenda (reason + priority + order)
   const pendingItems = useMemo(() => {
@@ -1402,7 +1403,11 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
   const doneCount = items.filter(isCompleted).length;
   const totalCount = items.length;
   const allDone = totalCount > 0 && doneCount === totalCount;
-  const urgentRecAllDone = urgentRec.length === 0 && doneTodayItems.length > 0;
+  // Latch the "essential tasks done" banner once it first becomes true — don't let briefing
+  // reloads or new tasks arriving flip it back off mid-session.
+  const essentialsDoneNow = urgentRec.length === 0 && doneTodayItems.length > 0 && routineItems.length > 0;
+  if (essentialsDoneNow) essentialsDoneLatchRef.current = true;
+  const urgentRecAllDone = essentialsDoneLatchRef.current && !allDone;
   const hasRemainingRoutine = routineItems.length > 0;
 
   if (!seasonOpen) {
@@ -1489,21 +1494,30 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
 
           {/* Expand hint when collapsed and full brief is available */}
           {!briefExpanded && fullBrief && (
-            <div style={{ fontFamily: MONO, fontSize: 6, color: 'rgba(160,130,80,0.6)', marginTop: 6, letterSpacing: .4 }}>
-              FULL BRIEF ▾
+            <div style={{ fontFamily: MONO, fontSize: 6, color: 'rgba(160,130,80,0.55)', marginTop: 6, letterSpacing: .4 }}>
+              DAILY BRIEF ▾
             </div>
           )}
 
-          {/* Full oracle briefing — expanded */}
+          {/* Structured daily brief — expanded */}
           {briefExpanded && fullBrief && (
-            <div style={{
-              marginTop: 10, paddingTop: 10,
-              borderTop: '1px solid rgba(212,168,48,0.20)',
-              fontFamily: SERIF, fontSize: 13, color: '#4a3010',
-              lineHeight: 1.65,
-            }}>
-              {fullBrief}
-              <div style={{ fontFamily: MONO, fontSize: 6, color: 'rgba(160,130,80,0.6)', marginTop: 8, letterSpacing: .4 }}>
+            <div style={{ marginTop: 11, paddingTop: 11, borderTop: '1px solid rgba(212,168,48,0.20)' }}>
+              {[
+                { key: 'weather', label: 'WEATHER' },
+                { key: 'garden',  label: 'GARDEN STATE' },
+                { key: 'today',   label: 'TODAY' },
+                { key: 'watch',   label: 'WATCH' },
+              ].filter(s => fullBrief[s.key]).map(s => (
+                <div key={s.key} style={{ marginBottom: 10 }}>
+                  <div style={{ fontFamily: MONO, fontSize: 6, color: C.uiGold, letterSpacing: .5, marginBottom: 4 }}>
+                    {s.label}
+                  </div>
+                  <div style={{ fontFamily: SERIF, fontSize: 13, color: '#4a3010', lineHeight: 1.6 }}>
+                    {fullBrief[s.key]}
+                  </div>
+                </div>
+              ))}
+              <div style={{ fontFamily: MONO, fontSize: 6, color: 'rgba(160,130,80,0.55)', marginTop: 4, letterSpacing: .4 }}>
                 ▴ CLOSE
               </div>
             </div>
@@ -1755,6 +1769,7 @@ export function MobileView({
   const [briefings, setBriefings] = useState({});
   const [agendaData, setAgendaData] = useState(null); // { sessionMinutes, tasks }
   const [morningBrief, setMorningBrief] = useState(null);
+  const [dailyBrief, setDailyBrief] = useState(null); // structured: { weather, garden, today, watch }
   const [analysisNotice, setAnalysisNotice] = useState(null);
   const prevAnalyzingRef = useRef({});
   const [completedThisSession, setCompletedThisSession] = useState(() => new Set());
@@ -1834,6 +1849,17 @@ export function MobileView({
     if (!weather || morningBrief) return;
     fetchMorningBrief({ plants: [...plants, ...frontPlants], careLog, weather, portraits })
       .then(brief => { if (brief) setMorningBrief(brief); })
+      .catch(() => {});
+  }, [weather]); // intentional: fetch once per weather load
+
+  // Fetch structured daily brief (weather/garden/today/watch) — for expanded view
+  useEffect(() => {
+    if (!weather || dailyBrief) return;
+    fetchDailyBrief({
+      plants: [...plants, ...frontPlants], careLog, weather, portraits,
+      agendaTasks: rawAgendaItems,
+    })
+      .then(brief => { if (brief) setDailyBrief(brief); })
       .catch(() => {});
   }, [weather]); // intentional: fetch once per weather load
 
@@ -1949,7 +1975,7 @@ export function MobileView({
             rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
             agendaData={agendaData} seasonOpen={seasonOpen}
             totalActivePlants={totalActivePlants}
-            morningBrief={morningBrief} fullBrief={oracle}
+            morningBrief={morningBrief} fullBrief={dailyBrief}
             onStartAction={handleStartAction}
             portraits={portraits} completedThisSession={completedThisSession}
             doneTodayItems={doneTodayItems}
