@@ -555,6 +555,25 @@ function drawCookieSprite(ctx,cx,cy,f){
 }
 
 
+function PlantBriefing({ plant, careLog, weather, portraits }) {
+  const [briefing, setBriefing] = useState(null);
+  useEffect(() => {
+    setBriefing(null);
+    fetchPlantBriefing(plant, careLog, weather, portraits)
+      .then(setBriefing)
+      .catch(() => {});
+  }, [plant.id, plant.health]);
+  const note = briefing?.note || (typeof briefing === 'string' ? briefing : null);
+  if (!note) return null;
+  return (
+    <div style={{ padding:'12px 22px', borderBottom:'1px solid rgba(160,130,80,0.10)',
+      fontStyle:'italic', fontSize:12.5, lineHeight:1.6,
+      color:'rgba(212,190,140,0.78)' }}>
+      {note}
+    </div>
+  );
+}
+
 // ── PLANT CARD ────────────────────────────────────────────────────────────
 function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait, photos = [] }) {
   const history = careLog[plant.id] || [];
