@@ -58,18 +58,27 @@ function healthMod(health) {
 const TIMELINE_KEYS = ['water','prune','fertilize','neem','train','worms'];
 function getActionTimeline(plant, careLog, seasonOpen) {
   if (!seasonOpen) return [];
-  return TIMELINE_KEYS.map(key => {
-    const def = ACTION_DEFS[key]; if (!def) return null;
-    const entries = (careLog[plant.id] || []).filter(e => e.action === key);
-    let available = true, daysLeft = 0, neverDone = entries.length === 0;
-    if (!def.alwaysAvailable && def.cooldownDays > 0 && entries.length > 0) {
-      const last = new Date(entries[entries.length - 1].date);
-      const daysSince = (Date.now() - last.getTime()) / 86400000;
-      daysLeft = Math.ceil(def.cooldownDays - daysSince);
-      available = daysLeft <= 0;
-    }
-    return { key, label: def.label, emoji: def.emoji, available, daysLeft: Math.max(0, daysLeft), neverDone };
-  }).filter(Boolean);
+  const plantActionSet = new Set(plant.actions || []);
+  return TIMELINE_KEYS
+    .filter(key => plantActionSet.has(key))  // only show actions this plant actually supports
+    .map(key => {
+      const def = ACTION_DEFS[key]; if (!def) return null;
+      const entries = (careLog[plant.id] || []).filter(e => e.action === key);
+      let available = true, daysLeft = 0, neverDone = entries.length === 0;
+      if (!def.alwaysAvailable && def.cooldownDays > 0 && entries.length > 0) {
+        const last = new Date(entries[entries.length - 1].date);
+        const daysSince = (Date.now() - last.getTime()) / 86400000;
+        daysLeft = Math.ceil(def.cooldownDays - daysSince);
+        available = daysLeft <= 0;
+      }
+      return { key, label: def.label, emoji: def.emoji, available, daysLeft: Math.max(0, daysLeft), neverDone };
+    }).filter(Boolean);
+}
+
+function fmtDaysLeft(daysLeft) {
+  if (daysLeft <= 1) return 'tomorrow';
+  if (daysLeft <= 6) return `in ${daysLeft}d`;
+  return new Date(Date.now() + daysLeft * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function healthLabel(h) {
@@ -1932,7 +1941,7 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                         </span>
                         <span style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5.5, color: chipColor,
                           background: chipBg, border: `1px solid ${chipBorder}`, padding: '2px 5px', borderRadius: 3 }}>
-                          {available ? (isRec ? 'NOW ★' : (neverDone ? 'NEVER DONE' : 'READY')) : `${daysLeft}D`}
+                          {available ? (isRec ? 'NOW ★' : (neverDone ? 'NEVER DONE' : 'READY')) : fmtDaysLeft(daysLeft)}
                         </span>
                       </div>
                     );
