@@ -1,6 +1,8 @@
 // TerraceMap.js — SVG bird's eye terrace map
 // The wisteria fence and rose trellises are the focal mechanics.
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { fetchPlantBriefing } from './claude';
+import { ACTION_DEFS } from './data/plants';
 
 // ── COORDINATE SYSTEM ─────────────────────────────────────────────────────
 // viewBox: 870 × 694
@@ -50,6 +52,33 @@ function healthMod(health) {
     case 'resting':    return { leafOp:0.04,vib:0.55,droop:0,    shift:0,    stemOp:0.60 };
     default:           return { leafOp:0.80,vib:0.80,droop:0,    shift:0,    stemOp:0.80 };
   }
+}
+
+// Next-action timeline for pinned plant card
+const TIMELINE_KEYS = ['water','prune','fertilize','neem','train','worms'];
+function getActionTimeline(plant, careLog, seasonOpen) {
+  if (!seasonOpen) return [];
+  return TIMELINE_KEYS.map(key => {
+    const def = ACTION_DEFS[key]; if (!def) return null;
+    const entries = (careLog[plant.id] || []).filter(e => e.action === key);
+    let available = true, daysLeft = 0, neverDone = entries.length === 0;
+    if (!def.alwaysAvailable && def.cooldownDays > 0 && entries.length > 0) {
+      const last = new Date(entries[entries.length - 1].date);
+      const daysSince = (Date.now() - last.getTime()) / 86400000;
+      daysLeft = Math.ceil(def.cooldownDays - daysSince);
+      available = daysLeft <= 0;
+    }
+    return { key, label: def.label, emoji: def.emoji, available, daysLeft: Math.max(0, daysLeft), neverDone };
+  }).filter(Boolean);
+}
+
+function healthLabel(h) {
+  return { thriving:'Thriving', content:'Content', thirsty:'Thirsty', overlooked:'Overlooked',
+    struggling:'Struggling', resting:'Resting', recovering:'Recovering' }[h] || h;
+}
+function healthColor(h) {
+  return { thriving:'#58c030', content:'#88c838', thirsty:'#c8a820', overlooked:'#c87020',
+    struggling:'#c83020', resting:'#7898a8', recovering:'#98a828' }[h] || '#909080';
 }
 
 // Blend healthy leaf color toward stressed yellow-brown
@@ -1107,8 +1136,10 @@ function CookieSVG({ pose }) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
-export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0 }) {
+export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0, weather = null }) {
   const [hovId, setHovId] = useState(null);
+  const [pinnedId, setPinnedId] = useState(null);
+  const [pinnedBriefings, setPinnedBriefings] = useState({});
   const [cookiePetted, setCookiePetted] = useState(false);
   const [actionFlash, setActionFlash] = useState(null); // {x, y, key}
   const leaveTimerRef = useRef(null);
@@ -1125,6 +1156,19 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
     const p = hovId ? plants.find(pl => pl.id === hovId) : null;
     onHover?.(p ?? null);
   }, [hovId, plants, onHover]);
+
+  // Fetch Claude briefing when a plant is pinned (cached, so fast after first load)
+  useEffect(() => {
+    if (!pinnedId) return;
+    if (pinnedBriefings[pinnedId] !== undefined) return;
+    const plant = plants.find(p => p.id === pinnedId);
+    if (!plant) return;
+    setPinnedBriefings(prev => ({ ...prev, [pinnedId]: 'loading' }));
+    fetchPlantBriefing(plant, careLog, weather, portraits)
+      .then(b => setPinnedBriefings(prev => ({ ...prev, [pinnedId]: b })))
+      .catch(() => setPinnedBriefings(prev => ({ ...prev, [pinnedId]: null })));
+  }, [pinnedId]);
+
   const [dragId, setDragId] = useState(null);
   const [doorHover, setDoorHover] = useState(false);
   const svgRef = useRef(null);
@@ -1207,6 +1251,11 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
       onDescend?.(); return;
     }
     const hit = hitTest(pt);
+    if (hit && hit.type !== 'empty-pot') {
+      setPinnedId(prev => prev === hit.id ? null : hit.id);
+    } else {
+      setPinnedId(null);
+    }
     onSelect?.(hit ?? null);
   }, [svgPt, hitTest, onSelect, onDescend]);
 
@@ -1730,114 +1779,187 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         </g>
       )}
 
-      {/* ── Hover tooltip ── */}
-      {hovId && (() => {
+      {/* ── Hover tooltip (small, non-pinned plants) ── */}
+      {hovId && hovId !== pinnedId && (() => {
         const hp = plants.find(p => p.id === hovId);
         if (!hp || hp.type === 'empty-pot') return null;
-
         const portrait = portraits[hp.id] || {};
         const entries = careLog[hp.id] || [];
         const lastWater = [...entries].reverse().find(e => e.action === 'water');
-        const daysSinceWater = lastWater
-          ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000)
-          : null;
+        const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
         const stage = portrait.currentStage;
         const waterUrgent = daysSinceWater === null || daysSinceWater > 3;
-        const showWaterBtn = seasonOpen && onAction;
-
         let px, py;
         if (hp.wall === 3) {
           const roses = plants.filter(p => p.type === 'climbing-rose').sort((a,b) => a.pos.x - b.pos.x);
           const isRight = hp.type === 'climbing-rose' && roses.indexOf(hp) === 1;
           px = (isRight ? W3_R_BOX_X : W3_L_BOX_X) + W3_PLANTER_W / 2;
           py = DT + W3_PLANTER_H + 10;
-        } else {
-          const pt = pxy(hp.pos);
-          px = pt.x;
-          py = pt.y;
-        }
-
-        const PAD = 12;
-        const boxW = 178;
-        const ROW = 15;
-        // Layout: name row + divider + water row + optional button
-        let contentH = ROW + 5 + ROW; // name + divider + water
-        if (showWaterBtn) contentH += ROW + 8;
-        const boxH = PAD + contentH + PAD;
-
-        let bx = px + 20;
-        let by = py - boxH - 14;
+        } else { const pt = pxy(hp.pos); px = pt.x; py = pt.y; }
+        const PAD = 11, boxW = 172, ROW = 15;
+        const boxH = PAD + ROW + 5 + ROW + PAD;
+        let bx = px + 20, by = py - boxH - 14;
         if (bx + boxW > VW - 10) bx = px - boxW - 20;
         if (by < DT + 4) by = py + 18;
         if (by + boxH > DB - 4) by = DB - boxH - 8;
         if (bx < DL + 4) bx = DL + 6;
-
         const accentColor = hp.color || '#d4a830';
         let cy = by + PAD;
-
-        // Button area
-        const btnY = by + boxH - PAD - ROW - 2;
-        const btnW = boxW - PAD * 2;
-
         return (
-          <g
-            style={{ pointerEvents: 'auto' }}
-            onMouseEnter={() => {
-              if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
-            }}
-            onMouseLeave={() => {
-              leaveTimerRef.current = setTimeout(() => { setHovId(null); leaveTimerRef.current = null; }, 200);
-            }}
-          >
-            {/* drop shadow */}
-            <rect x={bx+3} y={by+3} width={boxW} height={boxH} fill="rgba(0,0,0,0.28)" rx={7}/>
-            {/* bg */}
+          <g style={{ pointerEvents: 'auto' }}
+            onMouseEnter={() => { if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; } }}
+            onMouseLeave={() => { leaveTimerRef.current = setTimeout(() => { setHovId(null); leaveTimerRef.current = null; }, 200); }}>
+            <rect x={bx+3} y={by+3} width={boxW} height={boxH} fill="rgba(0,0,0,0.24)" rx={7}/>
             <rect x={bx} y={by} width={boxW} height={boxH} fill="rgba(10,6,2,0.96)" rx={7}
               stroke={accentColor} strokeWidth={0.6} strokeOpacity={0.3}/>
-            {/* left accent bar */}
-            <rect x={bx} y={by+8} width={3} height={boxH-16} fill={accentColor} rx={1.5} opacity={0.9}/>
-
-            {/* Plant name */}
-            <text x={bx+PAD} y={cy+10}
-              fontFamily="'Press Start 2P', monospace" fontSize={7.5}
+            <rect x={bx} y={by+7} width={3} height={boxH-14} fill={accentColor} rx={1.5} opacity={0.85}/>
+            <text x={bx+PAD} y={cy+10} fontFamily="'Press Start 2P', monospace" fontSize={7.5}
               fill={accentColor} letterSpacing={0.4}>{hp.name.toUpperCase()}</text>
-            {/* Stage pill — top right */}
-            {stage && (
-              <text x={bx+boxW-PAD} y={cy+10} textAnchor="end"
-                fontFamily="'Crimson Pro', Georgia, serif" fontSize={9.5} fontStyle="italic"
-                fill="rgba(240,228,200,0.42)">{stage}</text>
-            )}
+            {stage && <text x={bx+boxW-PAD} y={cy+10} textAnchor="end"
+              fontFamily="'Crimson Pro', Georgia, serif" fontSize={9.5} fontStyle="italic"
+              fill="rgba(240,228,200,0.40)">{stage}</text>}
             {(() => { cy += ROW + 5; return null; })()}
-
-            {/* thin divider */}
-            <line x1={bx+PAD} y1={cy} x2={bx+boxW-PAD} y2={cy} stroke="rgba(160,130,80,0.18)" strokeWidth={0.7}/>
+            <line x1={bx+PAD} y1={cy} x2={bx+boxW-PAD} y2={cy} stroke="rgba(160,130,80,0.16)" strokeWidth={0.7}/>
             {(() => { cy += 8; return null; })()}
-
-            {/* Water status */}
-            <text x={bx+PAD} y={cy+8}
-              fontFamily="'Crimson Pro', Georgia, serif" fontSize={10.5}
-              fill={waterUrgent ? '#e8905a' : 'rgba(240,228,200,0.62)'}>
+            <text x={bx+PAD} y={cy+8} fontFamily="'Crimson Pro', Georgia, serif" fontSize={10.5}
+              fill={waterUrgent ? '#e8905a' : 'rgba(240,228,200,0.58)'}>
               {daysSinceWater === null ? '💧 No water logged' : daysSinceWater === 0 ? '💧 Watered today' : `💧 ${daysSinceWater}d since water`}
             </text>
-            {(() => { cy += ROW + 2; return null; })()}
+            <text x={bx+boxW-PAD} y={cy+8} textAnchor="end" fontFamily="'Press Start 2P', monospace"
+              fontSize={5.5} fill="rgba(160,130,80,0.45)" letterSpacing={0.3}>CLICK TO PIN</text>
+          </g>
+        );
+      })()}
 
-            {/* Quick water button */}
-            {showWaterBtn && (
-              <g style={{ cursor:'pointer' }} onClick={e => {
-                e.stopPropagation();
-                onAction('water', hp);
-                const pt = WALL4_TYPES.has(hp.type) ? pxyW4(hp.pos) : pxy(hp.pos);
-                setActionFlash({ x: pt.x, y: pt.y, key: 'water' });
-                setTimeout(() => setActionFlash(null), 900);
+      {/* ── Pinned plant card (larger, Claude-informed) ── */}
+      {pinnedId && (() => {
+        const pp = plants.find(p => p.id === pinnedId);
+        if (!pp || pp.type === 'empty-pot') return null;
+        const portrait = portraits[pp.id] || {};
+        const entries = careLog[pp.id] || [];
+        const lastWater = [...entries].reverse().find(e => e.action === 'water');
+        const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
+        const waterUrgent = daysSinceWater === null || daysSinceWater > 3;
+        const briefing = pinnedBriefings[pinnedId];
+        const isLoading = briefing === 'loading';
+        const timeline = getActionTimeline(pp, careLog, seasonOpen);
+        const accentColor = pp.color || '#d4a830';
+        const hc = healthColor(pp.health);
+        let px, py;
+        if (pp.wall === 3) {
+          const roses = plants.filter(p => p.type === 'climbing-rose').sort((a,b) => a.pos.x - b.pos.x);
+          const isRight = pp.type === 'climbing-rose' && roses.indexOf(pp) === 1;
+          px = (isRight ? W3_R_BOX_X : W3_L_BOX_X) + W3_PLANTER_W / 2;
+          py = DT + W3_PLANTER_H + 10;
+        } else { const pt = pxy(pp.pos); px = pt.x; py = pt.y; }
+        const cardW = 252, cardH = 370;
+        let bx = px + 26, by = py - cardH / 2;
+        if (bx + cardW > VW - 8) bx = px - cardW - 26;
+        if (by < DT + 4) by = DT + 4;
+        if (by + cardH > DB - 4) by = DB - cardH - 4;
+        if (bx < DL + 4) bx = DL + 4;
+        return (
+          <g style={{ pointerEvents: 'auto' }} onClick={e => e.stopPropagation()}>
+            {/* shadow */}
+            <rect x={bx+4} y={by+4} width={cardW} height={cardH} fill="rgba(0,0,0,0.38)" rx={11}/>
+            <foreignObject x={bx} y={by} width={cardW} height={cardH} style={{ overflow: 'visible' }}>
+              <div style={{
+                width: cardW, fontFamily: '"Crimson Pro", Georgia, serif',
+                background: 'rgba(10,6,2,0.97)',
+                border: `1px solid ${accentColor}55`,
+                borderRadius: 11, overflow: 'hidden',
+                boxShadow: `0 0 0 0.5px ${accentColor}20`,
               }}>
-                <rect x={bx+PAD} y={btnY} width={btnW} height={ROW+4} rx={4}
-                  fill={waterUrgent ? 'rgba(200,100,30,0.35)' : 'rgba(255,255,255,0.07)'}
-                  stroke={waterUrgent ? 'rgba(220,130,60,0.55)' : 'rgba(255,255,255,0.14)'} strokeWidth={0.7}/>
-                <text x={bx+PAD+btnW/2} y={btnY+ROW-2} textAnchor="middle"
-                  fontFamily="'Crimson Pro', Georgia, serif" fontSize={10}
-                  fill={waterUrgent ? '#f0a070' : 'rgba(240,228,200,0.65)'}>💧 Water now</text>
-              </g>
-            )}
+                {/* top accent bar */}
+                <div style={{ height: 3, background: accentColor, opacity: 0.85 }}/>
+
+                {/* header */}
+                <div style={{ padding: '10px 13px 9px', borderBottom: '1px solid rgba(160,130,80,0.14)', position: 'relative' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 7, color: accentColor, letterSpacing: 0.4, lineHeight: 1.7 }}>
+                        {pp.name.toUpperCase()}
+                      </div>
+                      {portrait.currentStage && (
+                        <div style={{ fontSize: 11, color: 'rgba(240,228,200,0.40)', fontStyle: 'italic', marginTop: 1 }}>
+                          {portrait.currentStage}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontSize: 10, padding: '2px 7px', borderRadius: 9,
+                        background: hc + '22', color: hc, border: `1px solid ${hc}44`, whiteSpace: 'nowrap' }}>
+                        {healthLabel(pp.health)}
+                      </div>
+                      {/* close button */}
+                      <div onClick={e => { e.stopPropagation(); setPinnedId(null); }}
+                        style={{ cursor: 'pointer', fontSize: 11, color: 'rgba(240,228,200,0.30)',
+                          padding: '1px 4px', lineHeight: 1 }}>✕</div>
+                    </div>
+                  </div>
+                  {daysSinceWater !== null && (
+                    <div style={{ fontSize: 11, color: waterUrgent ? '#e8905a' : 'rgba(240,228,200,0.45)', marginTop: 5 }}>
+                      💧 {daysSinceWater === 0 ? 'Watered today' : `${daysSinceWater}d since water`}
+                    </div>
+                  )}
+                </div>
+
+                {/* Claude note */}
+                <div style={{ padding: '9px 13px 9px', borderBottom: '1px solid rgba(160,130,80,0.10)', minHeight: 52 }}>
+                  {isLoading ? (
+                    <div style={{ fontSize: 11.5, color: 'rgba(240,228,200,0.28)', fontStyle: 'italic' }}>Reading the garden…</div>
+                  ) : briefing?.note ? (
+                    <div style={{ fontSize: 12.5, color: 'rgba(212,190,140,0.85)', fontStyle: 'italic', lineHeight: 1.65 }}>
+                      {briefing.note}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: 'rgba(240,228,200,0.25)', fontStyle: 'italic' }}>No note available</div>
+                  )}
+                </div>
+
+                {/* Action timeline */}
+                <div style={{ padding: '9px 13px 4px', borderBottom: '1px solid rgba(160,130,80,0.10)' }}>
+                  <div style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5.5, color: 'rgba(212,168,48,0.65)', letterSpacing: 0.5, marginBottom: 8 }}>NEXT CARE</div>
+                  {timeline.map(({ key, label, emoji, available, daysLeft, neverDone }) => {
+                    const isRec = briefing?.actions?.includes(key);
+                    const chipColor = available ? (isRec ? '#d4a830' : '#78b840') : 'rgba(160,130,80,0.38)';
+                    const chipBg = available ? (isRec ? 'rgba(212,168,48,0.14)' : 'rgba(100,180,60,0.10)') : 'transparent';
+                    const chipBorder = available ? (isRec ? 'rgba(212,168,48,0.38)' : 'rgba(100,180,60,0.28)') : 'rgba(160,130,80,0.18)';
+                    return (
+                      <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: available ? 'rgba(240,228,200,0.78)' : 'rgba(240,228,200,0.32)' }}>
+                          {emoji} {label}
+                        </span>
+                        <span style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5.5, color: chipColor,
+                          background: chipBg, border: `1px solid ${chipBorder}`, padding: '2px 5px', borderRadius: 3 }}>
+                          {available ? (isRec ? 'NOW ★' : (neverDone ? 'NEVER DONE' : 'READY')) : `${daysLeft}D`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Quick water button if urgent */}
+                {seasonOpen && onAction && waterUrgent && (
+                  <div style={{ padding: '8px 13px 10px' }}>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        onAction('water', pp);
+                        const fpt = WALL4_TYPES.has(pp.type) ? pxyW4(pp.pos) : pxy(pp.pos);
+                        setActionFlash({ x: fpt.x, y: fpt.y, key: 'water' });
+                        setTimeout(() => setActionFlash(null), 900);
+                      }}
+                      style={{ width: '100%', padding: '8px 0', border: '1px solid rgba(220,130,60,0.55)',
+                        borderRadius: 6, background: 'rgba(200,100,30,0.30)',
+                        color: '#f0a070', fontFamily: '"Crimson Pro", Georgia, serif',
+                        fontSize: 13, cursor: 'pointer' }}>
+                      💧 Water now
+                    </button>
+                  </div>
+                )}
+              </div>
+            </foreignObject>
           </g>
         );
       })()}

@@ -2253,6 +2253,7 @@ export default function App() {
                       portraits={portraits}
                       careLog={careLog}
                       warmth={warmth}
+                      weather={weather}
                     />
                   </div>
                 </div>
