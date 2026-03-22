@@ -365,8 +365,9 @@ export async function fetchDailyBrief({ plants, careLog, weather, portraits, age
   const today = new Date().toISOString().slice(0, 10);
   const todayFull = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
-  const lastCareDate = Object.values(careLog).flat().map(e => e.date).sort().pop()?.slice(0, 10) ?? '0';
-  const cacheKey = `dailybrief1_${today}_${rainToken}_${lastCareDate}`;
+  // Invalidate when today's care changes (same pattern as fetchMorningBrief)
+  const todayCareToken = Object.values(careLog).flat().filter(e => e.date?.startsWith(today)).length;
+  const cacheKey = `dailybrief2_${today}_${rainToken}_${todayCareToken}`;
 
   const cached = lsGet(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.data;
@@ -378,6 +379,17 @@ export async function fetchDailyBrief({ plants, careLog, weather, portraits, age
     const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
     return `${label}: ${d.high}°/${d.low}°F, ${d.label}, ${d.precipChance}% rain`;
   }).join(' · ') ?? 'unavailable';
+
+  const rainSoon = weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60);
+
+  // Care logged today — so Claude knows what's already been done this session
+  const todayCare = Object.entries(careLog).flatMap(([id, entries]) => {
+    const plant = allPlants.find(p => p.id === id);
+    if (!plant) return [];
+    return entries
+      .filter(e => e.date?.startsWith(today))
+      .map(e => `${plant.name}: ${e.label || e.action}`);
+  });
 
   // Plant states
   const plantStates = allPlants.map(p => {
@@ -403,17 +415,25 @@ export async function fetchDailyBrief({ plants, careLog, weather, portraits, age
 
 Generate a structured, practical, scientifically grounded daily garden briefing. Think field notes meets zone 7b phenology calendar. Be specific to what's actually happening in this garden right now — not generic advice.
 
+Rain rules (non-negotiable):
+- If rain ≥60% chance today or tomorrow: do NOT recommend watering
+- If rain within 24h: do NOT recommend neem oil (it washes off and wastes the application)
+
+Do NOT recommend actions that have already been completed today (see ALREADY DONE TODAY).
+
 Respond as JSON only — no other text:
 {
   "weather": "1-2 sentences: today's conditions + notable next 5 days. Flag anything actionable (rain → skip water, frost → protect, heat → extra water). Be specific with temps and dates.",
   "garden": "2-3 sentences: what is actually happening biologically across the garden right now. Phenological stage, soil temps, root activity, dormancy break, visible changes. Ground this in Zone 7b late-March specifics.",
-  "today": "1-2 sentences: what needs doing today and specifically why. Priority order. Reference the actual plants and actions if a task list is available.",
+  "today": "1-2 sentences: what still needs doing today and specifically why. Skip anything already completed. If rain is coming, say so and adjust recommendations accordingly.",
   "watch": "1 sentence: one specific thing to monitor or anticipate in the next 7 days — pest emergence, weather window, phenological milestone, or timing decision."
 }`;
 
   const userPrompt = `Date: ${todayFull}. Brooklyn Zone 7b.
 Current conditions: ${weather ? `${Math.round(weather.temp)}°F, ${weather.poem}` : 'unknown'}.
 5-day forecast: ${forecast}
+${rainSoon ? 'RAIN COMING: Do not recommend neem oil or watering.' : ''}
+${todayCare.length ? `ALREADY DONE TODAY: ${todayCare.join(', ')}.` : 'Nothing logged yet today.'}
 
 PLANT STATES:
 ${plantStates}
