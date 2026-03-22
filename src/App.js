@@ -1855,10 +1855,22 @@ export default function App() {
   }, [careLog]);
 
   // Care action
+  const ONCE_PER_DAY = new Set(['water','fertilize','prune','neem','train','repot','worms']);
   const doAction = useCallback(async (key, plant, customLabel) => {
     const def = ACTION_DEFS[key];
     if (!def && key !== 'custom') return;
     const isWithEmma = role === 'emma';
+
+    // Duplicate check — warn if this action was already logged today for this plant
+    if (ONCE_PER_DAY.has(key)) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const alreadyToday = (careLog[plant.id] || []).some(e => e.action === key && e.date?.startsWith(todayStr));
+      if (alreadyToday) {
+        const label = def?.label || key;
+        const ok = window.confirm(`You already logged "${label}" for ${plant.name} today. Log it again?`);
+        if (!ok) return;
+      }
+    }
 
     // Notes: parse first — log as detected care actions if found, else as a note
     if (key === 'note' && customLabel) {

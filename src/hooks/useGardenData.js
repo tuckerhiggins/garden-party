@@ -10,8 +10,28 @@ const LS = {
 const lsLoad = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const lsSave = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
+// Actions where only one log per day is meaningful — keep the last entry per (plant, action, day)
+const DEDUP_KEYS = new Set(['water','fertilize','prune','neem','train','repot','worms']);
+
+function dedupeLog(log) {
+  const result = {};
+  for (const [plantId, entries] of Object.entries(log)) {
+    const seen = new Set(); // "action:YYYY-MM-DD"
+    // Walk newest-first so we keep the last (most recent) entry
+    const deduped = [...entries].reverse().filter(e => {
+      if (!DEDUP_KEYS.has(e.action)) return true;
+      const key = `${e.action}:${e.date?.slice(0, 10)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).reverse();
+    result[plantId] = deduped;
+  }
+  return result;
+}
+
 export function useGardenData({ user }) {
-  const [careLog, setCareLogState] = useState(() => lsLoad(LS.care, {}));
+  const [careLog, setCareLogState] = useState(() => dedupeLog(lsLoad(LS.care, {})));
   const [expenses, setExpensesState] = useState(() => lsLoad(LS.expenses, []));
   const [positions, setPositionsState] = useState(() => lsLoad(LS.positions, {}));
   const [growth, setGrowthState] = useState(() => lsLoad(LS.growth, {}));
@@ -54,8 +74,9 @@ export function useGardenData({ user }) {
             const pending = localEntries.filter(e => new Date(e.date).getTime() > latestSb + 1000);
             if (pending.length) merged[plantId] = [...sbEntries, ...pending];
           });
-          lsSave(LS.care, merged);
-          return merged;
+          const deduped = dedupeLog(merged);
+          lsSave(LS.care, deduped);
+          return deduped;
         });
       }
 
