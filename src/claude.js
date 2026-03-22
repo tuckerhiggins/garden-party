@@ -229,8 +229,10 @@ What does this plant need right now?`;
 
   const raw = await cachedClaude(cacheKey, systemPrompt, userPrompt, 600, 24 * 60 * 60 * 1000);
   try {
-    const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-    const parsed = JSON.parse(clean);
+    const jsonStart = raw.indexOf('{');
+    const jsonEnd = raw.lastIndexOf('}');
+    if (jsonStart === -1 || jsonEnd === -1) throw new Error('no JSON');
+    const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1));
     const tasks = Array.isArray(parsed.tasks)
       ? parsed.tasks.filter(t => t && typeof t.label === 'string')
       : [];
@@ -241,7 +243,7 @@ What does this plant need right now?`;
       actions: tasks.map(t => t.key).filter(k => STANDARD_KEYS.has(k)),
     };
   } catch {
-    return { note: raw || '', tasks: [], actions: [] };
+    return { note: '', tasks: [], actions: [] };
   }
 }
 

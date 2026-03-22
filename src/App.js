@@ -823,8 +823,8 @@ function parseOracleMsg(raw) {
   return { text: text.trim(), diagram, photoRequest };
 }
 
-function ActionModal({ plant, actionKey, careLog, portraits, weather, onLog, onClose }) {
-  const def = ACTION_DEFS[actionKey];
+function ActionModal({ plant, actionKey, task = null, careLog, portraits, weather, onLog, onClose }) {
+  const def = ACTION_DEFS[actionKey] || { emoji: task?.emoji || '✨', label: task?.label || actionKey };
   const color = plantColor(plant.type);
   const [mode, setMode] = useState(null); // null | 'confirm' | 'help'
 
@@ -860,7 +860,10 @@ function ActionModal({ plant, actionKey, careLog, portraits, weather, onLog, onC
 
   useEffect(() => {
     if (mode === 'help' && messages.length === 0) {
-      sendChat(`I'm about to ${def.label.toLowerCase()} my ${plant.name} right now. Walk me through exactly what to do.`);
+      const initMsg = task?.instructions
+        ? `I'm about to work on "${task.label}" for my ${plant.name}. Context: ${task.instructions} Walk me through it step by step.`
+        : `I'm about to ${def.label.toLowerCase()} my ${plant.name} right now. Walk me through exactly what to do.`;
+      sendChat(initMsg);
     }
   }, [mode]); // eslint-disable-line
 
@@ -1147,7 +1150,7 @@ function ActionModal({ plant, actionKey, careLog, portraits, weather, onLog, onC
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
 function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate, weather }) {
   const [tab, setTab] = useState('care');
-  const [actionModal, setActionModal] = useState(null); // key string or null
+  const [actionModal, setActionModal] = useState(null); // { key, task } or null
   const [briefing, setBriefing] = useState(null);
   const history = careLog[plant.id] || [];
   const color = plantColor(plant.type);
@@ -1159,11 +1162,9 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
       .catch(() => {});
   }, [plant.id, plant.health]);
 
-  const handleAction = (key) => {
-    const st = actionStatus(plant, key, careLog, seasonOpen);
-    if (!st.available) return;
+  const handleAction = (key, task = null) => {
     if (key === 'water') { onAction(key, plant); return; }
-    setActionModal(key);
+    setActionModal({ key, task });
   };
 
   return (
@@ -1316,68 +1317,83 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
                   </div>
                 )}
 
-                {/* Action buttons — recommended first, then available, then unavailable */}
-                {(() => {
-                  const recommendedKeys = (briefing?.actions || []).filter(a => ACTION_DEFS[a]);
-                  const careActions = Object.entries(ACTION_DEFS)
-                    .filter(([a]) => !['photo','visit','note','plant'].includes(a));
-                  const recommended = careActions.filter(([a]) => {
-                    const st = actionStatus(plant,a,careLog,seasonOpen);
-                    return st.available && recommendedKeys.includes(a);
-                  });
-                  const available = careActions.filter(([a]) => {
-                    const st = actionStatus(plant,a,careLog,seasonOpen);
-                    return st.available && !recommendedKeys.includes(a);
-                  });
-                  const unavailable = careActions.filter(([a]) => {
-                    const st = actionStatus(plant,a,careLog,seasonOpen);
-                    return !st.available;
-                  });
-                  return (
-                    <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14}}>
-                      {recommended.map(([a, def]) => (
-                        <button key={a} onClick={()=>handleAction(a)}
-                          style={{display:'flex',alignItems:'center',gap:8,
-                            background:'rgba(180,120,20,0.10)',
-                            border:`1.5px solid rgba(180,120,20,0.45)`,
-                            borderRadius:6,padding:'9px 10px',cursor:'pointer',
-                            transition:'all .12s',textAlign:'left',
-                            boxShadow:`0 1px 4px rgba(180,120,20,0.10)`}}>
-                          <span style={{fontSize:15}}>{def.emoji}</span>
-                          <span style={{flex:1,fontSize:13,color:'#7a4a08',fontFamily:SERIF,fontWeight:600}}>{def.label}</span>
-                          <span style={{fontSize:8,fontFamily:MONO,color:'#b07010',letterSpacing:.3}}>NOW</span>
-                        </button>
-                      ))}
-                      {available.map(([a, def]) => (
-                        <button key={a} onClick={()=>handleAction(a)}
-                          style={{display:'flex',alignItems:'center',gap:8,
-                            background:'#fff',
-                            border:`1px solid ${color}35`,
-                            borderRadius:6,padding:'8px 10px',cursor:'pointer',
-                            transition:'all .12s',textAlign:'left',
-                            boxShadow:`0 1px 3px rgba(100,70,30,0.07)`}}>
-                          <span style={{fontSize:15}}>{def.emoji}</span>
-                          <span style={{flex:1,fontSize:13,color:'#2a1808',fontFamily:SERIF}}>{def.label}</span>
-                        </button>
-                      ))}
-                      {unavailable.map(([a, def]) => {
-                        const st = actionStatus(plant,a,careLog,seasonOpen);
+                {/* Action buttons — AI-generated tasks from briefing */}
+                <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14}}>
+                  {briefing?.tasks?.length > 0 ? (
+                    <>
+                      {briefing.tasks.map((task, i) => {
+                        const isOptional = task.optional === true;
                         return (
-                          <button key={a} disabled
-                            style={{display:'flex',alignItems:'center',gap:8,
-                              background:'rgba(0,0,0,0.02)',
-                              border:`1px solid rgba(160,130,80,0.15)`,
-                              borderRadius:6,padding:'7px 10px',cursor:'not-allowed',
-                              textAlign:'left',opacity:0.7}}>
-                            <span style={{fontSize:15,opacity:0.5}}>{def.emoji}</span>
-                            <span style={{flex:1,fontSize:12,color:'#b09070',fontFamily:SERIF}}>{def.label}</span>
-                            <span style={{fontSize:10,color:'#c0a080',fontFamily:SERIF}}>{st.reason}</span>
+                          <button key={task.key + i} onClick={() => handleAction(task.key, task)}
+                            style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:4,
+                              background: isOptional ? 'rgba(80,120,60,0.06)' : 'rgba(180,120,20,0.08)',
+                              border: isOptional ? '1px solid rgba(80,120,60,0.22)' : `1.5px solid rgba(180,120,20,0.38)`,
+                              borderRadius:8,padding:'10px 12px',cursor:'pointer',
+                              transition:'all .12s',textAlign:'left',width:'100%',
+                              boxShadow: isOptional ? 'none' : `0 1px 4px rgba(180,120,20,0.08)`}}>
+                            <div style={{display:'flex',alignItems:'center',gap:7,width:'100%'}}>
+                              <span style={{fontSize:15,opacity: isOptional ? 0.7 : 1}}>
+                                {ACTION_DEFS[task.key]?.emoji || '✨'}
+                              </span>
+                              <span style={{flex:1,fontSize:13,
+                                color: isOptional ? '#607050' : '#7a4a08',
+                                fontFamily:SERIF,fontWeight:600}}>
+                                {task.label}
+                              </span>
+                              <span style={{fontSize:8,fontFamily:MONO,letterSpacing:.3,
+                                color: isOptional ? '#7a9868' : '#b07010',
+                                background: isOptional ? 'rgba(80,120,60,0.12)' : 'rgba(180,120,20,0.12)',
+                                borderRadius:3,padding:'2px 5px'}}>
+                                {isOptional ? 'EXPLORE' : 'NOW'}
+                              </span>
+                            </div>
+                            {task.reason && (
+                              <div style={{fontSize:11,color:'#907050',fontStyle:'italic',
+                                fontFamily:SERIF,lineHeight:1.5,paddingLeft:22}}>
+                                {task.reason}
+                              </div>
+                            )}
                           </button>
                         );
                       })}
-                    </div>
-                  );
-                })()}
+                      {/* Water — always available as a quick option if not in tasks */}
+                      {!briefing.tasks.some(t => t.key === 'water') && seasonOpen && (
+                        <button onClick={() => handleAction('water')}
+                          style={{display:'flex',alignItems:'center',gap:8,
+                            background:'#fff',border:`1px solid ${color}30`,
+                            borderRadius:8,padding:'9px 12px',cursor:'pointer',
+                            transition:'all .12s',textAlign:'left',
+                            boxShadow:`0 1px 3px rgba(100,70,30,0.05)`}}>
+                          <span style={{fontSize:15}}>💧</span>
+                          <span style={{flex:1,fontSize:13,color:'#2a1808',fontFamily:SERIF}}>Water</span>
+                        </button>
+                      )}
+                    </>
+                  ) : briefing && briefing.tasks?.length === 0 ? (
+                    <>
+                      <div style={{fontSize:12,color:'#a09070',fontStyle:'italic',fontFamily:SERIF,
+                        marginBottom:6}}>{plant.name} is doing well right now.</div>
+                      {seasonOpen && (
+                        <button onClick={() => handleAction('water')}
+                          style={{display:'flex',alignItems:'center',gap:8,
+                            background:'#fff',border:`1px solid ${color}30`,
+                            borderRadius:8,padding:'9px 12px',cursor:'pointer',
+                            textAlign:'left'}}>
+                          <span style={{fontSize:15}}>💧</span>
+                          <span style={{flex:1,fontSize:13,color:'#2a1808',fontFamily:SERIF}}>Water</span>
+                        </button>
+                      )}
+                    </>
+                  ) : seasonOpen ? (
+                    <button onClick={() => handleAction('water')}
+                      style={{display:'flex',alignItems:'center',gap:8,
+                        background:'#fff',border:`1px solid ${color}30`,
+                        borderRadius:8,padding:'9px 12px',cursor:'pointer',textAlign:'left'}}>
+                      <span style={{fontSize:15}}>💧</span>
+                      <span style={{flex:1,fontSize:13,color:'#2a1808',fontFamily:SERIF}}>Water</span>
+                    </button>
+                  ) : null}
+                </div>
               </>
             )}
           </>
@@ -1388,11 +1404,12 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
       {actionModal && (
         <ActionModal
           plant={plant}
-          actionKey={actionModal}
+          actionKey={actionModal.key}
+          task={actionModal.task}
           careLog={careLog}
           portraits={portraits}
           weather={weather}
-          onLog={() => onAction(actionModal, plant)}
+          onLog={() => onAction(actionModal.key, plant, actionModal.task?.label)}
           onClose={() => setActionModal(null)}
         />
       )}
