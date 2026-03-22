@@ -460,6 +460,81 @@ Write the daily briefing.`;
   }
 }
 
+// ── JOURNAL ENTRY ─────────────────────────────────────────────────────────
+// AI-generated daily narrative for the garden journal.
+// One paragraph per day; leads with what's botanically interesting,
+// weaves care actions in naturally, connects actions to outcomes when timing supports it.
+export async function fetchJournalEntry({
+  dateStr,
+  careEntries,          // [{ plantId, plantName, label, action, withEmma }]
+  portraitObservations, // [{ plantId, plantName, visualNote, bloomState, foliageState, stage }]
+  photoCount,           // total photos taken this day across all plants
+  plantHistories,       // [{ plantName, recentCare: [{ label, date }] }] — care before this date
+}) {
+  if (!careEntries.length && !portraitObservations.length) return null;
+
+  const isToday = dateStr === new Date().toISOString().slice(0, 10);
+  const careCacheToken = careEntries.length;
+  const portraitToken = portraitObservations
+    .map(p => (p.visualNote || '').slice(0, 8))
+    .join('').replace(/\W/g, '').slice(0, 16);
+  const cacheKey = `journal3_${dateStr}_c${careCacheToken}_o${portraitToken}`;
+  const ttl = isToday ? null : 30 * 24 * 60 * 60 * 1000; // today: until midnight; past: 30 days
+
+  const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  });
+
+  const historySection = plantHistories
+    .map(ph => {
+      if (!ph.recentCare.length) return null;
+      const lines = ph.recentCare.slice(0, 6).map(c => {
+        const d = new Date(c.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return `  ${d}: ${c.label}`;
+      }).join('\n');
+      return `${ph.plantName}:\n${lines}`;
+    })
+    .filter(Boolean)
+    .join('\n\n');
+
+  const systemPrompt = `You write daily garden journal entries for Tucker and Emma's Brooklyn garden (Zone 7b, Park Slope): a rooftop terrace and Emma's Rose Garden out front. Write like a thoughtful, observant gardener recording what actually happened.
+
+Rules:
+- Lead with the most interesting botanical thing: a phenological milestone (first buds, first blooms, new flush), a visible change, something worth noticing — not just listing what was done
+- Weave care actions into the narrative naturally: "after fertilizing three weeks ago, the wisteria is now showing…"
+- When care history shows a relevant action weeks before a current observation, connect them explicitly: "the first blooms appeared three weeks after the February fertilizing"
+- If photos were taken, mention it naturally: "photographed the first blooms," "documented the new growth"
+- If Emma was involved in care, mention her by name
+- 2–4 sentences. Past tense. Warm and specific. No generic garden advice.
+- Start mid-action or mid-observation — not with "Today" or the date
+- Never use the words "journal," "entry," "log," or "overall"`;
+
+  const userPrompt = `Date: ${dateLabel}.${isToday ? ' (mid-day — not yet over)' : ''}
+
+CARE ACTIONS:
+${careEntries.length
+  ? careEntries.map(e => `• ${e.plantName}: ${e.label}${e.withEmma ? ' (with Emma)' : ''}`).join('\n')
+  : '(none)'}
+
+BOTANICAL OBSERVATIONS (from photo analysis):
+${portraitObservations.length
+  ? portraitObservations.map(p => {
+      const parts = [`• ${p.plantName}: ${p.visualNote}`];
+      if (p.stage) parts.push(`[stage: ${p.stage}]`);
+      if (p.bloomState && p.bloomState !== 'dormant') parts.push(`[bloom: ${p.bloomState}]`);
+      return parts.join(' ');
+    }).join('\n')
+  : '(none)'}
+
+${photoCount > 0 ? `Photos taken: ${photoCount}` : ''}
+
+${historySection ? `RECENT CARE HISTORY — use for cause-and-effect timing:\n${historySection}` : ''}
+
+Write the journal entry.`;
+
+  return cachedClaude(cacheKey, systemPrompt, userPrompt, 280, ttl);
+}
+
 // ── MISSED CARE VOICE ─────────────────────────────────────────────────────
 // Shame-free accountability — one sentence from the garden about an overdue plant
 export async function fetchMissedCareVoice(plant, daysSinceWater) {

@@ -4,7 +4,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { OracleChat } from './OracleChat';
 import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
-import { fetchPlantBriefing, fetchMorningBrief, fetchDailyAgenda, fetchDailyBrief, streamGardenChat } from '../claude';
+import { fetchPlantBriefing, fetchMorningBrief, fetchDailyAgenda, fetchDailyBrief, fetchJournalEntry, streamGardenChat } from '../claude';
 import { compressChatImage } from '../utils/compressChatImage';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
@@ -1580,53 +1580,142 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
 }
 
 // ── JOURNAL TAB (mobile) ───────────────────────────────────────────────────
-function MobileJournal({ plants, frontPlants = [], careLog, portraits = {} }) {
-  const allPlants = [...plants, ...frontPlants];
-  const allEntries = [];
 
-  // Care log entries
-  Object.entries(careLog).forEach(([id, entries]) => {
-    const plant = allPlants.find(p => p.id === id);
-    if (plant) entries.forEach(e => allEntries.push({ ...e, plant, entryType: e.action === 'note' ? 'note' : 'care' }));
+function buildMobileDayMap(allPlants, careLog, portraits, allPhotos) {
+  const days = {};
+  const ensure = d => { if (!days[d]) days[d] = { careEntries: [], portraitObservations: [], photos: [] }; return days[d]; };
+
+  Object.entries(careLog).forEach(([plantId, entries]) => {
+    const plant = allPlants.find(p => p.id === plantId);
+    if (!plant) return;
+    entries.forEach(e => {
+      ensure(e.date.slice(0, 10)).careEntries.push({
+        plantId, plantName: plant.name, label: e.label, action: e.action, withEmma: !!e.withEmma,
+      });
+    });
   });
 
-  // Portrait observation entries (from AI analysis)
   allPlants.forEach(p => {
-    const portrait = portraits[p.id];
-    if (!portrait?.visualNote || !portrait?.date) return;
-    allEntries.push({
-      entryType: 'observation',
-      plant: p,
-      label: portrait.visualNote,
-      date: portrait.date,
-      emoji: '🔍',
-      earned: 0,
-    });
-    // Also include history observations
-    (portrait.history || []).forEach(h => {
-      if (h.visualNote && h.date) {
-        allEntries.push({
-          entryType: 'observation',
-          plant: p,
-          label: h.visualNote,
-          date: h.date,
-          emoji: '🔍',
-          earned: 0,
+    const port = portraits[p.id];
+    if (!port) return;
+    if (port.visualNote && port.date) {
+      ensure(port.date.slice(0, 10)).portraitObservations.push({
+        plantId: p.id, plantName: p.name,
+        visualNote: port.visualNote, bloomState: port.bloomState,
+        foliageState: port.foliageState, stage: port.stage || port.currentStage,
+      });
+    }
+    (port.history || []).forEach(h => {
+      if (!h.visualNote || !h.date) return;
+      const bucket = ensure(h.date.slice(0, 10));
+      if (!bucket.portraitObservations.some(o => o.plantId === p.id && o.visualNote === h.visualNote)) {
+        bucket.portraitObservations.push({
+          plantId: p.id, plantName: p.name,
+          visualNote: h.visualNote, bloomState: h.bloomState,
+          foliageState: h.foliageState, stage: h.stage,
         });
       }
     });
   });
 
-  allEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
-  // Deduplicate by plant + date + label
-  const seen = new Set();
-  const deduped = allEntries.filter(e => {
-    const key = `${e.plant.id}|${e.date}|${e.label}`;
-    if (seen.has(key)) return false;
-    seen.add(key); return true;
+  Object.entries(allPhotos).forEach(([plantId, photos]) => {
+    photos.forEach(ph => {
+      const d = (ph.date || '').slice(0, 10);
+      if (d) ensure(d).photos.push({ ...ph, plantId });
+    });
   });
 
-  if (deduped.length === 0) {
+  return days;
+}
+
+function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, allPlants, careLog }) {
+  const isToday = dateStr === new Date().toISOString().slice(0, 10);
+  const [narrative, setNarrative] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const versionKey = `${careEntries.length}_${portraitObservations.map(o => (o.visualNote || '').slice(0, 6)).join('')}`;
+
+  React.useEffect(() => {
+    setLoading(true);
+    setNarrative(null);
+    const plantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
+    const plantHistories = plantIds.map(pid => {
+      const plant = allPlants.find(p => p.id === pid);
+      if (!plant) return null;
+      const recentCare = (careLog[pid] || [])
+        .filter(e => e.date.slice(0, 10) < dateStr)
+        .slice(-8)
+        .map(e => ({ label: e.label, date: e.date }));
+      return { plantName: plant.name, recentCare };
+    }).filter(Boolean);
+
+    fetchJournalEntry({ dateStr, careEntries, portraitObservations, photoCount: photos.length, plantHistories })
+      .then(text => { setNarrative(text); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [dateStr, versionKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const hasEmma = careEntries.some(e => e.withEmma);
+
+  return (
+    <div style={{ marginBottom: 28, paddingBottom: 28, borderBottom: '1px solid rgba(160,130,80,0.12)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+        <span style={{ fontSize: 9, color: '#a08060', fontFamily: MONO, letterSpacing: 0.6 }}>
+          {dateLabel.toUpperCase()}
+        </span>
+        {isToday && (
+          <span style={{ fontSize: 8, color: C.uiGold, fontFamily: MONO, border: '1px solid rgba(212,168,48,0.4)', borderRadius: 8, padding: '1px 6px' }}>
+            IN PROGRESS
+          </span>
+        )}
+        {hasEmma && <span style={{ fontSize: 11, color: '#e84070' }}>♥</span>}
+      </div>
+
+      {loading ? (
+        <div style={{ fontFamily: SERIF, fontSize: 13, color: 'rgba(160,130,80,0.3)', fontStyle: 'italic', lineHeight: 1.7 }}>…</div>
+      ) : narrative ? (
+        <p style={{ fontFamily: SERIF, fontSize: 14, lineHeight: 1.8, color: '#3a2010', margin: '0 0 10px' }}>
+          {narrative}
+        </p>
+      ) : null}
+
+      {careEntries.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: narrative ? 10 : 4 }}>
+          {careEntries.map((e, i) => (
+            <span key={i} style={{
+              fontSize: 9, fontFamily: MONO,
+              background: e.withEmma ? 'rgba(232,64,112,0.06)' : 'rgba(160,130,80,0.07)',
+              border: `1px solid ${e.withEmma ? 'rgba(232,64,112,0.18)' : 'rgba(160,130,80,0.15)'}`,
+              borderRadius: 10, padding: '2px 7px',
+              color: e.withEmma ? '#c04060' : '#907050',
+            }}>
+              {e.plantName} · {e.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {photos.length > 0 && (
+        <div style={{ display: 'flex', gap: 5, marginTop: 10, flexWrap: 'wrap' }}>
+          {photos.slice(0, 4).map((ph, i) => (
+            <img key={i} src={ph.url || ph.dataUrl} alt=""
+              style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid rgba(160,130,80,0.2)' }} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileJournal({ plants, frontPlants = [], careLog, portraits = {}, allPhotos = {} }) {
+  const allPlants = React.useMemo(() => [...plants, ...frontPlants], [plants, frontPlants]);
+  const dayMap = React.useMemo(
+    () => buildMobileDayMap(allPlants, careLog, portraits, allPhotos),
+    [allPlants, careLog, portraits, allPhotos]
+  );
+  const sortedDays = Object.keys(dayMap).sort((a, b) => b.localeCompare(a)).slice(0, 60);
+
+  if (sortedDays.length === 0) {
     return (
       <div style={{ padding: '40px 20px', textAlign: 'center' }}>
         <div style={{ fontFamily: SERIF, fontSize: 14, color: '#907050', fontStyle: 'italic' }}>
@@ -1637,39 +1726,20 @@ function MobileJournal({ plants, frontPlants = [], careLog, portraits = {} }) {
   }
 
   return (
-    <div style={{ padding: '16px' }}>
-      <div style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, marginBottom: 14, letterSpacing: .5 }}>
-        SEASON 2 LOG
+    <div style={{ padding: '16px 16px 32px' }}>
+      <div style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, marginBottom: 16, letterSpacing: 0.5 }}>
+        SEASON 2 JOURNAL
       </div>
-      {deduped.slice(0, 60).map((e, i) => {
-        const color = plantColor(e.plant.type);
-        const isObservation = e.entryType === 'observation';
-        const isNote = e.entryType === 'note';
+      {sortedDays.map(dateStr => {
+        const day = dayMap[dateStr];
         return (
-          <div key={i} style={{
-            display: 'flex', gap: 10, padding: '10px 0',
-            borderBottom: '1px solid rgba(160,130,80,0.12)',
-            alignItems: 'flex-start',
-            opacity: isObservation ? 0.85 : 1,
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{e.emoji}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontSize: isObservation ? 12 : 14,
-                color: isNote ? '#5a3c18' : isObservation ? '#7a5c3c' : '#2a1808',
-                fontFamily: SERIF,
-                fontStyle: isObservation ? 'italic' : 'normal',
-                lineHeight: 1.4,
-              }}>
-                {e.label}
-              </div>
-              <div style={{ fontSize: 12, color, fontFamily: SERIF }}>{e.plant.name}</div>
-              {e.withEmma && <div style={{ fontSize: 11, color: '#a07030', fontFamily: SERIF }}>with Emma ♥</div>}
-            </div>
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontSize: 11, color: '#b09070', fontFamily: SERIF }}>{fmtDate(e.date)}</div>
-              </div>
-          </div>
+          <MobileJournalDay key={dateStr} dateStr={dateStr}
+            careEntries={day.careEntries}
+            portraitObservations={day.portraitObservations}
+            photos={day.photos}
+            allPlants={allPlants}
+            careLog={careLog}
+          />
         );
       })}
     </div>
@@ -2013,7 +2083,7 @@ export function MobileView({
 
         {tab === 'journal' && (
           <MobileJournal
-            plants={plants} frontPlants={frontPlants} careLog={careLog} portraits={portraits}
+            plants={plants} frontPlants={frontPlants} careLog={careLog} portraits={portraits} allPhotos={allPhotos}
           />
         )}
       </div>

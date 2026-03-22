@@ -7,7 +7,7 @@ import { TERRACE_PLANTS, FRONT_PLANTS, ACTION_DEFS, ACTION_HOWTO } from './data/
 import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
-import { fetchOracle, fetchSeasonOpener, fetchPlantBriefing, streamGardenChat, fetchMorningBrief, fetchDailyBrief } from './claude';
+import { fetchOracle, fetchSeasonOpener, fetchPlantBriefing, streamGardenChat, fetchMorningBrief, fetchDailyBrief, fetchJournalEntry } from './claude';
 import { usePortraits } from './hooks/usePortraits';
 import { usePhotos } from './hooks/usePhotos';
 import { useAuth } from './hooks/useAuth';
@@ -1401,94 +1401,169 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
 }
 
 // ── JOURNAL VIEW ──────────────────────────────────────────────────────────
-function JournalView({ careLog, plants }) {
-  // Flatten all entries with plant info, sorted by date
-  const allEntries = [];
-  Object.entries(careLog).forEach(([plantId, entries]) => {
-    const plant = plants.find(p => p.id === plantId);
-    if (!plant) return;
-    entries.forEach(e => allEntries.push({ ...e, plant }));
-  });
-  allEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  if (allEntries.length === 0) {
+function buildJournalDayMap(allPlants, careLog, portraits, allPhotos) {
+  const days = {};
+  const ensure = d => { if (!days[d]) days[d] = { careEntries: [], portraitObservations: [], photos: [] }; return days[d]; };
+
+  Object.entries(careLog).forEach(([plantId, entries]) => {
+    const plant = allPlants.find(p => p.id === plantId);
+    if (!plant) return;
+    entries.forEach(e => {
+      ensure(e.date.slice(0, 10)).careEntries.push({
+        plantId, plantName: plant.name, label: e.label, action: e.action, withEmma: !!e.withEmma,
+      });
+    });
+  });
+
+  allPlants.forEach(p => {
+    const port = portraits[p.id];
+    if (!port) return;
+    if (port.visualNote && port.date) {
+      ensure(port.date.slice(0, 10)).portraitObservations.push({
+        plantId: p.id, plantName: p.name,
+        visualNote: port.visualNote, bloomState: port.bloomState,
+        foliageState: port.foliageState, stage: port.stage || port.currentStage,
+      });
+    }
+    (port.history || []).forEach(h => {
+      if (!h.visualNote || !h.date) return;
+      const bucket = ensure(h.date.slice(0, 10));
+      if (!bucket.portraitObservations.some(o => o.plantId === p.id && o.visualNote === h.visualNote)) {
+        bucket.portraitObservations.push({
+          plantId: p.id, plantName: p.name,
+          visualNote: h.visualNote, bloomState: h.bloomState,
+          foliageState: h.foliageState, stage: h.stage,
+        });
+      }
+    });
+  });
+
+  Object.entries(allPhotos).forEach(([plantId, photos]) => {
+    photos.forEach(ph => {
+      const d = (ph.date || '').slice(0, 10);
+      if (d) ensure(d).photos.push({ ...ph, plantId });
+    });
+  });
+
+  return days;
+}
+
+function getPlantHistories(plantIds, allPlants, careLog, dateStr) {
+  return plantIds.map(pid => {
+    const plant = allPlants.find(p => p.id === pid);
+    if (!plant) return null;
+    const recentCare = (careLog[pid] || [])
+      .filter(e => e.date.slice(0, 10) < dateStr)
+      .slice(-8)
+      .map(e => ({ label: e.label, date: e.date }));
+    return { plantName: plant.name, recentCare };
+  }).filter(Boolean);
+}
+
+function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPlants, careLog }) {
+  const isToday = dateStr === new Date().toISOString().slice(0, 10);
+  const [narrative, setNarrative] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const versionKey = `${careEntries.length}_${portraitObservations.map(o => (o.visualNote || '').slice(0, 6)).join('')}`;
+
+  useEffect(() => {
+    setLoading(true);
+    setNarrative(null);
+    const plantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
+    const plantHistories = getPlantHistories(plantIds, allPlants, careLog, dateStr);
+    fetchJournalEntry({ dateStr, careEntries, portraitObservations, photoCount: photos.length, plantHistories })
+      .then(text => { setNarrative(text); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [dateStr, versionKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const hasEmma = careEntries.some(e => e.withEmma);
+
+  return (
+    <div style={{ marginBottom: 40, paddingBottom: 40, borderBottom: `1px solid ${C.cardBorder}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <span style={{ fontSize: 10, color: '#a08060', fontFamily: MONO, letterSpacing: 0.8 }}>
+          {dateLabel.toUpperCase()}
+        </span>
+        {isToday && (
+          <span style={{ fontSize: 9, color: C.uiGold, fontFamily: MONO, border: '1px solid rgba(212,168,48,0.4)', borderRadius: 10, padding: '1px 7px' }}>
+            IN PROGRESS
+          </span>
+        )}
+        {hasEmma && <span style={{ fontSize: 12, color: '#e84070' }}>♥</span>}
+      </div>
+
+      {loading ? (
+        <div style={{ fontFamily: SERIF, fontSize: 14, color: 'rgba(160,130,80,0.3)', fontStyle: 'italic', lineHeight: 1.75 }}>…</div>
+      ) : narrative ? (
+        <p style={{ fontFamily: SERIF, fontSize: 14.5, lineHeight: 1.85, color: '#3a2010', margin: '0 0 14px', maxWidth: 560 }}>
+          {narrative}
+        </p>
+      ) : null}
+
+      {careEntries.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: narrative ? 12 : 4 }}>
+          {careEntries.map((e, i) => (
+            <span key={i} style={{
+              fontSize: 10, fontFamily: MONO,
+              background: e.withEmma ? 'rgba(232,64,112,0.06)' : 'rgba(160,130,80,0.07)',
+              border: `1px solid ${e.withEmma ? 'rgba(232,64,112,0.18)' : 'rgba(160,130,80,0.16)'}`,
+              borderRadius: 12, padding: '2px 8px',
+              color: e.withEmma ? '#c04060' : '#907050',
+            }}>
+              {e.plantName} · {e.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {photos.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
+          {photos.slice(0, 6).map((ph, i) => (
+            <img key={i} src={ph.url || ph.dataUrl} alt=""
+              style={{ width: 68, height: 68, objectFit: 'cover', borderRadius: 6, border: '1px solid rgba(160,130,80,0.22)' }} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function JournalView({ careLog, plants, portraits = {}, allPhotos = {} }) {
+  const dayMap = useMemo(
+    () => buildJournalDayMap(plants, careLog, portraits, allPhotos),
+    [plants, careLog, portraits, allPhotos]
+  );
+  const sortedDays = Object.keys(dayMap).sort((a, b) => b.localeCompare(a)).slice(0, 60);
+
+  if (sortedDays.length === 0) {
     return (
-      <div style={{padding:'48px 24px', textAlign:'center'}}>
-        <div style={{fontSize:32, marginBottom:16}}>🌱</div>
-        <div style={{fontSize:16, color:'#907050', fontFamily:SERIF, fontStyle:'italic', lineHeight:1.8}}>
-          The journal is empty.<br/>Season 2 opens March 20.<br/>Your first entry will appear here.
+      <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 32, marginBottom: 16 }}>🌱</div>
+        <div style={{ fontSize: 16, color: '#907050', fontFamily: SERIF, fontStyle: 'italic', lineHeight: 1.8 }}>
+          The journal is empty.<br />Season 2 opens March 20.<br />Your first entry will appear here.
         </div>
       </div>
     );
   }
 
-  // Group by week
-  const weeks = {};
-  allEntries.forEach(e => {
-    const d = new Date(e.date);
-    const weekStart = new Date(d);
-    weekStart.setDate(d.getDate() - d.getDay());
-    const key = weekStart.toISOString().slice(0, 10);
-    if (!weeks[key]) weeks[key] = [];
-    weeks[key].push(e);
-  });
-
   return (
-    <div style={{maxWidth:640, margin:'0 auto', padding:'24px 20px'}}>
-      <div style={{fontFamily:MONO, fontSize:9, color:C.uiGold, letterSpacing:.5, marginBottom:20}}>
+    <div style={{ maxWidth: 680, margin: '0 auto', padding: '28px 24px' }}>
+      <div style={{ fontFamily: MONO, fontSize: 9, color: C.uiGold, letterSpacing: 0.5, marginBottom: 28 }}>
         SEASON 2 JOURNAL
       </div>
-      {Object.entries(weeks).sort(([a],[b]) => b.localeCompare(a)).map(([weekKey, entries]) => {
-        const weekDate = new Date(weekKey);
-        const label = weekDate.toLocaleDateString('en-US', {month:'long', day:'numeric'});
+      {sortedDays.map(dateStr => {
+        const day = dayMap[dateStr];
         return (
-          <div key={weekKey} style={{marginBottom:28}}>
-            <div style={{
-              display:'flex', alignItems:'center', gap:10, marginBottom:10
-            }}>
-              <div style={{height:1, flex:1, background:C.cardBorder}}/>
-              <span style={{fontSize:10, color:'#a08060', fontFamily:MONO, letterSpacing:.3}}>
-                Week of {label}
-              </span>
-              <div style={{height:1, flex:1, background:C.cardBorder}}/>
-            </div>
-            <div style={{display:'flex', flexDirection:'column', gap:0}}>
-              {entries.map((e, i) => {
-                const color = plantColor(e.plant.type);
-                return (
-                  <div key={i} style={{
-                    display:'flex', gap:12, padding:'10px 0',
-                    borderBottom: i < entries.length - 1 ? `1px solid ${C.cardBorder}` : 'none',
-                    alignItems:'flex-start',
-                  }}>
-                    <div style={{
-                      width:3, alignSelf:'stretch', borderRadius:2,
-                      background:color, flexShrink:0, marginTop:2,
-                    }}/>
-                    <span style={{fontSize:16, flexShrink:0, lineHeight:1, marginTop:1}}>
-                      {e.withEmma ? '🌹' : '🌿'}
-                    </span>
-                    <div style={{flex:1, minWidth:0}}>
-                      <div style={{display:'flex', alignItems:'baseline', gap:6, flexWrap:'wrap'}}>
-                        <span style={{fontSize:13, color:'#2a1808', fontFamily:SERIF, fontWeight:600}}>
-                          {e.label}
-                        </span>
-                        <span style={{fontSize:11, color:color, fontFamily:SERIF}}>
-                          {e.plant.name}
-                          {e.plant.subtitle ? ` · ${e.plant.subtitle}` : ''}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{textAlign:'right', flexShrink:0}}>
-                      <div style={{fontSize:10, color:'#b09070', fontFamily:SERIF}}>
-                        {new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <JournalDay key={dateStr} dateStr={dateStr}
+            careEntries={day.careEntries}
+            portraitObservations={day.portraitObservations}
+            photos={day.photos}
+            allPlants={plants}
+            careLog={careLog}
+          />
         );
       })}
     </div>
@@ -2050,7 +2125,7 @@ export default function App() {
         {/* ── JOURNAL VIEW ── */}
         {mode==='journal'&&(
           <div style={{flex:1, overflowY:'auto', background:C.appBg}}>
-            <JournalView careLog={careLog} plants={[...terracePlants]}/>
+            <JournalView careLog={careLog} plants={[...terracePlants, ...frontPlants]} portraits={portraits} allPhotos={allPhotos}/>
           </div>
         )}
 
