@@ -1966,7 +1966,7 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                             </div>
                           )}
                           {task.instructions && (
-                            <div style={{ marginLeft: 18, marginTop: 4 }}>
+                            <div style={{ marginTop: 5 }}>
                               <button
                                 onClick={e => { e.stopPropagation(); setExpandedTaskIdx(isExpanded ? null : idx); }}
                                 style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer',
@@ -1975,9 +1975,9 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                                 {isExpanded ? 'HIDE ▴' : 'HOW TO ▾'}
                               </button>
                               {isExpanded && (
-                                <div style={{ marginTop: 5, fontSize: 11, color: 'rgba(212,190,140,0.78)', lineHeight: 1.6,
-                                  background: 'rgba(0,0,0,0.2)', borderRadius: 5, padding: '7px 9px',
-                                  borderLeft: '2px solid rgba(212,168,48,0.35)' }}>
+                                <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(248,236,210,0.92)', lineHeight: 1.75,
+                                  background: 'rgba(0,0,0,0.35)', borderRadius: 5, padding: '9px 11px',
+                                  borderLeft: '2px solid rgba(212,168,48,0.50)' }}>
                                   {task.instructions}
                                 </div>
                               )}

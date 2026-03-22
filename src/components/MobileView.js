@@ -1883,6 +1883,7 @@ export function MobileView({
   plants, frontPlants = [], careLog, weather,
   onAction, onPortraitUpdate, onGrowthUpdate, allPhotos = {}, onAddPhoto,
   portraits = {}, role, signIn, signOut, seasonOpen, oracle, onGoFront,
+  briefings: externalBriefings = {},
 }) {
   const [tab, setTab] = useState('today');
   const [flash, setFlash] = useState(null);
@@ -1930,10 +1931,20 @@ export function MobileView({
     [plants, frontPlants]
   );
 
+  // Merge external (App.js centralized) briefings with local — external wins when loaded
+  const mergedBriefings = useMemo(() => {
+    const merged = { ...briefings };
+    for (const [id, b] of Object.entries(externalBriefings)) {
+      if (b && b !== 'loading') merged[id] = b; // prefer loaded external briefing
+      else if (merged[id] === undefined) merged[id] = b; // use loading state if nothing local yet
+    }
+    return merged;
+  }, [briefings, externalBriefings]);
+
   // Compute today's agenda deterministically (instant, no API needed)
   const { items: rawAgendaItems, isWeekend: agendaIsWeekend } = useMemo(
-    () => computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen }),
-    [plants, frontPlants, careLog, briefings, weather, seasonOpen]
+    () => computeAgenda({ plants, frontPlants, careLog, briefings: mergedBriefings, weather, seasonOpen }),
+    [plants, frontPlants, careLog, mergedBriefings, weather, seasonOpen]
   );
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -2120,7 +2131,7 @@ export function MobileView({
             onAddPhoto={onAddPhoto}
             allPhotos={allPhotos}
             portraits={portraits}
-            briefings={briefings}
+            briefings={mergedBriefings}
             seasonOpen={seasonOpen}
             frozenAgendaItems={rawAgendaItems}
           />

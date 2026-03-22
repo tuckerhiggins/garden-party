@@ -159,6 +159,7 @@ export function MapInfoPanel({
 }) {
   const [briefExpanded, setBriefExpanded] = useState(false);
   const [weatherExpanded, setWeatherExpanded] = useState(false);
+  const [expandedCareKey, setExpandedCareKey] = useState(null);
 
   const forecast = weather?.forecast?.slice(0, 6) ?? [];
   const warmthPct = Math.min(warmth / 10, 100);
@@ -250,41 +251,76 @@ export function MapInfoPanel({
               const itemEmoji = def?.emoji || task?.emoji || '✨';
               const itemLabel = def?.label || task?.label || action;
               const isOptional = task?.optional === true;
+              const itemKey = `${plant.id}-${action}-${task?.label || ''}`;
+              const isExpanded = expandedCareKey === itemKey;
+              const hasInstructions = !!(task?.instructions || task?.reason);
               return (
-                <div key={`${plant.id}-${action}-${task?.label || ''}`}
-                  onClick={() => onSelectPlant?.(plant)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 9,
-                    padding: '8px 10px 8px 0',
-                    borderRadius: 7, cursor: 'pointer',
-                    border: isOptional ? '1px solid rgba(160,130,80,0.16)' : '1px solid rgba(200,112,32,0.16)',
-                    background: isOptional ? 'rgba(160,130,80,0.04)' : 'rgba(200,112,32,0.06)',
-                    transition: 'background .12s',
-                    overflow: 'hidden', position: 'relative',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = isOptional ? 'rgba(160,130,80,0.09)' : 'rgba(200,112,32,0.13)'}
-                  onMouseLeave={e => e.currentTarget.style.background = isOptional ? 'rgba(160,130,80,0.04)' : 'rgba(200,112,32,0.06)'}
-                >
-                  {/* 4px plant-color accent bar */}
-                  <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
-                  <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{itemEmoji}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, lineHeight: 1.2 }}>
-                      {plant.name}
-                      {plant.subtitle && <span style={{ fontSize: 10, color: MUTED }}> · {plant.subtitle}</span>}
+                <div key={itemKey}>
+                  <div
+                    onClick={() => {
+                      onSelectPlant?.(plant);
+                      setExpandedCareKey(isExpanded ? null : itemKey);
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 9,
+                      padding: '8px 10px 8px 0',
+                      borderRadius: isExpanded ? '7px 7px 0 0' : 7,
+                      cursor: 'pointer',
+                      border: isOptional ? '1px solid rgba(160,130,80,0.16)' : '1px solid rgba(200,112,32,0.22)',
+                      borderBottom: isExpanded ? 'none' : undefined,
+                      background: isExpanded
+                        ? (isOptional ? 'rgba(160,130,80,0.10)' : 'rgba(200,112,32,0.14)')
+                        : (isOptional ? 'rgba(160,130,80,0.04)' : 'rgba(200,112,32,0.06)'),
+                      transition: 'background .12s',
+                      overflow: 'hidden', position: 'relative',
+                    }}
+                    onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = isOptional ? 'rgba(160,130,80,0.09)' : 'rgba(200,112,32,0.13)'; }}
+                    onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = isOptional ? 'rgba(160,130,80,0.04)' : 'rgba(200,112,32,0.06)'; }}
+                  >
+                    <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
+                    <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{itemEmoji}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, lineHeight: 1.2 }}>
+                        {plant.name}
+                        {plant.subtitle && <span style={{ fontSize: 10, color: MUTED }}> · {plant.subtitle}</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 1 }}>
+                        <span style={{ fontFamily: SERIF, fontSize: 11, color: isOptional ? 'rgba(160,130,80,0.55)' : MUTED }}>{itemLabel}</span>
+                        {isOptional && (
+                          <span style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(160,130,80,0.55)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 4, padding: '1px 4px' }}>EXPLORE</span>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 1 }}>
-                      <span style={{ fontFamily: SERIF, fontSize: 11, color: isOptional ? 'rgba(160,130,80,0.55)' : MUTED }}>{itemLabel}</span>
-                      {isOptional && (
-                        <span style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(160,130,80,0.55)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 4, padding: '1px 4px' }}>EXPLORE</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, paddingRight: 4 }}>
+                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: hc }}/>
+                      {hasInstructions && (
+                        <span style={{ fontSize: 8, color: isExpanded ? GOLD : (isOptional ? 'rgba(160,130,80,0.40)' : 'rgba(200,112,32,0.50)'), fontFamily: MONO }}>
+                          {isExpanded ? '▴' : '▾'}
+                        </span>
                       )}
                     </div>
                   </div>
-                  {/* Health dot + chevron */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, paddingRight: 4 }}>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: hc }}/>
-                    <span style={{ fontSize: 8, color: isOptional ? 'rgba(160,130,80,0.40)' : 'rgba(200,112,32,0.50)', fontFamily: MONO }}>▸</span>
-                  </div>
+                  {/* Expandable how-to panel */}
+                  {isExpanded && hasInstructions && (
+                    <div style={{
+                      background: 'rgba(4,2,0,0.60)',
+                      border: isOptional ? '1px solid rgba(160,130,80,0.16)' : '1px solid rgba(200,112,32,0.22)',
+                      borderTop: 'none',
+                      borderRadius: '0 0 7px 7px',
+                      padding: '10px 12px 10px 17px',
+                    }}>
+                      {task?.reason && (
+                        <div style={{ fontFamily: SERIF, fontSize: 12, color: 'rgba(240,220,170,0.55)', fontStyle: 'italic', marginBottom: 6, lineHeight: 1.5 }}>
+                          {task.reason}
+                        </div>
+                      )}
+                      {task?.instructions && (
+                        <div style={{ fontFamily: SERIF, fontSize: 12.5, color: 'rgba(240,228,200,0.82)', lineHeight: 1.7 }}>
+                          {task.instructions}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
