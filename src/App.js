@@ -1148,19 +1148,12 @@ function ActionModal({ plant, actionKey, task = null, careLog, portraits, weathe
 }
 
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
-function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate, weather }) {
+function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate, weather, briefings = {} }) {
   const [tab, setTab] = useState('care');
   const [actionModal, setActionModal] = useState(null); // { key, task } or null
-  const [briefing, setBriefing] = useState(null);
+  const briefing = briefings[plant.id] && briefings[plant.id] !== 'loading' ? briefings[plant.id] : null;
   const history = careLog[plant.id] || [];
   const color = plantColor(plant.type);
-
-  useEffect(() => {
-    setBriefing(null);
-    fetchPlantBriefing(plant, careLog, weather, portraits)
-      .then(setBriefing)
-      .catch(() => {});
-  }, [plant.id, plant.health]);
 
   const handleAction = (key, task = null) => {
     if (key === 'water') { onAction(key, plant); return; }
@@ -2120,7 +2113,7 @@ export default function App() {
                 <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                   onAction={doAction} seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}
                   photos={allPhotos[sel.id] || []} onAddPhoto={addPhoto} onGrowthUpdate={updateGrowth}
-                  weather={weather}/>
+                  weather={weather} briefings={briefings}/>
               </div>
             )}
             </>)}
@@ -2182,7 +2175,8 @@ export default function App() {
                     background:'rgba(250,246,238,0.97)',borderLeft:`1px solid ${C.cardBorder}`}}>
                     <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                       onAction={doAction} seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}
-                      photos={allPhotos[sel.id] || []} onAddPhoto={addPhoto} onGrowthUpdate={updateGrowth}/>
+                      photos={allPhotos[sel.id] || []} onAddPhoto={addPhoto} onGrowthUpdate={updateGrowth}
+                      briefings={briefings}/>
                   </div>
                 )}
               </div>
