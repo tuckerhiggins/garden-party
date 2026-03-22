@@ -154,6 +154,7 @@ export function MapInfoPanel({
   morningBrief = null,
   fullBrief = null,
   onSelectPlant,
+  onAction,
   portraits = {},
   allPhotos = {},
 }) {
@@ -257,10 +258,7 @@ export function MapInfoPanel({
               return (
                 <div key={itemKey}>
                   <div
-                    onClick={() => {
-                      onSelectPlant?.(plant);
-                      setExpandedCareKey(isExpanded ? null : itemKey);
-                    }}
+                    onClick={() => setExpandedCareKey(isExpanded ? null : itemKey)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 9,
                       padding: '8px 10px 8px 0',
@@ -301,13 +299,13 @@ export function MapInfoPanel({
                     </div>
                   </div>
                   {/* Expandable how-to panel */}
-                  {isExpanded && hasInstructions && (
+                  {isExpanded && (
                     <div style={{
                       background: 'rgba(4,2,0,0.60)',
                       border: isOptional ? '1px solid rgba(160,130,80,0.16)' : '1px solid rgba(200,112,32,0.22)',
                       borderTop: 'none',
                       borderRadius: '0 0 7px 7px',
-                      padding: '10px 12px 10px 17px',
+                      padding: '10px 12px 12px 13px',
                     }}>
                       {task?.reason && (
                         <div style={{ fontFamily: SERIF, fontSize: 12, color: 'rgba(240,220,170,0.55)', fontStyle: 'italic', marginBottom: 6, lineHeight: 1.5 }}>
@@ -315,10 +313,37 @@ export function MapInfoPanel({
                         </div>
                       )}
                       {task?.instructions && (
-                        <div style={{ fontFamily: SERIF, fontSize: 12.5, color: 'rgba(240,228,200,0.82)', lineHeight: 1.7 }}>
+                        <div style={{ fontFamily: SERIF, fontSize: 12.5, color: 'rgba(240,228,200,0.82)', lineHeight: 1.7, marginBottom: 10 }}>
                           {task.instructions}
                         </div>
                       )}
+                      {/* Action buttons */}
+                      <div style={{ display: 'flex', gap: 7, marginTop: task?.instructions ? 0 : 4 }}>
+                        <button
+                          onClick={e => { e.stopPropagation(); onAction?.(action, plant, task?.label); setExpandedCareKey(null); }}
+                          style={{
+                            flex: 1, padding: '7px 10px',
+                            background: isOptional ? 'rgba(80,120,40,0.20)' : 'rgba(200,112,32,0.22)',
+                            border: isOptional ? '1px solid rgba(80,120,40,0.40)' : '1px solid rgba(200,112,32,0.45)',
+                            borderRadius: 6, cursor: 'pointer',
+                            fontFamily: SERIF, fontSize: 12.5,
+                            color: isOptional ? 'rgba(160,210,100,0.90)' : 'rgba(240,180,80,0.95)',
+                          }}>
+                          ✓ Done
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); onSelectPlant?.(plant); }}
+                          style={{
+                            padding: '7px 10px',
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(160,130,80,0.22)',
+                            borderRadius: 6, cursor: 'pointer',
+                            fontFamily: SERIF, fontSize: 12.5,
+                            color: MUTED,
+                          }}>
+                          Plant →
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

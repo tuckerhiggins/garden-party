@@ -2152,6 +2152,7 @@ export default function App() {
                     attentionItems={attentionItems}
                     recentCare={recentCare}
                     onSelectPlant={p=>setSel(p)}
+                    onAction={doAction}
                     warmth={warmth}
                     morningBrief={morningBrief}
                     fullBrief={dailyBrief}
