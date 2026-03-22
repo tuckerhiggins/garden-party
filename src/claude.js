@@ -172,7 +172,7 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
   const portrait = portraits?.[plant.id] || {};
   const currentStage = portrait.currentStage || null;
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
-  const cacheKey = `plantbrief7_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
+  const cacheKey = `plantbrief8_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
 
   const lastWater = [...entries].reverse().find(e => e.action === 'water');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
@@ -219,6 +219,7 @@ Add "optional": true to any task that is educational or optional — something T
 
   const userPrompt = `Plant: ${plant.name}${plant.species ? ` (${plant.species})` : ''}, ${plant.type}.
 Health: ${plant.health}. Today: ${today}. Zone 7b, early spring — day ${Math.max(0, Math.floor((Date.now() - new Date('2026-03-20').getTime()) / 86400000))} of season 2.
+${plant.container ? `Growing situation: ${plant.container}.` : ''}
 Current stage: ${currentStage || getPhenologicalStage(plant.type)}.
 ${daysSinceWater !== null ? `Last watered ${daysSinceWater} day${daysSinceWater !== 1 ? 's' : ''} ago.` : 'Never watered this season.'}
 ${recentActions ? `Recent care: ${recentActions}.` : 'No care logged this season.'}

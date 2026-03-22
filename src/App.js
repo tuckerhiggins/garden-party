@@ -1701,7 +1701,7 @@ export default function App() {
     const items = [];
 
     for (const p of [...gardenPlants.terrace, ...frontPlants]) {
-      if (p.health === 'memorial' || p.type === 'empty-pot') continue;
+      if (p.health === 'memorial' || p.type === 'empty-pot' || p.noTasks) continue;
       const briefing = briefings[p.id];
 
       if (briefing && briefing !== 'loading' && Array.isArray(briefing.tasks) && briefing.tasks.length > 0) {
@@ -1759,7 +1759,7 @@ export default function App() {
   useEffect(() => {
     if (!weather || !seasonOpen) return;
     const active = [...gardenPlants.terrace, ...frontPlants]
-      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
+      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && !p.noTasks);
     active.forEach((plant, i) => {
       if (briefings[plant.id] !== undefined) return; // already loaded or loading
       setBriefings(prev => ({ ...prev, [plant.id]: 'loading' }));

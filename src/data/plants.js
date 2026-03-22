@@ -321,7 +321,7 @@ export const FRONT_PLANTS = [
     container:"in ground (Emma's Rose Garden)", gardenSection:"Emma's Rose Garden",
     poem:'Before the leaves,\nthe blossoms open like hands—\npink into the grey.',
     lore:'The queen of the garden. Blooms in early April before any leaves appear.',
-    actions:['visit','photo'] },
+    actions:['visit','photo'], noTasks: true },
   { id:'dko-1', name:"Double Knock Out Rose", subtitle:'Front row, left', species:"Rosa 'Double Knock Out'",
     type:'rose', pos:{x:0.18, y:0.72}, health:'resting', color:'#e84070', moveable:false,
     container:"in ground (Emma's Rose Garden)", gardenSection:"Emma's Rose Garden",
