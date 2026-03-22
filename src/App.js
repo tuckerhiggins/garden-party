@@ -1587,6 +1587,14 @@ export default function App() {
   // Centralized briefings: { [plantId]: { note, tasks, actions } | 'loading' | null }
   // Fetched for all active plants in the background; shared across map, cards, mobile
   const [briefings, setBriefings] = useState({});
+  // Frozen daily agenda — computed once per calendar day, never grows during the day
+  const _todayStr = new Date().toISOString().slice(0, 10);
+  const [frozenAgendaRaw, setFrozenAgendaRaw] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('gp_frozen_agenda') || 'null');
+      return stored?.date === _todayStr ? stored.items : null;
+    } catch { return null; }
+  });
   const { portraits, updatePortrait } = usePortraits({ user });
   const { allPhotos, addPhoto } = usePhotos({ user });
   const [customPlants, setCustomPlants] = useState(() => {
@@ -1693,27 +1701,23 @@ export default function App() {
     terrace: [...terracePlants.filter(p => p.type !== 'empty-pot'), ...customPlantsWithState],
   }),[terracePlants, customPlantsWithState]);
 
-  // Attention items — what needs doing today.
-  // Sources from AI briefing tasks when available; falls back to rules for unloaded plants.
-  // Weather-aware: neem suppressed when rain ≥60%, consistent with AI behavior.
-  const attentionItemsForBrief = useMemo(() => {
+  // Live attention items — computed from briefings, used as fallback before agenda freezes
+  const liveAttentionItems = useMemo(() => {
     const rainSoon = weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60) ?? false;
     const SKIP = new Set(['photo', 'visit', 'note', 'plant']);
-    const items = [];
+    const required = [], optional = [];
 
     for (const p of [...gardenPlants.terrace, ...frontPlants]) {
       if (p.health === 'memorial' || p.type === 'empty-pot' || p.noTasks) continue;
       const briefing = briefings[p.id];
 
       if (briefing && briefing !== 'loading' && Array.isArray(briefing.tasks) && briefing.tasks.length > 0) {
-        // AI-driven: use briefing tasks, filter out weather-blocked ones
         for (const task of briefing.tasks) {
           if (task.key === 'neem' && rainSoon) continue;
           if (task.key === 'water' && rainSoon && weather?.forecast?.[0]?.precipChance >= 80) continue;
-          items.push({ plant: p, action: task.key, def: ACTION_DEFS[task.key] || null, task });
+          (task.optional ? optional : required).push({ plant: p, action: task.key, def: ACTION_DEFS[task.key] || null, task });
         }
       } else {
-        // Rules fallback for plants whose briefing hasn't loaded yet
         for (const a of (p.actions || [])) {
           if (SKIP.has(a)) continue;
           const def = ACTION_DEFS[a];
@@ -1728,12 +1732,51 @@ export default function App() {
           } else if (def.alwaysAvailable || !actionStatus(p, a, careLog, seasonOpen).available) {
             continue;
           }
-          items.push({ plant: p, action: a, def, task: null });
+          required.push({ plant: p, action: a, def, task: null });
         }
       }
     }
-    return items.slice(0, 8);
+    return [...required.slice(0, 4), ...optional.slice(0, 2)];
   }, [gardenPlants.terrace, frontPlants, careLog, seasonOpen, weather, briefings]);
+
+  // Re-hydrate frozen agenda with live plant objects
+  const frozenAgenda = useMemo(() => {
+    if (!frozenAgendaRaw) return null;
+    const allPlants = [...gardenPlants.terrace, ...frontPlants];
+    return frozenAgendaRaw.map(item => {
+      const plant = allPlants.find(p => p.id === item.plantId);
+      return plant ? { plant, action: item.action, def: ACTION_DEFS[item.action] || null, task: item.task } : null;
+    }).filter(Boolean);
+  }, [frozenAgendaRaw, gardenPlants.terrace, frontPlants]);
+
+  // Freeze agenda once per calendar day — never grows throughout the day
+  useEffect(() => {
+    if (frozenAgendaRaw !== null) return; // already frozen today
+    if (!weather || !seasonOpen) return;
+    const active = [...gardenPlants.terrace, ...frontPlants]
+      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && !p.noTasks);
+    const loadedCount = active.filter(p => briefings[p.id] && briefings[p.id] !== 'loading').length;
+    if (loadedCount < Math.max(1, Math.ceil(active.length * 0.7))) return; // wait for 70%
+
+    const rainSoon = weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60) ?? false;
+    const required = [], optional = [];
+    for (const p of active) {
+      const briefing = briefings[p.id];
+      if (!briefing || briefing === 'loading' || !Array.isArray(briefing.tasks)) continue;
+      for (const task of briefing.tasks) {
+        if (task.key === 'neem' && rainSoon) continue;
+        if (task.key === 'water' && rainSoon && weather?.forecast?.[0]?.precipChance >= 80) continue;
+        (task.optional ? optional : required).push({ plantId: p.id, action: task.key, task });
+      }
+    }
+    const raw = [...required.slice(0, 4), ...optional.slice(0, 2)]
+      .map(({ plantId, action, task }) => ({ plantId, action, task }));
+    localStorage.setItem('gp_frozen_agenda', JSON.stringify({ date: _todayStr, items: raw }));
+    setFrozenAgendaRaw(raw);
+  }, [briefings, weather, seasonOpen, frozenAgendaRaw]);
+
+  // Attention items — frozen once per day; falls back to live items while loading
+  const attentionItemsForBrief = frozenAgenda ?? liveAttentionItems;
 
   // Morning brief + daily brief — shared by desktop MapInfoPanel and mobile Today tab
   // Re-fetches when today's care count changes; cachedClaude handles deduplication

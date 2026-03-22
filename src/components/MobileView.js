@@ -16,6 +16,27 @@ const C = {
   uiText: '#f0e4cc', uiMuted: '#a89070', uiGold: '#d4a830',
 };
 
+// Inline action-key colors for brief narrative highlights
+const BRIEF_ACTION_COLORS = {
+  water: '#4a8ac8', fertilize: '#5a9a40', prune: '#c87030',
+  neem: '#7050a8', train: '#a07840', worms: '#806030',
+  repot: '#c05040', custom: '#c09820',
+};
+
+// Parse [key] markers in brief text into styled inline spans
+function renderBriefText(text) {
+  if (!text) return null;
+  const parts = text.split(/(\[[a-z]+\])/);
+  return parts.map((part, i) => {
+    const m = part.match(/^\[([a-z]+)\]$/);
+    if (m) {
+      const color = BRIEF_ACTION_COLORS[m[1]] || '#c09820';
+      return <span key={i} style={{ color, fontWeight: 700 }}>{m[1]}</span>;
+    }
+    return part;
+  });
+}
+
 function plantColor(type) {
   return {
     wisteria: '#9860c8', 'climbing-rose': '#e84070', rose: '#e84070',
@@ -1540,7 +1561,7 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
         >
           {/* Always-visible one-liner */}
           <div style={{ fontFamily: SERIF, fontSize: 13, color: '#5a3c18', fontStyle: 'italic', lineHeight: 1.55 }}>
-            {morningBrief}
+            {renderBriefText(morningBrief)}
           </div>
 
           {/* Expand hint when collapsed and full brief is available */}
@@ -1564,7 +1585,7 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
                     {s.label}
                   </div>
                   <div style={{ fontFamily: SERIF, fontSize: 13, color: '#4a3010', lineHeight: 1.6 }}>
-                    {fullBrief[s.key]}
+                    {renderBriefText(fullBrief[s.key])}
                   </div>
                 </div>
               ))}

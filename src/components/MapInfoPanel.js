@@ -4,6 +4,25 @@
 import React, { useState } from 'react';
 import { fetchJournalEntry } from '../claude';
 
+const BRIEF_ACTION_COLORS = {
+  water: '#4a8ac8', fertilize: '#5a9a40', prune: '#c87030',
+  neem: '#7050a8', train: '#a07840', worms: '#806030',
+  repot: '#c05040', custom: '#c09820',
+};
+
+function renderBriefText(text) {
+  if (!text) return null;
+  const parts = text.split(/(\[[a-z]+\])/);
+  return parts.map((part, i) => {
+    const m = part.match(/^\[([a-z]+)\]$/);
+    if (m) {
+      const color = BRIEF_ACTION_COLORS[m[1]] || '#c09820';
+      return <span key={i} style={{ color, fontWeight: 700 }}>{m[1]}</span>;
+    }
+    return part;
+  });
+}
+
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO  = '"Press Start 2P", monospace';
 
@@ -372,7 +391,7 @@ export function MapInfoPanel({
               paddingLeft: 11,
             }}>
               <div style={{ fontFamily: SERIF, fontSize: 13, color: 'rgba(240,220,170,0.88)', fontStyle: 'italic', lineHeight: 1.6 }}>
-                {morningBrief}
+                {renderBriefText(morningBrief)}
               </div>
               {fullBrief && (
                 <div style={{
@@ -396,7 +415,7 @@ export function MapInfoPanel({
                 ].filter(s => fullBrief[s.key]).map(s => (
                   <div key={s.key} style={{ marginBottom: 11 }}>
                     <div style={{ fontFamily: MONO, fontSize: 6, color: GOLD, letterSpacing: .5, marginBottom: 4 }}>{s.label}</div>
-                    <div style={{ fontFamily: SERIF, fontSize: 12, color: TEXT, lineHeight: 1.65 }}>{fullBrief[s.key]}</div>
+                    <div style={{ fontFamily: SERIF, fontSize: 12, color: TEXT, lineHeight: 1.65 }}>{renderBriefText(fullBrief[s.key])}</div>
                   </div>
                 ))}
               </div>

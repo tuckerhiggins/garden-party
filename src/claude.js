@@ -172,7 +172,7 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
   const portrait = portraits?.[plant.id] || {};
   const currentStage = portrait.currentStage || null;
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
-  const cacheKey = `plantbrief8_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
+  const cacheKey = `plantbrief9_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
 
   const lastWater = [...entries].reverse().find(e => e.action === 'water');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
@@ -186,7 +186,7 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
 
   const systemPrompt = `You are a knowledgeable plant care advisor and teacher for Tucker and Emma's Brooklyn rooftop garden (Zone 7b, Park Slope). Tucker is actively learning to garden — he appreciates being taught things he hasn't done before.
 
-For each plant, give a brief observation AND recommend 0–3 care tasks that genuinely make sense RIGHT NOW.
+For each plant, give a brief observation AND recommend 0–2 care tasks maximum that genuinely make sense RIGHT NOW. Usually 1 is enough. Only recommend 2 if both are truly time-sensitive.
 
 You are NOT limited to a fixed menu. Recommend anything botanically appropriate:
 - Standard care: water, fertilize, prune, neem oil, train/tie, repot, add worms
@@ -323,7 +323,7 @@ export async function fetchMorningBrief({ plants, careLog, weather, portraits, a
   const todayCareToken = Object.values(careLog).flat()
     .filter(e => e.date?.startsWith(today)).length;
   const taskToken = agendaTasks.filter(t => !t.optional).map(t => t.label || t.actionKey).join(',').slice(0, 60);
-  const cacheKey = `morningbrief5_${today}_${rainToken}_${todayCareToken}_${taskToken}`;
+  const cacheKey = `morningbrief6_${today}_${rainToken}_${todayCareToken}_${taskToken}`;
 
   const needsWater = plants
     .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && p.actions?.includes('water'))
@@ -366,7 +366,7 @@ export async function fetchMorningBrief({ plants, careLog, weather, portraits, a
     ? requiredTasks.map(t => `${t.plantName}: ${t.label || t.actionKey}`).join('; ')
     : null;
 
-  const systemPrompt = `You are the garden speaking to Tucker and Emma at the start of their day on the Brooklyn terrace. One sentence. Present tense. Specific to what's actually happening — the weather, a plant that needs attention, or a quiet observation worth noticing. Never generic, never a list, never a greeting. Do not mention plants that have already been cared for today.`;
+  const systemPrompt = `You are the garden speaking to Tucker and Emma at the start of their day on the Brooklyn terrace. One sentence. Present tense. Weave in today's most important care task naturally if there is one — the sentence should read like a garden speaking, not a to-do list. When you reference a care action from today's task list, mark it inline like this: the lemon needs a [water] before the afternoon heat, or the rose has a cane to [prune] at the base. Use only these keys in brackets: water, fertilize, prune, neem, train, worms, repot, custom. Do not use brackets for general observations. Never generic, never a greeting. Do not mention plants already cared for today.`;
 
   const userPrompt = `Today: ${today}. Brooklyn Zone 7b, early spring.
 ${taskSummary ? `Today's care tasks: ${taskSummary}.` : needsWater.length ? `Needs water: ${needsWater.join(', ')}.` : 'Watering up to date.'}
@@ -388,7 +388,7 @@ export async function fetchDailyBrief({ plants, careLog, weather, portraits, age
   // Invalidate when today's care changes (same pattern as fetchMorningBrief)
   const todayCareToken = Object.values(careLog).flat().filter(e => e.date?.startsWith(today)).length;
   const taskToken = agendaTasks.map(t => t.label || t.actionKey).join(',').slice(0, 80);
-  const cacheKey = `dailybrief4_${today}_${rainToken}_${todayCareToken}_${taskToken}`;
+  const cacheKey = `dailybrief5_${today}_${rainToken}_${todayCareToken}_${taskToken}`;
 
   const cached = lsGet(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.data;
@@ -452,7 +452,7 @@ Respond as JSON only — no other text:
 {
   "weather": "1-2 sentences: today's conditions + notable next 5 days. Flag anything actionable (rain → skip water, frost → protect, heat → extra water). Be specific with temps and dates.",
   "garden": "2-3 sentences: what is actually happening biologically across the garden right now. Phenological stage, soil temps, root activity, dormancy break, visible changes. Ground this in Zone 7b late-March specifics.",
-  "today": "1-2 sentences: what still needs doing today and specifically why. Skip anything already completed. If rain is coming, say so and adjust recommendations accordingly.",
+  "today": "1-3 sentences covering every required task from TODAY'S TASKS (skip completed ones and optional ones). For each care action you mention, embed its key in brackets inline: e.g. 'Give the lemon a [water] — soil is dry after five days' or 'The rose needs a [prune] to remove the crossing cane'. Use only these keys: water, fertilize, prune, neem, train, worms, repot, custom. Then in a final sentence mention any optional tasks lightly ('if you have time...'). If rain is coming adjust accordingly.",
   "watch": "1 sentence: one specific thing to monitor or anticipate in the next 7 days — pest emergence, weather window, phenological milestone, or timing decision."
 }`;
 
