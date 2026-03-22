@@ -608,6 +608,24 @@ Speak the season-opening message.`;
   return cachedClaude(cacheKey, systemPrompt, userPrompt, 280, 365 * 24 * 60 * 60 * 1000);
 }
 
+// ── NOTE ACTION PARSER ────────────────────────────────────────────────────
+// Detects explicit care actions in a free-text note.
+// Returns [{ key, label }] — only actions the user says they actually completed.
+export async function parseNoteActions(noteText, plantName) {
+  const systemPrompt = `Parse a garden care note to find explicit completed actions. Return a JSON array. Each item: {"key": one of water/fertilize/neem/prune/train/repot/worms/custom, "label": short specific description of what was done}. Return [] for pure observations, questions, or future plans — only include things the user says they did.`;
+  const userPrompt = `Plant: ${plantName}\nNote: "${noteText}"`;
+  try {
+    const raw = await callClaude(systemPrompt, userPrompt, 150);
+    const start = raw.indexOf('[');
+    const end = raw.lastIndexOf(']');
+    if (start === -1 || end === -1) return [];
+    const parsed = JSON.parse(raw.slice(start, end + 1));
+    return Array.isArray(parsed) ? parsed.filter(a => a.key && a.label) : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function streamGardenChat({ messages, plantContext, action, onChunk }) {
   const res = await fetch('/api/garden-chat', {
     method: 'POST',

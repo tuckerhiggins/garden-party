@@ -7,7 +7,7 @@ import { TERRACE_PLANTS, FRONT_PLANTS, ACTION_DEFS, ACTION_HOWTO } from './data/
 import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
-import { fetchOracle, fetchSeasonOpener, fetchPlantBriefing, streamGardenChat, fetchMorningBrief, fetchDailyBrief, fetchJournalEntry } from './claude';
+import { fetchOracle, fetchSeasonOpener, fetchPlantBriefing, streamGardenChat, fetchMorningBrief, fetchDailyBrief, fetchJournalEntry, parseNoteActions } from './claude';
 import { usePortraits } from './hooks/usePortraits';
 import { usePhotos } from './hooks/usePhotos';
 import { useAuth } from './hooks/useAuth';
@@ -1823,6 +1823,14 @@ export default function App() {
       : `${emoji} ${displayLabel}${isWithEmma ? ' with Emma' : ''}`
     );
     setTimeout(() => setFlash(null), syncError ? 5000 : 2500);
+    // If it's a note, parse it in the background for any care actions mentioned
+    if (key === 'note' && customLabel) {
+      parseNoteActions(customLabel, plant.name).then(actions => {
+        for (const act of actions) {
+          logAction(act.key, plant, isWithEmma, act.label);
+        }
+      }).catch(() => {});
+    }
   }, [role, logAction]);
 
   // Expense
