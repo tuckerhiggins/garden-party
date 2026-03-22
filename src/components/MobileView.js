@@ -1361,7 +1361,7 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
 }
 
 function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seasonOpen,
-  totalActivePlants = 0, morningBrief, fullBrief, onStartAction, portraits, completedThisSession,
+  totalActivePlants = 0, morningBrief, fullBrief, onStartAction, portraits, completedThisSession = new Set(),
   doneTodayItems = [], onMarkDone, onOpenAsk }) {
   const [briefExpanded, setBriefExpanded] = React.useState(false);
   const essentialsDoneLatchRef = React.useRef(false);
@@ -1772,10 +1772,12 @@ export function MobileView({
   const [dailyBrief, setDailyBrief] = useState(null); // structured: { weather, garden, today, watch }
   const [analysisNotice, setAnalysisNotice] = useState(null);
   const prevAnalyzingRef = useRef({});
-  const [completedThisSession, setCompletedThisSession] = useState(() => new Set());
+  const completedKeysRef = useRef(new Set());
+  const [completedCount, setCompletedCount] = useState(0); // triggers re-render when item is marked done
 
   function handleMarkDone(item) {
-    setCompletedThisSession(prev => new Set([...prev, item.key]));
+    completedKeysRef.current.add(item.key);
+    setCompletedCount(n => n + 1);
     handleAction(item.actionKey, item.plant);
   }
 
@@ -1977,7 +1979,7 @@ export function MobileView({
             totalActivePlants={totalActivePlants}
             morningBrief={morningBrief} fullBrief={dailyBrief}
             onStartAction={handleStartAction}
-            portraits={portraits} completedThisSession={completedThisSession}
+            portraits={portraits} completedThisSession={completedKeysRef.current}
             doneTodayItems={doneTodayItems}
             onMarkDone={handleMarkDone}
             onOpenAsk={() => setTab('ask')}
