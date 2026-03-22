@@ -171,11 +171,13 @@ export function MapInfoPanel({
       {seasonOpen && attentionItems.length > 0 && (
         <Section label={`NEEDS CARE · ${attentionItems.length}`} accent="#c87020">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {attentionItems.map(({ plant, action, def }) => {
+            {attentionItems.map(({ plant, action, def, task }) => {
               const hc = healthColor(plant.health);
               const pc = plantColor(plant.type);
+              const itemEmoji = def?.emoji || task?.emoji || '✨';
+              const itemLabel = def?.label || task?.label || action;
               return (
-                <div key={`${plant.id}-${action}`}
+                <div key={`${plant.id}-${action}-${task?.label || ''}`}
                   onClick={() => onSelectPlant?.(plant)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 9,
@@ -191,13 +193,13 @@ export function MapInfoPanel({
                 >
                   {/* 4px plant-color accent bar */}
                   <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
-                  <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{def.emoji}</span>
+                  <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{itemEmoji}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, lineHeight: 1.2 }}>
                       {plant.name}
                       {plant.subtitle && <span style={{ fontSize: 10, color: MUTED }}> · {plant.subtitle}</span>}
                     </div>
-                    <div style={{ fontFamily: SERIF, fontSize: 11, color: MUTED, marginTop: 1 }}>{def.label}</div>
+                    <div style={{ fontFamily: SERIF, fontSize: 11, color: MUTED, marginTop: 1 }}>{itemLabel}</div>
                   </div>
                   {/* Health dot + chevron */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, paddingRight: 4 }}>

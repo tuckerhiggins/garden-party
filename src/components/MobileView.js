@@ -1907,10 +1907,12 @@ export function MobileView({
     if (!weather) return;
     [...plants, ...frontPlants]
       .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
-      .forEach(p => {
-        fetchPlantBriefing(p, careLog, weather, portraits)
-          .then(b => setBriefings(prev => ({ ...prev, [p.id]: b })))
-          .catch(() => {});
+      .forEach((p, i) => {
+        setTimeout(() => {
+          fetchPlantBriefing(p, careLog, weather, portraits)
+            .then(b => setBriefings(prev => ({ ...prev, [p.id]: b })))
+            .catch(() => {});
+        }, i * 600); // stagger 600ms — avoids Anthropic rate limits
       });
   }, [careVersion, weather]); // intentional: portraits/careLog refs change too often
 

@@ -1770,7 +1770,7 @@ export default function App() {
         fetchPlantBriefing(plant, careLog, weather, portraits)
           .then(b => setBriefings(prev => ({ ...prev, [plant.id]: b })))
           .catch(() => setBriefings(prev => ({ ...prev, [plant.id]: null })));
-      }, i * 200); // stagger 200ms per plant
+      }, i * 600); // stagger 600ms per plant — avoids Anthropic rate limits
     });
   }, [weather, seasonOpen]);
 
