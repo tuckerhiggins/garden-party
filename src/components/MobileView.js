@@ -16,6 +16,23 @@ const C = {
   uiText: '#f0e4cc', uiMuted: '#a89070', uiGold: '#d4a830',
 };
 
+// High-contrast outdoor mode — boosts secondary text for bright sunlight readability
+const HighContrastCtx = React.createContext(false);
+function useCC() {
+  const hc = React.useContext(HighContrastCtx);
+  return hc ? {
+    muted:    '#5a3010',  // was #907050
+    dim:      '#6a4020',  // was #b09070
+    faint:    '#7a5030',  // was #c0a080
+    tertiary: '#5a3818',  // was #a08060
+  } : {
+    muted:    '#907050',
+    dim:      '#b09070',
+    faint:    '#c0a080',
+    tertiary: '#a08060',
+  };
+}
+
 // Inline action-key colors for brief narrative highlights
 const BRIEF_ACTION_COLORS = {
   water: '#4a8ac8', fertilize: '#5a9a40', prune: '#c87030',
@@ -305,13 +322,17 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
         <div style={{ padding:'16px 18px 12px', paddingTop:'calc(16px + env(safe-area-inset-top))',
           borderBottom:'1px solid rgba(160,130,80,0.18)',
           display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
-          <div>
+          <div style={{ display:'flex', alignItems:'center' }}>
             <button onClick={() => setMode(null)} style={{ background:'none', border:'none',
-              color:'#b09070', cursor:'pointer', fontSize:15, fontFamily:SERIF, padding:0, marginRight:10 }}>←</button>
+              color:'#b09070', cursor:'pointer', fontSize:15, fontFamily:SERIF,
+              minHeight:44, minWidth:44, display:'flex', alignItems:'center', justifyContent:'center',
+              WebkitTapHighlightColor:'transparent' }}>←</button>
             <span style={{ fontSize:15, color:'#2a1808', fontWeight:600 }}>{def?.emoji || task?.emoji || '✨'} {def?.label || task?.label || actionKey}</span>
           </div>
           <button onClick={onClose} style={{ background:'none', border:'none',
-            color:'#b09070', cursor:'pointer', fontSize:26, lineHeight:1, padding:'0 4px' }}>&times;</button>
+            color:'#b09070', cursor:'pointer', fontSize:26, lineHeight:1,
+            minHeight:44, minWidth:44, display:'flex', alignItems:'center', justifyContent:'center',
+            WebkitTapHighlightColor:'transparent' }}>&times;</button>
         </div>
         {/* Body */}
         <div style={{ flex:1, overflowY:'auto', padding:'24px 20px' }}>
@@ -382,7 +403,8 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
         display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
           <button onClick={() => setMode(null)} style={{ background:'none', border:'none',
-            color:'#b09070', cursor:'pointer', fontSize:16, padding:'0 8px 0 0',
+            color:'#b09070', cursor:'pointer', fontSize:16,
+            minHeight:44, minWidth:44, display:'flex', alignItems:'center', justifyContent:'center',
             WebkitTapHighlightColor:'transparent' }}>←</button>
           <div>
             <span style={{ fontSize:14, color:'#4a2c10', fontWeight:600 }}>{def?.emoji || task?.emoji || '✨'} {def?.label || task?.label || actionKey}</span>
@@ -392,8 +414,9 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           {!logged ? (
             <button onClick={() => { onLog(); setLogged(true); }}
-              style={{ background:color, border:'none', borderRadius:10, padding:'8px 14px',
+              style={{ background:color, border:'none', borderRadius:10, padding:'0 16px',
                 color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:7, letterSpacing:.3,
+                minHeight:44, display:'flex', alignItems:'center',
                 WebkitTapHighlightColor:'transparent' }}>
               ✓ DONE
             </button>
@@ -401,7 +424,8 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
             <span style={{ fontSize:13, color:'#5a9040', fontFamily:SERIF }}>✓ Logged</span>
           )}
           <button onClick={onClose} style={{ background:'none', border:'none',
-            color:'#b09070', cursor:'pointer', fontSize:26, lineHeight:1, padding:'0 4px',
+            color:'#b09070', cursor:'pointer', fontSize:26, lineHeight:1,
+            minHeight:44, minWidth:44, display:'flex', alignItems:'center', justifyContent:'center',
             WebkitTapHighlightColor:'transparent' }}>&times;</button>
         </div>
       </div>
@@ -545,6 +569,7 @@ function StageArc({ stages, currentStage, color }) {
 function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, onAddPhoto, photos = [], portraits, briefing, seasonOpen }) {
   const fileRef = useRef(null);
   const color = plantColor(plant.type);
+  const CC = useCC();
   const lastPhoto = photos[photos.length - 1];
   const portrait = portraits?.[plant.id] || {};
   const analyzing = portrait.analyzing;
@@ -743,7 +768,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
               {plant.name}
             </div>
             {plant.subtitle && (
-              <div style={{ fontSize: 12, color: '#907050', fontFamily: SERIF }}>{plant.subtitle}</div>
+              <div style={{ fontSize: 12, color: CC.muted, fontFamily: SERIF }}>{plant.subtitle}</div>
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
@@ -900,7 +925,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
           if (!entries.length) return null;
           return (
             <div style={{ marginTop: 14, borderTop: '1px solid rgba(160,130,80,0.12)', paddingTop: 10 }}>
-              <div style={{ fontFamily: MONO, fontSize: 6, color: '#b09070', letterSpacing: .5, marginBottom: 6 }}>
+              <div style={{ fontFamily: MONO, fontSize: 6, color: CC.dim, letterSpacing: .5, marginBottom: 6 }}>
                 CARE HISTORY
               </div>
               {entries.map((e, i) => {
@@ -915,7 +940,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
                   }}>
                     <span style={{ fontSize: 13, flexShrink: 0 }}>{e.emoji || '·'}</span>
                     <span style={{ fontFamily: SERIF, fontSize: 12, color: '#5a3c18', flex: 1 }}>{e.label}</span>
-                    <span style={{ fontFamily: SERIF, fontSize: 11, color: '#b09070', flexShrink: 0 }}>{when}</span>
+                    <span style={{ fontFamily: SERIF, fontSize: 11, color: CC.dim, flexShrink: 0 }}>{when}</span>
                   </div>
                 );
               })}
@@ -925,7 +950,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
 
         {/* Last photo date if exists */}
         {lastPhoto && (
-          <div style={{ marginTop: 8, fontSize: 11, color: '#b09070', fontFamily: SERIF, fontStyle: 'italic' }}>
+          <div style={{ marginTop: 8, fontSize: 11, color: CC.dim, fontFamily: SERIF, fontStyle: 'italic' }}>
             Last photo {fmtDate(lastPhoto.date)}
           </div>
         )}
@@ -943,6 +968,7 @@ function PlantAccordionRow({
   briefing, seasonOpen, portraits,
 }) {
   const color = plantColor(plant.type);
+  const CC = useCC();
   const expandedRef = useRef(null);
 
   useEffect(() => {
@@ -999,7 +1025,7 @@ function PlantAccordionRow({
               ? <span style={{ color, fontStyle: 'italic' }}>{currentStage}</span>
               : <span style={{ color: healthColor(plant.health) }}>{healthLabel(plant.health)}</span>
             }
-            <span style={{ color: '#c0a080' }}> · 💧 {waterLabel}</span>
+            <span style={{ color: CC.faint }}> · 💧 {waterLabel}</span>
           </div>
         </div>
 
@@ -1415,14 +1441,16 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
         )}
       </div>
 
-      {/* Done button */}
+      {/* Done button — 44px minimum touch target */}
       {!completed && (
         <button
           onClick={e => { e.stopPropagation(); onDone(item); }}
           style={{
             background: 'none', border: '1px solid rgba(160,130,80,0.32)',
-            borderRadius: 6, padding: '5px 10px', color: '#907050',
-            fontSize: 11, fontFamily: SERIF, cursor: 'pointer', flexShrink: 0, marginTop: 1,
+            borderRadius: 8, padding: '0 14px', color: '#907050',
+            fontSize: 13, fontFamily: SERIF, cursor: 'pointer', flexShrink: 0,
+            minHeight: 44, display: 'flex', alignItems: 'center',
+            WebkitTapHighlightColor: 'transparent',
           }}
         >
           Done
@@ -2117,6 +2145,16 @@ export function MobileView({
   const [tab, setTab] = useState('today');
   const [flash, setFlash] = useState(null);
   const [actionSession, setActionSession] = useState(null); // { plant, actionKey } | null
+  const [highContrast, setHighContrast] = useState(() => {
+    try { return localStorage.getItem('gp_high_contrast') === '1'; } catch { return false; }
+  });
+  function toggleContrast() {
+    setHighContrast(hc => {
+      const next = !hc;
+      try { localStorage.setItem('gp_high_contrast', next ? '1' : '0'); } catch {}
+      return next;
+    });
+  }
   const [briefings, setBriefings] = useState({});
   const [agendaData, setAgendaData] = useState(null); // { sessionMinutes, tasks }
   const [morningBrief, setMorningBrief] = useState(null);
@@ -2270,6 +2308,7 @@ export function MobileView({
   ];
 
   return (
+    <HighContrastCtx.Provider value={highContrast}>
     <div style={{
       width: '100vw', height: '100dvh',
       display: 'flex', flexDirection: 'column',
@@ -2288,10 +2327,20 @@ export function MobileView({
           GARDEN PARTY
         </span>
         <div style={{ flex: 1 }}/>
+        {/* High contrast outdoor toggle */}
+        <button onClick={toggleContrast}
+          title={highContrast ? 'Normal contrast' : 'High contrast (outdoor)'}
+          style={{ background:'none', border:'none', fontSize:16, cursor:'pointer',
+            minHeight:44, minWidth:36, display:'flex', alignItems:'center', justifyContent:'center',
+            opacity: highContrast ? 1 : 0.4, WebkitTapHighlightColor:'transparent' }}>
+          ☀️
+        </button>
         {/* Front garden nav */}
         {onGoFront && (
           <button onClick={onGoFront}
-            style={{background:'none',border:'none',fontSize:16,cursor:'pointer',padding:'4px 6px',lineHeight:1}}
+            style={{background:'none',border:'none',fontSize:16,cursor:'pointer',
+              minHeight:44, minWidth:36, display:'flex', alignItems:'center', justifyContent:'center',
+              WebkitTapHighlightColor:'transparent'}}
             title="Emma's Rose Garden">
             🌹
           </button>
@@ -2430,5 +2479,6 @@ export function MobileView({
         ))}
       </div>
     </div>
+    </HighContrastCtx.Provider>
   );
 }

@@ -1,6 +1,13 @@
 // src/utils/phenology.js
-// Zone 7b Brooklyn phenological calendar — date-based stage fallback
+// Zone 7b Brooklyn rooftop phenological calendar — date-based stage fallback.
 // Returns a short stage string for display when no AI portrait stage is available.
+//
+// ROOFTOP OFFSET: The terrace is elevated and south-facing, creating a heat-island
+// effect that accelerates spring emergence and bloom by ~12 days vs. ground level.
+// All callers default to this offset; pass offsetDays=0 to get ground-level timing.
+
+// Rooftop advance vs. ground-level Zone 7b calendar
+export const ROOFTOP_PHENOLOGY_OFFSET_DAYS = 12;
 
 // Each entry: [month (1-based), day-of-month-start, stage label]
 // Ranges are inclusive on the start, exclusive on next entry's start.
@@ -42,6 +49,7 @@ const CALENDARS = {
   ],
   hydrangea: [
     [1,1,'dormant'],
+    [3,1,'prune old blooms'],   // cut dried heads before bud break
     [3,15,'bud swell'],
     [4,15,'leafing out'],
     [6,1,'budding'],
@@ -110,12 +118,15 @@ const DEFAULT_CALENDAR = [
  * Used as fallback when no AI portrait stage is available.
  * @param {string} type - plant type (e.g. 'wisteria', 'climbing-rose')
  * @param {Date} [date] - defaults to today
+ * @param {number} [offsetDays] - days to advance (rooftop default = 12; pass 0 for ground level)
  * @returns {string} stage label
  */
-export function getPhenologicalStage(type, date = new Date()) {
+export function getPhenologicalStage(type, date = new Date(), offsetDays = ROOFTOP_PHENOLOGY_OFFSET_DAYS) {
   const cal = CALENDARS[type] || DEFAULT_CALENDAR;
-  const m = date.getMonth() + 1; // 1-based
-  const d = date.getDate();
+  // Advance the date to simulate rooftop heat-island acceleration
+  const adjusted = offsetDays ? new Date(date.getTime() + offsetDays * 86400000) : date;
+  const m = adjusted.getMonth() + 1; // 1-based
+  const d = adjusted.getDate();
 
   let stage = cal[0][2];
   for (const [em, ed, label] of cal) {
