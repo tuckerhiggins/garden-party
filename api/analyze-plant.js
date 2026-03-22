@@ -174,7 +174,8 @@ Rules:
     let svg = null;
     if (portraitMatch) {
       const raw = portraitMatch[1].trim();
-      if (raw.startsWith('<svg')) svg = raw;
+      const svgStart = raw.indexOf('<svg');
+      if (svgStart !== -1) svg = raw.slice(svgStart);
     }
 
     res.json({ analysis, svg, stages: newStages });

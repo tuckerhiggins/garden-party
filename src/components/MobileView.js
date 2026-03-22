@@ -608,7 +608,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
           });
           if (growth != null) onGrowthUpdate?.(plant.id, growth);
         })
-        .catch(() => { clearTimeout(timeout); onPortraitUpdate?.(plant.id, { analyzing: false }); });
+        .catch(err => { clearTimeout(timeout); console.error('[portrait analysis failed]', err); onPortraitUpdate?.(plant.id, { analyzing: false }); });
     } catch {
       onPortraitUpdate?.(plant.id, { analyzing: false });
     }

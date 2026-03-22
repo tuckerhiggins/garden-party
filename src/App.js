@@ -265,6 +265,11 @@ const TERRACE_GROUPS = [
   { key:'additions',      label:'New Additions',         types:['custom','annual','herb','fern','succulent','grass'] },
 ];
 
+const FRONT_GROUPS = [
+  { key:'magnolia',       label:'Magnolia',              types:['magnolia'] },
+  { key:'rose',           label:'Double Knock Out Roses (6)', types:['rose'] },
+];
+
 // ── STORAGE ───────────────────────────────────────────────────────────────
 const LS = { care:'gp_care_v4',
   expenses:'gp_expenses_v4', positions:'gp_pos_v4', growth:'gp_growth_v4' };
@@ -1933,6 +1938,7 @@ export default function App() {
                   return (
                     <>
                       {gardenPlants.terrace.length>0&&renderGroups(gardenPlants.terrace, TERRACE_GROUPS, null)}
+                      {frontPlants.length>0&&renderGroups(frontPlants, FRONT_GROUPS, "🌹 Emma's Rose Garden")}
                       {/* Available containers — empty pots that can receive a new plant */}
                       {availableContainers.length > 0 && (
                         <div style={{marginBottom:24}}>
