@@ -1920,8 +1920,17 @@ export default function App() {
   const URGENT_SET = new Set(['thirsty','overlooked','struggling']);
   const needsCareCount = gardenPlants.terrace.filter(p=> seasonOpen && URGENT_SET.has(p.health)).length;
 
-  // Map info panel data — weather-aware list computed above; slice to 6 for display
-  const attentionItems = attentionItemsForBrief.slice(0, 6);
+  // Map info panel data — frozen agenda minus tasks already completed today
+  const attentionItems = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return attentionItemsForBrief.filter(item => {
+      const entries = careLog[item.plant.id] || [];
+      if (item.action === 'custom') {
+        return !entries.some(e => e.action === 'custom' && e.label === (item.task?.label || '') && e.date?.startsWith(todayStr));
+      }
+      return !entries.some(e => e.action === item.action && e.date?.startsWith(todayStr));
+    }).slice(0, 6);
+  }, [attentionItemsForBrief, careLog]);
 
   const recentCare = useMemo(() => {
     const all = gardenPlants.terrace.flatMap(p =>
