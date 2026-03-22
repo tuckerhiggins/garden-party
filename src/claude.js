@@ -305,7 +305,10 @@ export async function fetchDailyAgenda({ candidateTasks, weather, careLog, portr
 export async function fetchMorningBrief({ plants, careLog, weather, portraits }) {
   const today = new Date().toISOString().slice(0, 10);
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
-  const cacheKey = `morningbrief3_${today}_${rainToken}`;
+  // Invalidate when today's care changes — count of actions logged today
+  const todayCareToken = Object.values(careLog).flat()
+    .filter(e => e.date?.startsWith(today)).length;
+  const cacheKey = `morningbrief4_${today}_${rainToken}_${todayCareToken}`;
 
   const needsWater = plants
     .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && p.actions?.includes('water'))
@@ -315,6 +318,15 @@ export async function fetchMorningBrief({ plants, careLog, weather, portraits })
       return (Date.now() - new Date(entries[entries.length - 1].date).getTime()) / 86400000 > 1;
     })
     .map(p => p.name);
+
+  // Care logged today — so Claude knows what's already been done this session
+  const todayCare = Object.entries(careLog).flatMap(([id, entries]) => {
+    const plant = plants.find(p => p.id === id);
+    if (!plant) return [];
+    return entries
+      .filter(e => e.date?.startsWith(today))
+      .map(e => `${plant.name}: ${e.label || e.action}`);
+  });
 
   const weatherEvents = [];
   if (weather?.forecast) {
@@ -334,10 +346,11 @@ export async function fetchMorningBrief({ plants, careLog, weather, portraits })
     })
     .find(Boolean);
 
-  const systemPrompt = `You are the garden speaking to Tucker and Emma at the start of their day on the Brooklyn terrace. One sentence. Present tense. Specific to what's actually happening — the weather, a plant that needs attention, or a quiet observation worth noticing. Never generic, never a list, never a greeting.`;
+  const systemPrompt = `You are the garden speaking to Tucker and Emma at the start of their day on the Brooklyn terrace. One sentence. Present tense. Specific to what's actually happening — the weather, a plant that needs attention, or a quiet observation worth noticing. Never generic, never a list, never a greeting. Do not mention plants that have already been cared for today.`;
 
   const userPrompt = `Today: ${today}. Brooklyn Zone 7b, early spring.
 ${needsWater.length ? `Needs water: ${needsWater.join(', ')}.` : 'Watering up to date.'}
+${todayCare.length ? `Already cared for today: ${todayCare.join(', ')}.` : ''}
 ${weatherEvents.length ? `Weather note: ${weatherEvents.join('; ')}.` : `Today: ${weather?.forecast?.[0]?.label || 'clear'}, ${weather?.forecast?.[0]?.high || '—'}°F.`}
 ${recentNote ? `Recent observation — ${recentNote}` : ''}
 One sentence from the garden this morning.`;

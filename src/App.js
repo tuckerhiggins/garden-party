@@ -1863,20 +1863,17 @@ export default function App() {
   }, [weather, role, todayCareCount]);
 
   // Morning brief + daily brief — shared by desktop MapInfoPanel and mobile Today tab
+  // Re-fetches when today's care count changes; cachedClaude handles deduplication
   useEffect(() => {
     if (!weather) return;
     const allPlants = [...gardenPlants.terrace, ...frontPlants];
-    if (!morningBrief) {
-      fetchMorningBrief({ plants: allPlants, careLog, weather, portraits })
-        .then(brief => { if (brief) setMorningBrief(brief); })
-        .catch(() => {});
-    }
-    if (!dailyBrief) {
-      fetchDailyBrief({ plants: allPlants, careLog, weather, portraits })
-        .then(brief => { if (brief) setDailyBrief(brief); })
-        .catch(() => {});
-    }
-  }, [weather]);
+    fetchMorningBrief({ plants: allPlants, careLog, weather, portraits })
+      .then(brief => { if (brief) setMorningBrief(brief); })
+      .catch(() => {});
+    fetchDailyBrief({ plants: allPlants, careLog, weather, portraits })
+      .then(brief => { if (brief) setDailyBrief(brief); })
+      .catch(() => {});
+  }, [weather, todayCareCount]);
 
   // Season opener — show once when season first opens
   useEffect(() => {
