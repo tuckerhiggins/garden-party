@@ -623,12 +623,12 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
   }
 
   const waterStatus = actionStatus(plant, 'water', careLog, seasonOpen);
-  // All oracle-recommended actions that are currently available (no cap)
-  const oracleActions = (briefing?.actions || [])
-    .filter(a => ACTION_DEFS[a] && a !== 'water')
-    .filter(a => actionStatus(plant, a, careLog, seasonOpen).available);
+  // All oracle-recommended tasks that are currently actionable (no cap)
+  const oracleTasks = (briefing?.tasks || [])
+    .filter(t => t.key !== 'water')
+    .filter(t => t.key === 'custom' || !ACTION_DEFS[t.key] || actionStatus(plant, t.key, careLog, seasonOpen).available);
   // Fall back to Visit when oracle hasn't loaded or recommends nothing
-  const showVisit = !briefing || oracleActions.length === 0;
+  const showVisit = !briefing || oracleTasks.length === 0;
 
   if (plant.health === 'memorial' || plant.type === 'empty-pot') return null;
 
@@ -773,11 +773,20 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
             </span>
           </button>
 
-          {/* Oracle-recommended actions */}
-          {oracleActions.map(a => {
-            const def = ACTION_DEFS[a];
+          {/* Oracle-recommended tasks */}
+          {oracleTasks.map(t => {
+            const def = ACTION_DEFS[t.key];
+            const emoji = def?.emoji || '✨';
+            const label = (t.label || def?.label || t.key).toUpperCase().slice(0, 9);
             return (
-              <button key={a} onClick={() => onStartAction ? onStartAction(plant, a) : onAction(a, plant)}
+              <button key={`${t.key}:${t.label}`}
+                onClick={() => {
+                  if (t.key === 'custom') {
+                    onAction('custom', plant, t.label);
+                  } else {
+                    onStartAction ? onStartAction(plant, t.key) : onAction(t.key, plant);
+                  }
+                }}
                 style={{
                   flex: '1 1 56px', padding: '10px 8px',
                   background: `${color}10`,
@@ -785,9 +794,9 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
                   borderRadius: 8, cursor: 'pointer',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                 }}>
-                <span style={{ fontSize: 18 }}>{def.emoji}</span>
+                <span style={{ fontSize: 18 }}>{emoji}</span>
                 <span style={{ fontFamily: MONO, fontSize: 6, color }}>
-                  {def.label.toUpperCase().slice(0, 8)}
+                  {label}
                 </span>
               </button>
             );
@@ -1241,41 +1250,74 @@ function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seaso
   for (const plant of [...plants, ...frontPlants]) {
     if (plant.type === 'empty-pot' || plant.health === 'memorial') continue;
     const brief = briefings[plant.id];
-    const oracleActions = brief?.actions || [];
+    const briefTasks = Array.isArray(brief?.tasks) ? brief.tasks : [];
+    const briefTaskKeys = new Set(briefTasks.map(t => t.key));
+    const isUrgent = AGENDA_URGENT_HEALTH.has(plant.health);
+    const section = emmaPlantsSet.has(plant.id) ? 'emma' : 'terrace';
 
-    for (const actionKey of (plant.actions || [])) {
-      if (AGENDA_SKIP_ACTIONS.has(actionKey)) continue;
-      if (!actionStatus(plant, actionKey, careLog, seasonOpen).available) continue;
+    // AI-recommended tasks (may include novel/custom tasks not in plant.actions)
+    for (const task of briefTasks) {
+      if (AGENDA_SKIP_ACTIONS.has(task.key)) continue;
+      if (task.key !== 'custom' && !actionStatus(plant, task.key, careLog, seasonOpen).available) continue;
+      if (task.key === 'water' && hasRainSoon && !isUrgent) continue;
+      if (task.key === 'neem' && hasRainSoon) continue;
 
-      // Skip watering if rain expected and plant not in distress
-      if (actionKey === 'water' && hasRainSoon && !AGENDA_URGENT_HEALTH.has(plant.health)) continue;
-      // Skip neem if rain expected — it washes off within hours
-      if (actionKey === 'neem' && hasRainSoon) continue;
-
-      let priority;
-      if (AGENDA_URGENT_HEALTH.has(plant.health)) {
-        priority = 'urgent';
-      } else if (oracleActions.includes(actionKey)) {
-        priority = hasFrostSoon ? 'urgent' : 'recommended';
-      } else {
-        priority = hasFrostSoon ? 'recommended' : 'routine';
-      }
-
-      // Weekday: only urgent + recommended
+      const priority = isUrgent ? 'urgent' : hasFrostSoon ? 'urgent' : 'recommended';
       if (!isWeekend && priority === 'routine') continue;
 
       items.push({
-        key: `${plant.id}:${actionKey}`,
-        plant,
-        plantId: plant.id,
-        plantName: plant.name,
-        plantType: plant.type,
-        plantHealth: plant.health,
-        actionKey,
+        key: `${plant.id}:${task.key}:${task.label || ''}`,
+        plant, plantId: plant.id, plantName: plant.name,
+        plantType: plant.type, plantHealth: plant.health,
+        actionKey: task.key, task,
         priority,
-        reason: brief?.note || null,
-        section: emmaPlantsSet.has(plant.id) ? 'emma' : 'terrace',
+        reason: task.reason || brief?.note || null,
+        section,
       });
+    }
+
+    // Urgency-driven items from plant.actions not already covered by AI tasks
+    if (isUrgent) {
+      for (const actionKey of (plant.actions || [])) {
+        if (AGENDA_SKIP_ACTIONS.has(actionKey)) continue;
+        if (briefTaskKeys.has(actionKey)) continue;
+        if (!actionStatus(plant, actionKey, careLog, seasonOpen).available) continue;
+        if (actionKey === 'water' && hasRainSoon) continue;
+        if (actionKey === 'neem' && hasRainSoon) continue;
+
+        items.push({
+          key: `${plant.id}:${actionKey}`,
+          plant, plantId: plant.id, plantName: plant.name,
+          plantType: plant.type, plantHealth: plant.health,
+          actionKey, task: null,
+          priority: 'urgent',
+          reason: brief?.note || null,
+          section,
+        });
+      }
+    }
+
+    // When briefing hasn't loaded yet, fall back to plant.actions for routine items
+    if (!brief) {
+      for (const actionKey of (plant.actions || [])) {
+        if (AGENDA_SKIP_ACTIONS.has(actionKey)) continue;
+        if (!actionStatus(plant, actionKey, careLog, seasonOpen).available) continue;
+        if (actionKey === 'water' && hasRainSoon && !isUrgent) continue;
+        if (actionKey === 'neem' && hasRainSoon) continue;
+
+        const priority = isUrgent ? 'urgent' : hasFrostSoon ? 'recommended' : 'routine';
+        if (!isWeekend && priority === 'routine') continue;
+
+        items.push({
+          key: `${plant.id}:${actionKey}`,
+          plant, plantId: plant.id, plantName: plant.name,
+          plantType: plant.type, plantHealth: plant.health,
+          actionKey, task: null,
+          priority,
+          reason: null,
+          section,
+        });
+      }
     }
   }
 
@@ -1290,6 +1332,8 @@ function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seaso
 
 function AgendaRow({ item, completed, onTap, onDone, portrait }) {
   const def = ACTION_DEFS[item.actionKey];
+  const rowEmoji = def?.emoji || item.task?.emoji || '✨';
+  const rowLabel = def?.label || item.task?.label || item.actionKey;
   const tierColors = {
     urgent:      { border: 'rgba(200,80,30,0.35)', bg: 'rgba(200,80,30,0.06)', accent: '#b84018', dot: '#c85020' },
     recommended: { border: 'rgba(72,120,32,0.28)', bg: 'rgba(72,120,32,0.05)', accent: '#3a6818', dot: '#487820' },
@@ -1331,9 +1375,9 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
             letterSpacing: .4, textDecoration: completed ? 'line-through' : 'none' }}>
             {item.plantName.toUpperCase()}
           </span>
-          <span style={{ fontSize: 13 }}>{def?.emoji}</span>
+          <span style={{ fontSize: 13 }}>{rowEmoji}</span>
           <span style={{ fontFamily: SERIF, fontSize: 12, color: completed ? '#b0a080' : tierColors.accent }}>
-            {def?.label}
+            {rowLabel}
           </span>
         </div>
         {item.reason && !completed && (
@@ -1556,7 +1600,7 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
             key={item.key}
             item={item}
             completed={isCompleted(item)}
-            onTap={i => onStartAction(i.plant, i.actionKey)}
+            onTap={i => i.actionKey === 'custom' ? onMarkDone(i) : onStartAction(i.plant, i.actionKey)}
             onDone={onMarkDone}
             portrait={portraits[item.plantId]}
           />
@@ -1652,7 +1696,7 @@ function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, 
     fetchJournalEntry({ dateStr, careEntries, portraitObservations, photoCount: photos.length, plantHistories })
       .then(text => { setNarrative(text); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [dateStr, versionKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dateStr, versionKey]);
 
   const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   const hasEmma = careEntries.some(e => e.withEmma);
@@ -1848,7 +1892,7 @@ export function MobileView({
   function handleMarkDone(item) {
     completedKeysRef.current.add(item.key);
     setCompletedCount(n => n + 1);
-    handleAction(item.actionKey, item.plant);
+    handleAction(item.actionKey, item.plant, item.actionKey === 'custom' ? item.task?.label : undefined);
   }
 
   // Version string that changes when any plant's last care action changes
@@ -1956,11 +2000,10 @@ export function MobileView({
   function handleAction(key, plant, customLabel) {
     onAction(key, plant, customLabel);
     const def = ACTION_DEFS[key];
-    if (def) {
-      const displayLabel = customLabel || def.label;
-      setFlash(`${def.emoji} ${displayLabel}`);
-      setTimeout(() => setFlash(null), 2000);
-    }
+    const displayLabel = customLabel || def?.label || key;
+    const emoji = def?.emoji || '✨';
+    setFlash(`${emoji} ${displayLabel}`);
+    setTimeout(() => setFlash(null), 2000);
   }
 
   function handleStartAction(plant, key) {

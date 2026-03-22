@@ -126,10 +126,13 @@ export function useGardenData({ user }) {
 
   // ── WRITE OPERATIONS ──────────────────────────────────────────────────────
   const logAction = useCallback(async (key, plant, withEmma, customLabel) => {
-    const def = ACTION_DEFS[key]; if (!def) return;
-    const label = customLabel || def.label;
+    const def = ACTION_DEFS[key];
+    // Custom tasks (key === 'custom') have no ACTION_DEFS entry; use provided label + generic emoji
+    if (!def && key !== 'custom') return;
+    const label = customLabel || def?.label || key;
+    const emoji = def?.emoji || '✨';
     const entry = {
-      action: key, label, emoji: def.emoji,
+      action: key, label, emoji,
       date: new Date().toISOString(), withEmma, plantName: plant.name,
     };
 
@@ -142,7 +145,7 @@ export function useGardenData({ user }) {
     if (supabase && !user) return 'local only — not signed in';
     if (supabase && user) {
       const { error } = await supabase.from('care_log').insert({
-        plant_id: plant.id, action: key, label, emoji: def.emoji,
+        plant_id: plant.id, action: key, label, emoji,
         with_emma: withEmma, plant_name: plant.name, logged_by: user.id,
       });
       if (error) return error.message;

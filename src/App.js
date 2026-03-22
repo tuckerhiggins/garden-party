@@ -1476,7 +1476,7 @@ function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPla
     fetchJournalEntry({ dateStr, careEntries, portraitObservations, photoCount: photos.length, plantHistories })
       .then(text => { setNarrative(text); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [dateStr, versionKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dateStr, versionKey]);
 
   const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const hasEmma = careEntries.some(e => e.withEmma);
@@ -1589,6 +1589,9 @@ export default function App() {
   const [oracle, setOracle] = useState(null);
   const [morningBrief, setMorningBrief] = useState(null);
   const [dailyBrief, setDailyBrief] = useState(null);
+  // Centralized briefings: { [plantId]: { note, tasks, actions } | 'loading' | null }
+  // Fetched for all active plants in the background; shared across map, cards, mobile
+  const [briefings, setBriefings] = useState({});
   const { portraits, updatePortrait } = usePortraits({ user });
   const { allPhotos, addPhoto } = usePhotos({ user });
   const [customPlants, setCustomPlants] = useState(() => {
@@ -1690,33 +1693,47 @@ export default function App() {
       .catch(() => {});
   }, [weather, role, todayCareCount]);
 
-  // Attention items — what needs doing today, weather-aware
-  // Computed here (before the brief useEffect) so the brief can use it as context.
-  // Water: show when overdue (not covered by alwaysAvailable filter).
-  // Neem: suppress when rain ≥60% in next 24h — consistent with AI behavior.
+  // Attention items — what needs doing today.
+  // Sources from AI briefing tasks when available; falls back to rules for unloaded plants.
+  // Weather-aware: neem suppressed when rain ≥60%, consistent with AI behavior.
   const attentionItemsForBrief = useMemo(() => {
     const rainSoon = weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60) ?? false;
     const SKIP = new Set(['photo', 'visit', 'note', 'plant']);
-    return [...gardenPlants.terrace, ...frontPlants]
-      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
-      .flatMap(p => (p.actions || [])
-        .filter(a => {
-          if (SKIP.has(a)) return false;
+    const items = [];
+
+    for (const p of [...gardenPlants.terrace, ...frontPlants]) {
+      if (p.health === 'memorial' || p.type === 'empty-pot') continue;
+      const briefing = briefings[p.id];
+
+      if (briefing && briefing !== 'loading' && Array.isArray(briefing.tasks) && briefing.tasks.length > 0) {
+        // AI-driven: use briefing tasks, filter out weather-blocked ones
+        for (const task of briefing.tasks) {
+          if (task.key === 'neem' && rainSoon) continue;
+          if (task.key === 'water' && rainSoon && weather?.forecast?.[0]?.precipChance >= 80) continue;
+          items.push({ plant: p, action: task.key, def: ACTION_DEFS[task.key] || null, task });
+        }
+      } else {
+        // Rules fallback for plants whose briefing hasn't loaded yet
+        for (const a of (p.actions || [])) {
+          if (SKIP.has(a)) continue;
           const def = ACTION_DEFS[a];
-          if (!def) return false;
-          if (a === 'neem' && rainSoon) return false;
+          if (!def) continue;
+          if (a === 'neem' && rainSoon) continue;
           if (a === 'water') {
             const entries = (careLog[p.id] || []).filter(e => e.action === 'water');
-            if (!entries.length) return true;
-            const last = new Date(entries[entries.length - 1].date);
-            return (Date.now() - last.getTime()) / 86400000 > 1;
+            if (entries.length) {
+              const last = new Date(entries[entries.length - 1].date);
+              if ((Date.now() - last.getTime()) / 86400000 <= 1) continue;
+            }
+          } else if (def.alwaysAvailable || !actionStatus(p, a, careLog, seasonOpen).available) {
+            continue;
           }
-          return !def.alwaysAvailable && actionStatus(p, a, careLog, seasonOpen).available;
-        })
-        .map(a => ({ plant: p, action: a, def: ACTION_DEFS[a] }))
-      )
-      .slice(0, 8);
-  }, [gardenPlants.terrace, frontPlants, careLog, seasonOpen, weather]);
+          items.push({ plant: p, action: a, def, task: null });
+        }
+      }
+    }
+    return items.slice(0, 8);
+  }, [gardenPlants.terrace, frontPlants, careLog, seasonOpen, weather, briefings]);
 
   // Morning brief + daily brief — shared by desktop MapInfoPanel and mobile Today tab
   // Re-fetches when today's care count changes; cachedClaude handles deduplication
@@ -1733,7 +1750,30 @@ export default function App() {
     fetchDailyBrief({ plants: allPlants, careLog, weather, portraits, agendaTasks })
       .then(brief => { if (brief) setDailyBrief(brief); })
       .catch(() => {});
-  }, [weather, todayCareCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [weather, todayCareCount]);
+
+  // Fetch plant briefings for all active plants in the background.
+  // Staggered to avoid hammering the API simultaneously; cachedClaude handles dedup.
+  useEffect(() => {
+    if (!weather || !seasonOpen) return;
+    const active = [...gardenPlants.terrace, ...frontPlants]
+      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
+    active.forEach((plant, i) => {
+      if (briefings[plant.id] !== undefined) return; // already loaded or loading
+      setBriefings(prev => ({ ...prev, [plant.id]: 'loading' }));
+      setTimeout(() => {
+        fetchPlantBriefing(plant, careLog, weather, portraits)
+          .then(b => setBriefings(prev => ({ ...prev, [plant.id]: b })))
+          .catch(() => setBriefings(prev => ({ ...prev, [plant.id]: null })));
+      }, i * 200); // stagger 200ms per plant
+    });
+  }, [weather, seasonOpen]);
+
+  // Invalidate briefings when care is logged (so recommendations update immediately)
+  useEffect(() => {
+    if (!weather || !seasonOpen) return;
+    setBriefings({});
+  }, [todayCareCount]);
 
   // Season opener — show once when season first opens
   useEffect(() => {
@@ -1770,13 +1810,15 @@ export default function App() {
 
   // Care action
   const doAction = useCallback(async (key, plant, customLabel) => {
-    const def = ACTION_DEFS[key]; if (!def) return;
+    const def = ACTION_DEFS[key];
+    if (!def && key !== 'custom') return;
     const isWithEmma = role === 'emma';
     const syncError = await logAction(key, plant, isWithEmma, customLabel);
-    const displayLabel = customLabel || def.label;
+    const displayLabel = customLabel || def?.label || key;
+    const emoji = def?.emoji || '✨';
     setFlash(syncError
       ? `⚠️ Logged locally but sync failed: ${syncError}`
-      : `${def.emoji} ${displayLabel}${isWithEmma ? ' with Emma' : ''}`
+      : `${emoji} ${displayLabel}${isWithEmma ? ' with Emma' : ''}`
     );
     setTimeout(() => setFlash(null), syncError ? 5000 : 2500);
   }, [role, logAction]);
@@ -1832,6 +1874,7 @@ export default function App() {
         allPhotos={allPhotos}
         onAddPhoto={addPhoto}
         portraits={portraits}
+        briefings={briefings}
         role={role}
         signIn={signIn}
         signOut={signOut}
@@ -2107,6 +2150,7 @@ export default function App() {
                       careLog={careLog}
                       warmth={warmth}
                       weather={weather}
+                      briefings={briefings}
                     />
                   </div>
                 </div>

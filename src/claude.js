@@ -157,80 +157,89 @@ ${hasBriefing ? 'Lead with the specific action Tucker needs to take because of t
 }
 
 // ── PLANT BRIEFING ────────────────────────────────────────────────────────
-// One-sentence oracle note about a specific plant right now. Shown in map hover card.
-const ORACLE_ACTIONS = {
-  water:     'water — irrigate thoroughly',
-  fertilize: 'fertilize — apply balanced or bloom-booster fertilizer',
-  neem:      'neem oil — spray to prevent/treat aphids, fungal issues',
-  prune:     'prune — remove dead, damaged, or crossing growth',
-  train:     'train — tie and guide new growth along its support',
-  repot:     'repot — move to larger container or refresh soil',
-  worms:     'worms — add worms to improve soil aeration and nutrients',
-};
+// Full plant assessment: observation + open-ended task recommendations.
+// Claude is NOT constrained to a fixed action menu — it can recommend anything
+// it thinks the plant needs, including novel tasks Tucker may never have done.
+// Each task comes with a reason (why now) and instructions (how to do it).
+
+// Standard action keys — used for backward compat with existing UI components
+const STANDARD_KEYS = new Set(['water','fertilize','neem','prune','train','repot','worms','photo','visit']);
 
 export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
   const today = new Date().toISOString().slice(0, 10);
   const entries = careLog[plant.id] || [];
-  // Cache busts when last action changes (so recommendations update after you care for a plant)
   const lastActionDate = entries.length ? entries[entries.length - 1].date.slice(0, 10) : 'none';
   const portrait = portraits?.[plant.id] || {};
   const currentStage = portrait.currentStage || null;
-  // Weather token: bust cache when rain forecast changes (prevents stale neem/water recs)
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
-  const cacheKey = `plantbrief5_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
+  const cacheKey = `plantbrief6_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
 
   const lastWater = [...entries].reverse().find(e => e.action === 'water');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
-  const recentActions = entries.slice(-5).map(e =>
-    `${e.label} on ${new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`
+  const recentActions = entries.slice(-8).map(e =>
+    `${e.label || e.action} on ${new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
   ).join(', ');
   const visualNote = portrait.visualNote;
   const next3 = weather?.forecast?.slice(0, 3).map(d =>
     `${d.date}: ${d.label} ${d.high}°/${d.low}°F, ${d.precipChance}% rain`
   ).join('; ') ?? '';
 
-  // Build action menu — all care actions, with recency info
-  const actionMenu = Object.entries(ORACLE_ACTIONS).map(([a, desc]) => {
-    const last = [...entries].reverse().find(e => e.action === a);
-    const daysAgo = last ? Math.floor((Date.now() - new Date(last.date).getTime()) / 86400000) : null;
-    const when = daysAgo !== null ? `last done ${daysAgo}d ago` : 'not done this season';
-    return `  ${a}: ${desc} (${when})`;
-  }).join('\n');
+  const systemPrompt = `You are a knowledgeable plant care advisor and teacher for Tucker and Emma's Brooklyn rooftop garden (Zone 7b, Park Slope). Tucker is actively learning to garden — he appreciates being taught things he hasn't done before.
 
-  const systemPrompt = `You are a knowledgeable plant care advisor for Tucker and Emma's Brooklyn rooftop garden (Zone 7b). You give a brief specific observation about a plant's current state AND recommend which care actions — if any — genuinely make sense right now. You can recommend any action from the list. Be selective: don't recommend something just done, don't recommend more than 2 actions, don't recommend if nothing is needed.
+For each plant, give a brief observation AND recommend 0–3 care tasks that genuinely make sense RIGHT NOW.
+
+You are NOT limited to a fixed menu. Recommend anything botanically appropriate:
+- Standard care: water, fertilize, prune, neem oil, train/tie, repot, add worms
+- Novel/educational tasks: deadhead spent flowers, remove a sucker, stake a leaning cane, thin crowded shoots at the base, check drainage holes, apply copper fungicide, layer a cane for propagation, pinch growing tips, remove winter dieback, cut back to an outward-facing bud, scratch-test a cane for life, mulch the container surface, etc.
+
+At least occasionally include one task Tucker is unlikely to have done before — something specific to this species' care calendar. This is how he'll learn.
 
 Rain rules (non-negotiable):
-- If rain ≥60% chance today or tomorrow: do NOT recommend water
-- If rain within 24h: do NOT recommend neem oil (it washes off and wastes the application)
-- Check the 3-day forecast before making any recommendation`;
+- Rain ≥60% chance today or tomorrow: do NOT recommend water or neem oil
+
+Respond as JSON only — no other text:
+{
+  "note": "one specific observation about this plant right now, max 20 words",
+  "tasks": [
+    {
+      "key": "water",
+      "label": "Water deeply at the base",
+      "reason": "5 days since last water, new growth is active",
+      "instructions": "Water slowly at the base for about 60 seconds until you see drainage. Spring root growth responds better to a deep soak than a quick splash — the roots are pushing down right now and you want to wet the full root zone."
+    }
+  ]
+}
+
+For standard actions use key: water / fertilize / neem / prune / train / repot / worms
+For any novel or custom task use key: custom
+The label should be specific, not generic ("Remove the crossing cane at the base" not just "Prune").
+Instructions: 2–4 sentences, specific to this plant and moment. Include the why, not just the how.`;
 
   const userPrompt = `Plant: ${plant.name}${plant.species ? ` (${plant.species})` : ''}, ${plant.type}.
-Health: ${plant.health}. Today: ${today}. Early spring, Zone 7b.
-Current phenological stage: ${currentStage || getPhenologicalStage(plant.type)}.
-${daysSinceWater !== null ? `Last watered ${daysSinceWater} day${daysSinceWater !== 1 ? 's' : ''} ago.` : 'No water logged.'}
-${recentActions ? `Recent care: ${recentActions}.` : ''}
+Health: ${plant.health}. Today: ${today}. Zone 7b, early spring — day ${Math.max(0, Math.floor((Date.now() - new Date('2026-03-20').getTime()) / 86400000))} of season 2.
+Current stage: ${currentStage || getPhenologicalStage(plant.type)}.
+${daysSinceWater !== null ? `Last watered ${daysSinceWater} day${daysSinceWater !== 1 ? 's' : ''} ago.` : 'Never watered this season.'}
+${recentActions ? `Recent care: ${recentActions}.` : 'No care logged this season.'}
 ${visualNote ? `Last photo observation: "${visualNote}"` : ''}
 ${next3 ? `3-day forecast: ${next3}` : ''}
 
-Care actions you can recommend:
-${actionMenu}
+What does this plant need right now?`;
 
-Recommend 0–2 of the above that genuinely make sense RIGHT NOW. Use the exact action key (e.g. "water", "prune").
-Respond as JSON only — no other text:
-{"note": "one specific observation, max 20 words", "actions": []}`;
-
-  const raw = await cachedClaude(cacheKey, systemPrompt, userPrompt, 120, 24 * 60 * 60 * 1000);
+  const raw = await cachedClaude(cacheKey, systemPrompt, userPrompt, 600, 24 * 60 * 60 * 1000);
   try {
-    const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/,'').trim();
+    const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
     const parsed = JSON.parse(clean);
+    const tasks = Array.isArray(parsed.tasks)
+      ? parsed.tasks.filter(t => t && typeof t.label === 'string')
+      : [];
     return {
       note: typeof parsed.note === 'string' ? parsed.note : '',
-      actions: Array.isArray(parsed.actions)
-        ? parsed.actions.filter(a => ORACLE_ACTIONS[a])
-        : [],
+      tasks,
+      // backward compat — existing components that use briefing.actions still work
+      actions: tasks.map(t => t.key).filter(k => STANDARD_KEYS.has(k)),
     };
   } catch {
-    return { note: raw || '', actions: [] };
+    return { note: raw || '', tasks: [], actions: [] };
   }
 }
 

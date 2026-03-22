@@ -1145,10 +1145,11 @@ function CookieSVG({ pose }) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
-export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0, weather = null }) {
+export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0, weather = null, briefings: externalBriefings = {} }) {
   const [hovId, setHovId] = useState(null);
   const [pinnedId, setPinnedId] = useState(null);
   const [pinnedBriefings, setPinnedBriefings] = useState({});
+  const [expandedTaskIdx, setExpandedTaskIdx] = useState(null); // index of task with expanded instructions
   const [cookiePetted, setCookiePetted] = useState(false);
   const [actionFlash, setActionFlash] = useState(null); // {x, y, key}
   const leaveTimerRef = useRef(null);
@@ -1166,9 +1167,11 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
     onHover?.(p ?? null);
   }, [hovId, plants, onHover]);
 
-  // Fetch Claude briefing when a plant is pinned (cached, so fast after first load)
+  // Fetch Claude briefing when a plant is pinned; use external (pre-fetched) briefing if available
   useEffect(() => {
     if (!pinnedId) return;
+    // If App.js already has this briefing loaded, no need to re-fetch
+    if (externalBriefings[pinnedId] && externalBriefings[pinnedId] !== 'loading') return;
     if (pinnedBriefings[pinnedId] !== undefined) return;
     const plant = plants.find(p => p.id === pinnedId);
     if (!plant) return;
@@ -1849,8 +1852,12 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         const lastWater = [...entries].reverse().find(e => e.action === 'water');
         const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
         const waterUrgent = daysSinceWater === null || daysSinceWater > 3;
-        const briefing = pinnedBriefings[pinnedId];
-        const isLoading = briefing === 'loading';
+        // Use pre-fetched briefing from App.js if available, else fall back to local fetch
+        const briefing = (externalBriefings[pinnedId] && externalBriefings[pinnedId] !== 'loading')
+          ? externalBriefings[pinnedId]
+          : pinnedBriefings[pinnedId];
+        const isLoading = briefing === 'loading' || (externalBriefings[pinnedId] === 'loading' && !pinnedBriefings[pinnedId]);
+        const aiTasks = (briefing && briefing !== 'loading') ? (briefing.tasks || []) : [];
         const timeline = getActionTimeline(pp, careLog, seasonOpen);
         const accentColor = pp.color || '#d4a830';
         const hc = healthColor(pp.health);
@@ -1926,26 +1933,85 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                   )}
                 </div>
 
-                {/* Action timeline */}
+                {/* AI task recommendations with reasons + expandable instructions */}
                 <div style={{ padding: '9px 13px 4px', borderBottom: '1px solid rgba(160,130,80,0.10)' }}>
-                  <div style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5.5, color: 'rgba(212,168,48,0.65)', letterSpacing: 0.5, marginBottom: 8 }}>NEXT CARE</div>
-                  {timeline.map(({ key, label, emoji, available, daysLeft, neverDone }) => {
-                    const isRec = briefing?.actions?.includes(key);
-                    const chipColor = available ? (isRec ? '#d4a830' : '#78b840') : 'rgba(160,130,80,0.38)';
-                    const chipBg = available ? (isRec ? 'rgba(212,168,48,0.14)' : 'rgba(100,180,60,0.10)') : 'transparent';
-                    const chipBorder = available ? (isRec ? 'rgba(212,168,48,0.38)' : 'rgba(100,180,60,0.28)') : 'rgba(160,130,80,0.18)';
-                    return (
+                  <div style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5.5, color: 'rgba(212,168,48,0.65)', letterSpacing: 0.5, marginBottom: 8 }}>
+                    {aiTasks.length > 0 ? 'RECOMMENDED NOW' : 'NEXT CARE'}
+                  </div>
+
+                  {aiTasks.length > 0 ? (
+                    aiTasks.map((task, idx) => {
+                      const def = ACTION_DEFS[task.key];
+                      const emoji = def?.emoji || '🌿';
+                      const isExpanded = expandedTaskIdx === idx;
+                      return (
+                        <div key={idx} style={{ marginBottom: 9 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                            <span style={{ fontSize: 12, color: 'rgba(240,228,200,0.88)', flex: 1, lineHeight: 1.4 }}>
+                              {emoji} {task.label}
+                            </span>
+                            <span style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5.5, color: '#d4a830',
+                              background: 'rgba(212,168,48,0.14)', border: '1px solid rgba(212,168,48,0.38)',
+                              padding: '2px 5px', borderRadius: 3, flexShrink: 0 }}>NOW ★</span>
+                          </div>
+                          {task.reason && (
+                            <div style={{ fontSize: 10.5, color: 'rgba(212,190,140,0.52)', lineHeight: 1.4, marginTop: 2, marginLeft: 18 }}>
+                              {task.reason}
+                            </div>
+                          )}
+                          {task.instructions && (
+                            <div style={{ marginLeft: 18, marginTop: 4 }}>
+                              <button
+                                onClick={e => { e.stopPropagation(); setExpandedTaskIdx(isExpanded ? null : idx); }}
+                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                                  fontFamily: '"Press Start 2P", monospace', fontSize: 5, color: 'rgba(212,168,48,0.5)',
+                                  letterSpacing: 0.3 }}>
+                                {isExpanded ? 'HIDE ▴' : 'HOW TO ▾'}
+                              </button>
+                              {isExpanded && (
+                                <div style={{ marginTop: 5, fontSize: 11, color: 'rgba(212,190,140,0.78)', lineHeight: 1.6,
+                                  background: 'rgba(0,0,0,0.2)', borderRadius: 5, padding: '7px 9px',
+                                  borderLeft: '2px solid rgba(212,168,48,0.35)' }}>
+                                  {task.instructions}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    timeline.map(({ key, label, emoji, available, daysLeft, neverDone }) => (
                       <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                         <span style={{ fontSize: 12, color: available ? 'rgba(240,228,200,0.78)' : 'rgba(240,228,200,0.32)' }}>
                           {emoji} {label}
                         </span>
-                        <span style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5.5, color: chipColor,
-                          background: chipBg, border: `1px solid ${chipBorder}`, padding: '2px 5px', borderRadius: 3 }}>
-                          {available ? (isRec ? 'NOW ★' : (neverDone ? 'NEVER DONE' : 'READY')) : fmtDaysLeft(daysLeft)}
+                        <span style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5.5,
+                          color: available ? '#78b840' : 'rgba(160,130,80,0.38)',
+                          background: available ? 'rgba(100,180,60,0.10)' : 'transparent',
+                          border: `1px solid ${available ? 'rgba(100,180,60,0.28)' : 'rgba(160,130,80,0.18)'}`,
+                          padding: '2px 5px', borderRadius: 3 }}>
+                          {available ? (neverDone ? 'NEVER DONE' : 'READY') : fmtDaysLeft(daysLeft)}
                         </span>
                       </div>
-                    );
-                  })}
+                    ))
+                  )}
+
+                  {/* Upcoming schedule (muted) when AI tasks are shown */}
+                  {aiTasks.length > 0 && timeline.some(t => !t.available) && (
+                    <div style={{ marginTop: 8, paddingTop: 7, borderTop: '1px solid rgba(160,130,80,0.08)' }}>
+                      <div style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5, color: 'rgba(160,130,80,0.35)', letterSpacing: 0.3, marginBottom: 5 }}>UPCOMING</div>
+                      {timeline.filter(t => !t.available).map(({ key, label, emoji, daysLeft }) => (
+                        <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <span style={{ fontSize: 10.5, color: 'rgba(240,228,200,0.25)' }}>{emoji} {label}</span>
+                          <span style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 5, color: 'rgba(160,130,80,0.32)',
+                            border: '1px solid rgba(160,130,80,0.12)', padding: '1px 4px', borderRadius: 2 }}>
+                            {fmtDaysLeft(daysLeft)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Quick water button if urgent */}
