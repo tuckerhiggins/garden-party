@@ -1,7 +1,6 @@
 // TerraceMap.js — SVG bird's eye terrace map
 // The wisteria fence and rose trellises are the focal mechanics.
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { fetchPlantBriefing } from './claude';
 import { ACTION_DEFS } from './data/plants';
 
 // ── COORDINATE SYSTEM ─────────────────────────────────────────────────────
@@ -1148,8 +1147,6 @@ function CookieSVG({ pose }) {
 export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0, weather = null, briefings: externalBriefings = {} }) {
   const [hovId, setHovId] = useState(null);
   const [pinnedId, setPinnedId] = useState(null);
-  const [pinnedBriefings, setPinnedBriefings] = useState({});
-
   const [cookiePetted, setCookiePetted] = useState(false);
   const [actionFlash, setActionFlash] = useState(null); // {x, y, key}
   const leaveTimerRef = useRef(null);
@@ -1167,19 +1164,6 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
     onHover?.(p ?? null);
   }, [hovId, plants, onHover]);
 
-  // Fetch Claude briefing when a plant is pinned; use external (pre-fetched) briefing if available
-  useEffect(() => {
-    if (!pinnedId) return;
-    // If App.js already has this briefing loaded, no need to re-fetch
-    if (externalBriefings[pinnedId] && externalBriefings[pinnedId] !== 'loading') return;
-    if (pinnedBriefings[pinnedId] !== undefined) return;
-    const plant = plants.find(p => p.id === pinnedId);
-    if (!plant) return;
-    setPinnedBriefings(prev => ({ ...prev, [pinnedId]: 'loading' }));
-    fetchPlantBriefing(plant, careLog, weather, portraits)
-      .then(b => setPinnedBriefings(prev => ({ ...prev, [pinnedId]: b })))
-      .catch(() => setPinnedBriefings(prev => ({ ...prev, [pinnedId]: null })));
-  }, [pinnedId]);
 
   const [dragId, setDragId] = useState(null);
   const [doorHover, setDoorHover] = useState(false);
@@ -1852,11 +1836,8 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         const lastWater = [...entries].reverse().find(e => e.action === 'water');
         const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
         const waterUrgent = daysSinceWater === null || daysSinceWater > 3;
-        // Use pre-fetched briefing from App.js if available, else fall back to local fetch
-        const briefing = (externalBriefings[pinnedId] && externalBriefings[pinnedId] !== 'loading')
-          ? externalBriefings[pinnedId]
-          : pinnedBriefings[pinnedId];
-        const isLoading = briefing === 'loading' || (externalBriefings[pinnedId] === 'loading' && !pinnedBriefings[pinnedId]);
+        const briefing = externalBriefings[pinnedId];
+        const isLoading = briefing === 'loading' || briefing === undefined;
         const aiTasks = (briefing && briefing !== 'loading') ? (briefing.tasks || []) : [];
         const timeline = getActionTimeline(pp, careLog, seasonOpen);
         const accentColor = pp.color || '#d4a830';
