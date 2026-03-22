@@ -52,7 +52,7 @@ export const ACTION_HOWTO = {
 
 export const TERRACE_PLANTS = [
   {
-    id:'wisteria-l', name:'Wisteria', subtitle:'The fence, couch end',
+    id:'wisteria-l', name:'Wisteria', subtitle:'The fence, north end',
     species:'Wisteria sinensis',
     type:'wisteria', wall:2,
     pos:{x:0.058, y:0.09},
