@@ -1693,6 +1693,11 @@ export default function App() {
       .catch(() => {});
   }, [weather, role, todayCareCount]);
 
+  // Garden view plants (no empty pots — those become available containers in the UI)
+  const gardenPlants = useMemo(()=>({
+    terrace: [...terracePlants.filter(p => p.type !== 'empty-pot'), ...customPlantsWithState],
+  }),[terracePlants, customPlantsWithState]);
+
   // Attention items — what needs doing today.
   // Sources from AI briefing tasks when available; falls back to rules for unloaded plants.
   // Weather-aware: neem suppressed when rain ≥60%, consistent with AI behavior.
@@ -1835,11 +1840,6 @@ export default function App() {
   };
 
   const totalSpend = expenses.reduce((s,e)=>s+e.cents,0);
-
-  // Garden view plants (no empty pots — those become available containers in the UI)
-  const gardenPlants = useMemo(()=>({
-    terrace: [...terracePlants.filter(p => p.type !== 'empty-pot'), ...customPlantsWithState],
-  }),[terracePlants, customPlantsWithState]);
 
   const URGENT_SET = new Set(['thirsty','overlooked','struggling']);
   const needsCareCount = gardenPlants.terrace.filter(p=> seasonOpen && URGENT_SET.has(p.health)).length;
