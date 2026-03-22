@@ -1879,11 +1879,219 @@ function MobileSignIn({ signIn }) {
 }
 
 // ── MAIN MOBILE VIEW ───────────────────────────────────────────────────────
+const EXP_CATS = [
+  {key:'plants',label:'Plants',emoji:'🪴'},{key:'soil',label:'Soil',emoji:'🌱'},
+  {key:'fertilizer',label:'Fertilizer',emoji:'🧪'},{key:'pest',label:'Pest Control',emoji:'🛡️'},
+  {key:'tools',label:'Tools',emoji:'🪚'},{key:'other',label:'Other',emoji:'📦'},
+];
+const EXP_GROUPS = [
+  {key:'',label:'Whole Garden',emoji:'🌿'},{key:'wisteria',label:'Wisteria',emoji:'💜'},
+  {key:'climbing-roses',label:'Climbing Roses',emoji:'🌹'},{key:'lavender',label:'Lavender',emoji:'🌸'},
+  {key:'hydrangea',label:'Hydrangea',emoji:'💧'},{key:'serviceberry',label:'Serviceberry',emoji:'🌳'},
+  {key:'maple',label:'Japanese Maple',emoji:'🍁'},{key:'evergreens',label:'Evergreens',emoji:'🌲'},
+  {key:'emmas-roses',label:"Emma's Roses",emoji:'🌹'},
+];
+
+function MobileSpend({ expenses = [], onAddExpense }) {
+  const [showForm, setShowForm] = React.useState(false);
+  const [form, setForm] = React.useState({desc:'',amount:'',group:'',category:''});
+
+  const totalSpend = expenses.reduce((s,e)=>s+e.cents,0);
+
+  const byCategory = {};
+  const byGroup = {};
+  for (const e of expenses) {
+    const cat = e.category || 'other';
+    byCategory[cat] = (byCategory[cat] || 0) + e.cents;
+    const grp = e.group || '';
+    byGroup[grp] = (byGroup[grp] || 0) + e.cents;
+  }
+
+  // Monthly buckets for SVG chart (March = season start)
+  const SEASON_START_MONTH = 2; // March = index 2
+  const now = new Date();
+  const months = [];
+  for (let m = SEASON_START_MONTH; m <= now.getMonth(); m++) {
+    const label = new Date(2026, m, 1).toLocaleDateString('en-US', {month:'short'});
+    const total = expenses.filter(e => new Date(e.date).getMonth() === m).reduce((s,e)=>s+e.cents,0);
+    months.push({ label, total });
+  }
+  const maxMonth = Math.max(...months.map(m=>m.total), 1);
+  const svgW = 300, svgH = 60;
+  const pts = months.map((m, i) => {
+    const x = months.length < 2 ? svgW/2 : Math.round(i * (svgW-20) / (months.length-1)) + 10;
+    const y = svgH - 6 - Math.round((m.total / maxMonth) * (svgH - 16));
+    return `${x},${y}`;
+  }).join(' ');
+
+  function submit() {
+    const amt = parseFloat(form.amount);
+    if (!form.desc || isNaN(amt) || amt <= 0) return;
+    onAddExpense(form.desc, Math.round(amt*100), null, form.group||null, form.category||null);
+    setForm({desc:'',amount:'',group:'',category:''});
+    setShowForm(false);
+  }
+
+  const pillStyle = (active) => ({
+    padding:'5px 10px', borderRadius:20, cursor:'pointer', fontFamily:SERIF, fontSize:13,
+    background: active ? 'rgba(212,168,48,0.18)' : 'rgba(255,255,255,0.06)',
+    border: `1px solid ${active ? 'rgba(212,168,48,0.55)' : 'rgba(160,130,80,0.20)'}`,
+    color: active ? '#f0d080' : 'rgba(240,228,200,0.65)',
+  });
+
+  return (
+    <div style={{padding:'16px',display:'flex',flexDirection:'column',gap:16}}>
+      {/* Season total + log button */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
+        <div>
+          <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.55)',letterSpacing:.5,marginBottom:4}}>SEASON TOTAL</div>
+          <div style={{fontSize:34,fontWeight:600,color:'rgba(240,228,200,0.95)',fontFamily:SERIF,lineHeight:1}}>${(totalSpend/100).toFixed(2)}</div>
+          <div style={{fontSize:11,color:'rgba(240,228,200,0.40)',fontFamily:SERIF,marginTop:2}}>{expenses.length} purchase{expenses.length!==1?'s':''}</div>
+        </div>
+        <button onClick={()=>setShowForm(v=>!v)}
+          style={{padding:'8px 14px',background:'rgba(212,168,48,0.14)',border:'1px solid rgba(212,168,48,0.35)',
+            borderRadius:7,cursor:'pointer',fontFamily:MONO,fontSize:7,color:'rgba(212,168,48,0.9)'}}>
+          {showForm?'CANCEL':'+ LOG'}
+        </button>
+      </div>
+
+      {/* Log form */}
+      {showForm && (
+        <div style={{background:'rgba(0,0,0,0.25)',borderRadius:10,padding:'14px',display:'flex',flexDirection:'column',gap:11,border:'1px solid rgba(160,130,80,0.18)'}}>
+          <input value={form.desc} onChange={e=>setForm(p=>({...p,desc:e.target.value}))}
+            placeholder="What did you buy?" onKeyDown={e=>{if(e.key==='Enter')submit();}}
+            style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(160,130,80,0.25)',borderRadius:6,
+              padding:'9px 12px',color:'rgba(240,228,200,0.9)',fontSize:14,fontFamily:SERIF,outline:'none'}}/>
+          <input type="number" value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))}
+            placeholder="Amount ($)" step=".01"
+            style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(160,130,80,0.25)',borderRadius:6,
+              padding:'9px 12px',color:'rgba(240,228,200,0.9)',fontSize:14,fontFamily:SERIF,outline:'none'}}/>
+          <div>
+            <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.5)',marginBottom:6}}>CATEGORY</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {EXP_CATS.map(c=>(
+                <button key={c.key} onClick={()=>setForm(p=>({...p,category:p.category===c.key?'':c.key}))}
+                  style={pillStyle(form.category===c.key)}>{c.emoji} {c.label}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.5)',marginBottom:6}}>FOR</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {EXP_GROUPS.map(g=>(
+                <button key={g.key} onClick={()=>setForm(p=>({...p,group:p.group===g.key&&g.key!==''?'':g.key}))}
+                  style={pillStyle(form.group===g.key)}>{g.emoji} {g.label}</button>
+              ))}
+            </div>
+          </div>
+          <button onClick={submit}
+            style={{background:'rgba(212,168,48,0.20)',border:'1px solid rgba(212,168,48,0.45)',borderRadius:7,
+              padding:'11px',cursor:'pointer',fontFamily:MONO,fontSize:8,color:'rgba(212,168,48,0.95)'}}>
+            LOG EXPENSE
+          </button>
+        </div>
+      )}
+
+      {expenses.length > 0 && (<>
+        {/* Monthly SVG chart */}
+        {months.length >= 2 && (
+          <div>
+            <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.55)',letterSpacing:.5,marginBottom:8}}>THIS SEASON</div>
+            <svg width="100%" viewBox={`0 0 ${svgW} ${svgH}`} style={{overflow:'visible'}}>
+              <polyline points={pts} fill="none" stroke="#d4a830" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              {months.map((m, i) => {
+                const x = months.length < 2 ? svgW/2 : Math.round(i*(svgW-20)/(months.length-1))+10;
+                const y = svgH-6-Math.round((m.total/maxMonth)*(svgH-16));
+                return <React.Fragment key={m.label}>
+                  <circle cx={x} cy={y} r="3" fill="#d4a830"/>
+                  <text x={x} y={svgH+2} textAnchor="middle" fontSize="8" fill="rgba(212,168,48,0.5)" fontFamily="sans-serif">{m.label}</text>
+                </React.Fragment>;
+              })}
+            </svg>
+          </div>
+        )}
+
+        {/* By category */}
+        {Object.keys(byCategory).length > 0 && (
+          <div>
+            <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.55)',letterSpacing:.5,marginBottom:8}}>BY CATEGORY</div>
+            {Object.entries(byCategory).sort(([,a],[,b])=>b-a).map(([cat,total])=>{
+              const def = EXP_CATS.find(c=>c.key===cat);
+              return (
+                <div key={cat} style={{marginBottom:8}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                    <span style={{fontFamily:SERIF,fontSize:13,color:'rgba(240,228,200,0.75)'}}>{def?.emoji||'📦'} {def?.label||cat}</span>
+                    <span style={{fontFamily:SERIF,fontSize:13,color:'rgba(212,168,48,0.9)',fontWeight:600}}>${(total/100).toFixed(2)}</span>
+                  </div>
+                  <div style={{height:5,background:'rgba(160,130,80,0.15)',borderRadius:3}}>
+                    <div style={{height:'100%',width:`${Math.round((total/totalSpend)*100)}%`,background:'#d4a830',borderRadius:3}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* By group */}
+        {Object.keys(byGroup).length > 0 && (
+          <div>
+            <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.55)',letterSpacing:.5,marginBottom:8}}>BY AREA</div>
+            {Object.entries(byGroup).sort(([,a],[,b])=>b-a).map(([grp,total])=>{
+              const def = EXP_GROUPS.find(g=>g.key===grp);
+              return (
+                <div key={grp||'garden'} style={{marginBottom:8}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                    <span style={{fontFamily:SERIF,fontSize:13,color:'rgba(240,228,200,0.75)'}}>{def?.emoji||'🌿'} {def?.label||'Whole Garden'}</span>
+                    <span style={{fontFamily:SERIF,fontSize:13,color:'rgba(212,168,48,0.9)',fontWeight:600}}>${(total/100).toFixed(2)}</span>
+                  </div>
+                  <div style={{height:5,background:'rgba(160,130,80,0.15)',borderRadius:3}}>
+                    <div style={{height:'100%',width:`${Math.round((total/totalSpend)*100)}%`,background:'rgba(212,168,48,0.6)',borderRadius:3}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Full list */}
+        <div>
+          <div style={{fontFamily:MONO,fontSize:6,color:'rgba(212,168,48,0.55)',letterSpacing:.5,marginBottom:8}}>ALL PURCHASES</div>
+          {[...expenses].reverse().map((e,i)=>{
+            const catDef = EXP_CATS.find(c=>c.key===e.category);
+            const grpDef = EXP_GROUPS.find(g=>g.key===(e.group||''));
+            return (
+              <div key={e.id||i} style={{display:'flex',alignItems:'center',gap:10,
+                padding:'9px 0',borderBottom:'1px solid rgba(160,130,80,0.12)'}}>
+                <span style={{fontSize:18,flexShrink:0}}>{catDef?.emoji||'📦'}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:SERIF,fontSize:14,color:'rgba(240,228,200,0.88)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.desc}</div>
+                  <div style={{fontFamily:SERIF,fontSize:11,color:'rgba(240,228,200,0.40)'}}>
+                    {grpDef?.label||'Whole Garden'}
+                    {e.date && ` · ${new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`}
+                  </div>
+                </div>
+                <div style={{fontFamily:SERIF,fontSize:15,color:'rgba(212,168,48,0.9)',fontWeight:600,flexShrink:0}}>${(e.cents/100).toFixed(2)}</div>
+              </div>
+            );
+          })}
+        </div>
+      </>)}
+
+      {expenses.length === 0 && !showForm && (
+        <div style={{textAlign:'center',padding:'40px 0',color:'rgba(240,228,200,0.30)',fontFamily:SERIF,fontSize:14,fontStyle:'italic'}}>
+          Nothing logged yet — the season is young.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function MobileView({
   plants, frontPlants = [], careLog, weather,
   onAction, onPortraitUpdate, onGrowthUpdate, allPhotos = {}, onAddPhoto,
   portraits = {}, role, signIn, signOut, seasonOpen, oracle, onGoFront,
   briefings: externalBriefings = {},
+  expenses = [], onAddExpense,
 }) {
   const [tab, setTab] = useState('today');
   const [flash, setFlash] = useState(null);
@@ -2037,6 +2245,7 @@ export function MobileView({
     { id: 'garden',  label: '🌿', title: 'Garden'  },
     { id: 'ask',     label: '🌸', title: 'Ask'     },
     { id: 'journal', label: '📖', title: 'Journal' },
+    { id: 'spend',   label: '💰', title: 'Spend'   },
   ];
 
   return (
@@ -2150,6 +2359,10 @@ export function MobileView({
           <MobileJournal
             plants={plants} frontPlants={frontPlants} careLog={careLog} portraits={portraits} allPhotos={allPhotos}
           />
+        )}
+
+        {tab === 'spend' && (
+          <MobileSpend expenses={expenses} onAddExpense={onAddExpense} />
         )}
       </div>
 

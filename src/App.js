@@ -1887,6 +1887,8 @@ export default function App() {
         seasonOpen={seasonOpen}
         oracle={oracle}
         onGoFront={() => setScene('front')}
+        expenses={expenses}
+        onAddExpense={addExpenseDb}
       />
     );
   }
