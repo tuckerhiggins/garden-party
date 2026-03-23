@@ -1546,7 +1546,7 @@ function getPlantHistories(plantIds, allPlants, careLog, dateStr) {
   }).filter(Boolean);
 }
 
-function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPlants, careLog }) {
+function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPlants, careLog, portraits = {} }) {
   const isToday = dateStr === new Date().toISOString().slice(0, 10);
   const [narrative, setNarrative] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1587,6 +1587,33 @@ function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPla
           {narrative}
         </p>
       ) : null}
+
+      {/* SVG portrait strip — plants active this day */}
+      {(() => {
+        const dayPlantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
+        const withSvg = dayPlantIds.filter(id => portraits[id]?.svg);
+        if (!withSvg.length) return null;
+        return (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+            {withSvg.slice(0, 6).map(plantId => {
+              const plant = allPlants.find(p => p.id === plantId);
+              if (!plant) return null;
+              return (
+                <div key={plantId} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                  <div style={{ width: 52, height: 52, borderRadius: 8, overflow: 'hidden',
+                    border: '1px solid rgba(160,130,80,0.22)', background: '#faf6ee' }}>
+                    <PlantPortrait plant={plant} aiSvg={portraits[plantId].svg} />
+                  </div>
+                  <span style={{ fontSize: 8, fontFamily: '"Press Start 2P", monospace', color: '#b09070',
+                    letterSpacing: 0.2, maxWidth: 52, textAlign: 'center', lineHeight: 1.3 }}>
+                    {plant.name.split(' ')[0]}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {photos.length > 0 && (
         <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
@@ -1632,6 +1659,7 @@ function JournalView({ careLog, plants, portraits = {}, allPhotos = {} }) {
             photos={day.photos}
             allPlants={plants}
             careLog={careLog}
+            portraits={portraits}
           />
         );
       })}
@@ -2108,6 +2136,7 @@ export default function App() {
           signIn={signIn}
           checking={checking}
           isGuest={isGuest}
+          portraits={portraits}
         />
       </div>
     );
@@ -2376,6 +2405,7 @@ export default function App() {
                       warmth={warmth}
                       morningBrief={morningBrief}
                       fullBrief={dailyBrief}
+                      portraits={portraits}
                       onSelectPlant={p=>setSel(p)}
                       onAction={doAction}
                     />

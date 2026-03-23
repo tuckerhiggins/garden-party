@@ -3,6 +3,7 @@
 
 import React, { useState } from 'react';
 import { fetchJournalEntry } from '../claude';
+import { PlantPortrait } from '../PlantPortraits';
 
 const BRIEF_ACTION_COLORS = {
   water: '#4a8ac8', fertilize: '#5a9a40', prune: '#c87030',
@@ -165,12 +166,35 @@ function PanelJournalLog({ careLog, plants, portraits, allPhotos }) {
         const isToday = dateStr === new Date().toISOString().slice(0,10);
         const hasEmma = day.care.some(e => e.withEmma);
         return (
-          <div key={dateStr} style={{ marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+          <div key={dateStr} style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
               <span style={{ fontFamily: SERIF, fontSize: 10.5, color: DIM }}>{label}</span>
               {isToday && <span style={{ fontFamily: MONO, fontSize: 5.5, color: GOLD, border: `1px solid rgba(212,168,48,0.3)`, borderRadius: 8, padding: '1px 5px' }}>TODAY</span>}
               {hasEmma && <span style={{ fontSize: 10, color: '#e84070' }}>♥</span>}
             </div>
+            {/* Portrait strip — plants active this day */}
+            {(() => {
+              const dayPlantIds = [...new Set(day.care.map(e => e.plantId))];
+              const withSvg = dayPlantIds.filter(id => portraits?.[id]?.svg);
+              if (!withSvg.length) return null;
+              return (
+                <div style={{ display: 'flex', gap: 3, marginBottom: 6, flexWrap: 'wrap' }}>
+                  {withSvg.slice(0, 5).map(plantId => {
+                    const plant = plants.find(p => p.id === plantId);
+                    if (!plant) return null;
+                    return (
+                      <div key={plantId} style={{
+                        width: 30, height: 30, borderRadius: 5, overflow: 'hidden', flexShrink: 0,
+                        border: '1px solid rgba(160,130,80,0.22)',
+                        background: 'rgba(240,228,200,0.06)',
+                      }}>
+                        <PlantPortrait plant={plant} aiSvg={portraits[plantId].svg} />
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
             {text === 'loading' ? (
               <div style={{ fontFamily: SERIF, fontSize: 12, color: DIM, fontStyle: 'italic' }}>…</div>
             ) : text ? (
@@ -656,6 +680,7 @@ export function MapCarePanel({
   warmth = 0,
   morningBrief = null,
   fullBrief = null,
+  portraits = {},
   onSelectPlant,
   onAction,
 }) {
@@ -671,6 +696,7 @@ export function MapCarePanel({
 
   function CareCard({ plant, action, def, task }) {
     const pc = plantColor(plant.type);
+    const portrait = portraits[plant.id];
     const itemEmoji = task?.emoji || def?.emoji || '✨';
     const itemLabel = task?.label || def?.label || action;
     const isOptional = task?.optional === true;
@@ -684,7 +710,14 @@ export function MapCarePanel({
       <div style={{ borderRadius: 9, border: `1.5px solid ${tierBorder}`, background: tierBg, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 11px 10px 0' }}>
           <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
-          <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{itemEmoji}</span>
+          {portrait?.svg ? (
+            <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 6, overflow: 'hidden',
+              border: '1px solid rgba(160,130,80,0.20)', background: 'rgba(240,228,200,0.07)' }}>
+              <PlantPortrait plant={plant} aiSvg={portrait.svg} />
+            </div>
+          ) : (
+            <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{itemEmoji}</span>
+          )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
               <span style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, fontWeight: 500 }}>{plant.name}</span>

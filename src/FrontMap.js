@@ -84,11 +84,15 @@ function BotanicalEmblem() {
   );
 }
 
-export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = {}, weather = null, oracle = null, seasonOpenerText = null, skipDelay = false, warmth = 0, signIn, checking = false, isGuest = false }) {
+export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = {}, weather = null, oracle = null, seasonOpenerText = null, skipDelay = false, warmth = 0, signIn, checking = false, isGuest = false, portraits = {} }) {
   const [hoveredId, setHoveredId]     = useState(null);
   const [showEnter, setShowEnter]     = useState(false);
   const [enterHover, setEnterHover]   = useState(false);
   const [visible, setVisible] = useState(skipDelay);
+  const [signinOpen, setSigninOpen]   = useState(false);
+  const [signinWho, setSigninWho]     = useState(null);
+  const [signinPw, setSigninPw]       = useState('');
+  const [signinError, setSigninError] = useState('');
   useEffect(() => { if (!skipDelay) { const t = setTimeout(() => setVisible(true), 50); return () => clearTimeout(t); } }, [skipDelay]);
 
   useEffect(() => {
@@ -264,53 +268,25 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
           </text>
         )}
 
-        {/* ── HOVER TOOLTIP ── */}
-        {hov && plant && (() => {
-          const tx = Math.max(90, Math.min(lx, VW - 90));
-          const pruneNeeded = v.dead >= 3;
-          const tooltipH = 58;
+        {/* ── PORTRAIT (if AI portrait exists for this rose) ── */}
+        {plant && portraits[plantId]?.svg && (() => {
+          const py = base - h - 44;
+          const pr = 34;
+          const clipId = `roseClip_${idx}`;
           return (
             <g>
-              <rect x={tx - 90} y={base - h - 14 - tooltipH} width={180} height={tooltipH}
-                rx={7} fill="#120c06" opacity={0.90}/>
-              <rect x={tx - 90} y={base - h - 14 - tooltipH} width={180} height={tooltipH}
-                rx={7} fill="none" stroke="rgba(232,64,112,0.35)" strokeWidth={1}/>
-              {/* Plant name */}
-              <text x={tx} y={base - h - tooltipH + 2}
-                textAnchor="middle"
-                fontFamily='"Crimson Pro", Georgia, serif' fontSize={13} fontWeight={600}
-                fill="#e84070">
-                Double Knock Out Rose
-              </text>
-              {/* Subtitle */}
-              <text x={tx} y={base - h - tooltipH + 18}
-                textAnchor="middle"
-                fontFamily='"Crimson Pro", Georgia, serif' fontSize={11} fontStyle="italic"
-                fill="#a09070">
-                {plant.subtitle}
-              </text>
-              {/* Health */}
-              <circle cx={tx - 52} cy={base - h - tooltipH + 32} r={3.5} fill="#7898a8"/>
-              <text x={tx - 44} y={base - h - tooltipH + 36}
-                fontFamily='"Crimson Pro", Georgia, serif' fontSize={11} fontStyle="italic"
-                fill="#7898a8">
-                resting · dormant
-              </text>
-              {/* Prune warning */}
-              {pruneNeeded && (
-                <text x={tx + 14} y={base - h - tooltipH + 36}
-                  fontFamily='"Crimson Pro", Georgia, serif' fontSize={11}
-                  fill="#e87040">
-                  ⚠ prune
-                </text>
-              )}
-              {/* "click for more" hint */}
-              <text x={tx} y={base - h - tooltipH + tooltipH - 6}
-                textAnchor="middle"
-                fontFamily='"Crimson Pro", Georgia, serif' fontSize={9}
-                fill="#706040" fontStyle="italic">
-                click for details
-              </text>
+              <defs>
+                <clipPath id={clipId}>
+                  <circle cx={lx} cy={py} r={pr}/>
+                </clipPath>
+              </defs>
+              <circle cx={lx} cy={py} r={pr + 1.5} fill="none" stroke="rgba(232,64,112,0.35)" strokeWidth={1.5}/>
+              <image
+                href={`data:image/svg+xml,${encodeURIComponent(portraits[plantId].svg)}`}
+                x={lx - pr} y={py - pr} width={pr * 2} height={pr * 2}
+                clipPath={`url(#${clipId})`}
+                preserveAspectRatio="xMidYMid slice"
+              />
             </g>
           );
         })()}
@@ -389,7 +365,7 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
 
       {/* ── ENTER / SIGN-IN PROMPT — fades in after 1.6s ── */}
       {isGuest ? (
-        /* Guest: show sign-in prompt, no entry button */
+        /* Guest: show sign-in prompt / modal */
         <div style={{
           position: 'absolute',
           bottom: 32, left: '50%',
@@ -400,30 +376,81 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
           transition: showEnter ? 'opacity 1.8s ease-in' : 'none',
           pointerEvents: showEnter ? 'auto' : 'none',
         }}>
-          <div style={{
-            fontFamily: '"Crimson Pro", Georgia, serif',
-            fontSize: 15, fontStyle: 'italic',
-            color: '#d8ccb0',
-            letterSpacing: 0.4,
-            textShadow: '0 1px 12px rgba(4,2,1,0.95)',
-            marginBottom: 14,
-          }}>Emma's Rose Garden</div>
-          <button
-            onClick={() => signIn?.()}
-            style={{
-              background: 'rgba(212,168,48,0.18)',
-              border: '1px solid rgba(212,168,48,0.50)',
-              borderRadius: 8,
-              padding: '10px 28px',
-              fontFamily: '"Press Start 2P", monospace',
-              fontSize: 8,
-              color: '#d4a830',
-              cursor: 'pointer',
-              letterSpacing: 0.5,
-              textShadow: '0 1px 6px rgba(4,2,1,0.8)',
-            }}>
-            {checking ? 'CHECKING...' : 'SIGN IN'}
-          </button>
+          {!signinOpen ? (
+            <button
+              onClick={() => { setSigninOpen(true); setSigninWho(null); setSigninPw(''); setSigninError(''); }}
+              style={{
+                background: 'rgba(212,168,48,0.18)',
+                border: '1px solid rgba(212,168,48,0.50)',
+                borderRadius: 8,
+                padding: '10px 28px',
+                fontFamily: '"Press Start 2P", monospace',
+                fontSize: 8,
+                color: '#d4a830',
+                cursor: 'pointer',
+                letterSpacing: 0.5,
+                textShadow: '0 1px 6px rgba(4,2,1,0.8)',
+              }}>
+              {checking ? 'CHECKING...' : 'SIGN IN'}
+            </button>
+          ) : !signinWho ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <div style={{ fontFamily: '"Crimson Pro", Georgia, serif', fontSize: 13, color: '#a89070', fontStyle: 'italic', marginBottom: 2 }}>who's there?</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {['tucker', 'emma'].map(who => (
+                  <button key={who} onClick={() => setSigninWho(who)}
+                    style={{ background: 'rgba(30,15,5,0.85)', border: '1px solid rgba(90,60,24,0.5)', borderRadius: 6,
+                      padding: '7px 18px', fontFamily: '"Press Start 2P", monospace', fontSize: 7,
+                      color: '#f0e4cc', cursor: 'pointer' }}>
+                    {who === 'tucker' ? '🌿 Tucker' : '🌹 Emma'}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setSigninOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#706040', fontFamily: '"Crimson Pro", Georgia, serif',
+                  fontSize: 11, cursor: 'pointer', fontStyle: 'italic' }}>cancel</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontFamily: '"Crimson Pro", Georgia, serif', fontSize: 13, color: '#a89070', fontStyle: 'italic' }}>
+                {signinWho === 'tucker' ? '🌿 Tucker' : '🌹 Emma'}
+              </div>
+              <input
+                type="password"
+                placeholder="password"
+                value={signinPw}
+                onChange={e => setSigninPw(e.target.value)}
+                onKeyDown={async e => {
+                  if (e.key === 'Enter') {
+                    setSigninError('');
+                    try { await signIn(signinWho, signinPw); setSigninOpen(false); }
+                    catch (err) { setSigninError(err.message); }
+                  }
+                }}
+                autoFocus
+                style={{ background: 'rgba(20,10,3,0.85)', border: '1px solid rgba(90,60,24,0.5)', borderRadius: 6,
+                  padding: '7px 12px', fontFamily: '"Crimson Pro", Georgia, serif', fontSize: 13,
+                  color: '#f0e4cc', outline: 'none', textAlign: 'center', width: 140 }}
+              />
+              {signinError && <div style={{ fontFamily: '"Crimson Pro", Georgia, serif', fontSize: 11, color: '#e87040', fontStyle: 'italic' }}>{signinError}</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={async () => {
+                    setSigninError('');
+                    try { await signIn(signinWho, signinPw); setSigninOpen(false); }
+                    catch (err) { setSigninError(err.message); }
+                  }}
+                  style={{ background: 'rgba(212,168,48,0.18)', border: '1px solid rgba(212,168,48,0.50)', borderRadius: 6,
+                    padding: '6px 18px', fontFamily: '"Press Start 2P", monospace', fontSize: 7,
+                    color: '#d4a830', cursor: 'pointer' }}>
+                  ENTER
+                </button>
+                <button onClick={() => { setSigninWho(null); setSigninPw(''); setSigninError(''); }}
+                  style={{ background: 'none', border: 'none', color: '#706040', fontFamily: '"Crimson Pro", Georgia, serif',
+                    fontSize: 11, cursor: 'pointer', fontStyle: 'italic' }}>back</button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div
@@ -683,6 +710,27 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
               fill="#d4cfc4" opacity={0.78 + (i%3)*0.05}
               transform={`rotate(${rot},${cx},${cy})`}/>
           ))}
+          {/* Magnolia portrait inset — replaces bud cluster at trunk tip */}
+          {portraits['magnolia']?.svg && (() => {
+            const mx = 96, my = 120, mr = 52;
+            return (
+              <>
+                <defs>
+                  <clipPath id="magClip">
+                    <circle cx={mx} cy={my} r={mr}/>
+                  </clipPath>
+                </defs>
+                <circle cx={mx} cy={my} r={mr + 2} fill="none" stroke="rgba(220,200,180,0.30)" strokeWidth={2}/>
+                <image
+                  href={`data:image/svg+xml,${encodeURIComponent(portraits['magnolia'].svg)}`}
+                  x={mx - mr} y={my - mr} width={mr * 2} height={mr * 2}
+                  clipPath="url(#magClip)"
+                  preserveAspectRatio="xMidYMid slice"
+                  opacity={0.88}
+                />
+              </>
+            );
+          })()}
         </g>
 
         {/* ══════════════════════════════════════════════════════════════ */}

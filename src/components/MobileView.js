@@ -2071,7 +2071,7 @@ function buildMobileDayMap(allPlants, careLog, portraits, allPhotos) {
   return days;
 }
 
-function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, allPlants, careLog }) {
+function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, allPlants, careLog, portraits = {} }) {
   const isToday = dateStr === new Date().toISOString().slice(0, 10);
   const [narrative, setNarrative] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2121,6 +2121,33 @@ function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, 
           {narrative}
         </p>
       ) : null}
+
+      {/* SVG portrait strip */}
+      {(() => {
+        const dayPlantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
+        const withSvg = dayPlantIds.filter(id => portraits[id]?.svg);
+        if (!withSvg.length) return null;
+        return (
+          <div style={{ display: 'flex', gap: 5, marginBottom: 10, flexWrap: 'wrap' }}>
+            {withSvg.slice(0, 5).map(plantId => {
+              const plant = allPlants.find(p => p.id === plantId);
+              if (!plant) return null;
+              return (
+                <div key={plantId} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 7, overflow: 'hidden',
+                    border: '1px solid rgba(160,130,80,0.20)', background: '#faf6ee', flexShrink: 0 }}>
+                    <PlantPortrait plant={plant} aiSvg={portraits[plantId].svg} />
+                  </div>
+                  <span style={{ fontSize: 7, fontFamily: MONO, color: '#b09070',
+                    maxWidth: 40, textAlign: 'center', lineHeight: 1.2 }}>
+                    {plant.name.split(' ')[0]}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {careEntries.length > 0 && (() => {
         // Group by plant — one row per plant, all their actions for the day
@@ -2192,6 +2219,7 @@ function MobileJournal({ plants, frontPlants = [], careLog, portraits = {}, allP
             photos={day.photos}
             allPlants={allPlants}
             careLog={careLog}
+            portraits={portraits}
           />
         );
       })}
