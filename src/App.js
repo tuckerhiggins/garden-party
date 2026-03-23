@@ -17,7 +17,7 @@ import { OracleChat } from './components/OracleChat';
 import { MobileView } from './components/MobileView';
 import { compressChatImage } from './utils/compressChatImage';
 import { PlantShopModal } from './components/PlantShopModal';
-import { MapInfoPanel } from './components/MapInfoPanel';
+import { MapInfoPanel, MapContextPanel, MapCarePanel } from './components/MapInfoPanel';
 import { getPhenologicalStage } from './utils/phenology';
 
 function useIsMobile() {
@@ -2334,27 +2334,32 @@ export default function App() {
                     />
                   </div>
                 </div>
-                {/* Right panel: info dash by default, detail panel when plant selected */}
+                {/* Right panels: context (left) + care (right) by default, detail panel when plant selected */}
                 {!sel && (
-                  <MapInfoPanel
-                    plants={gardenPlants.terrace}
-                    careLog={careLog}
-                    weather={weather}
-                    seasonOpen={seasonOpen}
-                    seasonBlocking={seasonBlocking}
-                    photoCount={photoCount}
-                    activePlantCount={activePlantCount}
-                    recentPhotoCount={recentPhotoCount}
-                    attentionItems={attentionItems}
-                    recentCare={recentCare}
-                    onSelectPlant={p=>setSel(p)}
-                    onAction={doAction}
-                    warmth={warmth}
-                    morningBrief={morningBrief}
-                    fullBrief={dailyBrief}
-                    portraits={portraits}
-                    allPhotos={allPhotos}
-                  />
+                  <>
+                    <MapContextPanel
+                      plants={gardenPlants.terrace}
+                      careLog={careLog}
+                      weather={weather}
+                      morningBrief={morningBrief}
+                      fullBrief={dailyBrief}
+                      portraits={portraits}
+                      allPhotos={allPhotos}
+                    />
+                    <MapCarePanel
+                      plants={gardenPlants.terrace}
+                      careLog={careLog}
+                      seasonOpen={seasonOpen}
+                      seasonBlocking={seasonBlocking}
+                      photoCount={photoCount}
+                      activePlantCount={activePlantCount}
+                      recentPhotoCount={recentPhotoCount}
+                      attentionItems={attentionItems}
+                      warmth={warmth}
+                      onSelectPlant={p=>setSel(p)}
+                      onAction={doAction}
+                    />
+                  </>
                 )}
                 {sel && (
                   <div style={{position:'relative',zIndex:2,width:320,flexShrink:0,

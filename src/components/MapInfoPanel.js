@@ -495,3 +495,389 @@ export function MapInfoPanel({
     </div>
   );
 }
+
+// ── MapContextPanel — left ambient panel (weather, brief, week ahead, log) ──
+export function MapContextPanel({
+  plants = [],
+  careLog = {},
+  weather = null,
+  morningBrief = null,
+  fullBrief = null,
+  portraits = {},
+  allPhotos = {},
+}) {
+  const [briefExpanded, setBriefExpanded] = useState(false);
+  const forecast = weather?.forecast?.slice(0, 7) ?? [];
+
+  return (
+    <div style={{
+      width: 264, flexShrink: 0,
+      background: 'rgba(8,4,1,0.95)',
+      borderLeft: '1px solid rgba(160,130,80,0.18)',
+      display: 'flex', flexDirection: 'column',
+      overflowY: 'auto', overflowX: 'hidden',
+      position: 'relative', zIndex: 2,
+    }}>
+
+      {/* ── Weather — always open ── */}
+      {weather && (
+        <div style={{ padding: '14px 16px 12px' }}>
+          <div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: .6, marginBottom: 10, color: GOLD, opacity: .90 }}>
+            WEATHER
+          </div>
+          {/* Current conditions row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{wmoEmoji(weather.code)}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: SERIF, fontSize: 20, fontWeight: 600, color: TEXT, lineHeight: 1.1 }}>
+                {Math.round(weather.temp)}°F
+              </div>
+              {weather.poem && (
+                <div style={{ fontFamily: SERIF, fontSize: 11, color: MUTED, fontStyle: 'italic', lineHeight: 1.4 }}>
+                  {weather.poem.replace(/^\d+°F[,.]?\s*/, '')}
+                </div>
+              )}
+            </div>
+          </div>
+          {/* 7-day forecast grid — always visible */}
+          {forecast.length > 0 && (
+            <div style={{ display: 'flex', gap: 3 }}>
+              {forecast.map((day, i) => (
+                <div key={day.date} style={{
+                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  gap: 2, padding: '6px 2px',
+                  background: i === 0 ? 'rgba(212,168,48,0.10)' : 'rgba(255,255,255,0.03)',
+                  borderRadius: 6,
+                  border: `1px solid ${i === 0 ? 'rgba(212,168,48,0.24)' : 'rgba(255,255,255,0.05)'}`,
+                }}>
+                  <span style={{ fontFamily: MONO, fontSize: 5.5, color: i === 0 ? GOLD : DIM, letterSpacing: .2 }}>
+                    {i === 0 ? 'NOW' : dayAbbr(day.date)}
+                  </span>
+                  <span style={{ fontSize: 12, lineHeight: 1 }}>{wmoEmoji(day.code)}</span>
+                  <span style={{ fontFamily: SERIF, fontSize: 11, color: TEXT }}>{day.high}°</span>
+                  {day.precipChance >= 30 && (
+                    <span style={{ fontFamily: MONO, fontSize: 5, color: '#6090c0', letterSpacing: .1 }}>
+                      {day.precipChance}%
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Daily Brief ── */}
+      <div style={{ borderTop: `1px solid ${RULE}`, padding: '12px 16px 11px' }}>
+        <div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: .6, marginBottom: 9, color: GOLD, opacity: .90 }}>
+          TODAY'S BRIEF
+        </div>
+        {morningBrief ? (
+          <div
+            onClick={() => fullBrief && setBriefExpanded(e => !e)}
+            style={{ cursor: fullBrief ? 'pointer' : 'default' }}
+          >
+            <div style={{ borderLeft: `3px solid rgba(212,168,48,0.45)`, paddingLeft: 11 }}>
+              <div style={{ fontFamily: SERIF, fontSize: 12.5, color: 'rgba(240,220,170,0.88)', fontStyle: 'italic', lineHeight: 1.6 }}>
+                {renderBriefText(morningBrief)}
+              </div>
+              {fullBrief && (
+                <div style={{
+                  fontFamily: MONO, fontSize: 6, letterSpacing: .4, marginTop: 7,
+                  color: briefExpanded ? 'rgba(160,130,80,0.50)' : GOLD,
+                  opacity: briefExpanded ? .6 : 1,
+                }}>
+                  {briefExpanded ? '▴ CLOSE' : 'READ MORE ▾'}
+                </div>
+              )}
+            </div>
+            {briefExpanded && fullBrief && (
+              <div style={{ marginTop: 11, paddingTop: 11, borderTop: `1px solid ${RULE}` }}>
+                {[
+                  { key: 'weather', label: 'CONTEXT' },
+                  { key: 'garden',  label: 'GARDEN STATE' },
+                  { key: 'today',   label: 'TODAY' },
+                  { key: 'watch',   label: 'WATCH' },
+                ].filter(s => fullBrief[s.key]).map(s => (
+                  <div key={s.key} style={{ marginBottom: 11 }}>
+                    <div style={{ fontFamily: MONO, fontSize: 6, color: GOLD, letterSpacing: .5, marginBottom: 4 }}>{s.label}</div>
+                    <div style={{ fontFamily: SERIF, fontSize: 12, color: TEXT, lineHeight: 1.65 }}>{renderBriefText(fullBrief[s.key])}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ borderLeft: `3px solid ${RULE}`, paddingLeft: 11 }}>
+            <div style={{ fontFamily: SERIF, fontSize: 12, color: DIM, fontStyle: 'italic' }}>Reading the garden…</div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Week Ahead ── */}
+      {forecast.length > 1 && (
+        <div style={{ borderTop: `1px solid ${RULE}`, padding: '12px 16px 11px' }}>
+          <div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: .6, marginBottom: 9, color: GOLD, opacity: .90 }}>
+            WEEK AHEAD
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {forecast.slice(1).map((day, i) => {
+              const isGoodDay = day.precipChance < 30 && day.high > 45 && day.high < 88;
+              return (
+                <div key={day.date} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '5px 7px', borderRadius: 6,
+                  background: 'rgba(255,255,255,0.025)',
+                }}>
+                  <span style={{ fontFamily: MONO, fontSize: 6, color: DIM, width: 24, flexShrink: 0 }}>
+                    {dayAbbr(day.date)}
+                  </span>
+                  <span style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>{wmoEmoji(day.code)}</span>
+                  <span style={{ fontFamily: SERIF, fontSize: 12, color: MUTED, flex: 1 }}>
+                    {day.high}°{day.low != null ? `/${day.low}°` : ''}
+                  </span>
+                  {day.precipChance >= 30 && (
+                    <span style={{ fontFamily: MONO, fontSize: 5.5, color: '#6090c0', flexShrink: 0 }}>
+                      {day.precipChance}%
+                    </span>
+                  )}
+                  {isGoodDay && (
+                    <span style={{ fontSize: 10, flexShrink: 0 }} title="Good day to work outside">🌱</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Garden Log ── */}
+      <PanelJournalLog careLog={careLog} plants={plants} portraits={portraits} allPhotos={allPhotos} />
+
+      <div style={{ flex: 1, minHeight: 16 }}/>
+    </div>
+  );
+}
+
+// ── MapCarePanel — right action panel (tiered care tasks) ──────────────────
+export function MapCarePanel({
+  plants = [],
+  careLog = {},
+  seasonOpen = false,
+  seasonBlocking = null,
+  photoCount = 0,
+  activePlantCount = 0,
+  recentPhotoCount = 0,
+  attentionItems = [],
+  warmth = 0,
+  onSelectPlant,
+  onAction,
+}) {
+  const [howToOpenKey, setHowToOpenKey] = useState(null);
+
+  const warmthPct = Math.min(warmth / 10, 100);
+  const atCeremony = warmth >= 1000;
+  const nearCeremony = !atCeremony && warmth >= 850;
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+  const todayItems = attentionItems.filter(i => !i.task?.optional);
+  const laterItems = attentionItems.filter(i => i.task?.optional === true);
+
+  function CareCard({ plant, action, def, task }) {
+    const pc = plantColor(plant.type);
+    const itemEmoji = task?.emoji || def?.emoji || '✨';
+    const itemLabel = task?.label || def?.label || action;
+    const isOptional = task?.optional === true;
+    const itemKey = `${plant.id}-${action}-${task?.label || ''}`;
+    const howToOpen = howToOpenKey === itemKey;
+    const tierBorder = isOptional ? 'rgba(160,130,80,0.18)' : 'rgba(200,112,32,0.28)';
+    const tierBg = isOptional ? 'rgba(160,130,80,0.06)' : 'rgba(200,112,32,0.08)';
+    return (
+      <div style={{ borderRadius: 9, border: `1.5px solid ${tierBorder}`, background: tierBg, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 11px 10px 0' }}>
+          <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
+          <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{itemEmoji}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+              <span style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, fontWeight: 500 }}>{plant.name}</span>
+              <span style={{ fontFamily: SERIF, fontSize: 12, color: isOptional ? 'rgba(160,130,80,0.55)' : MUTED }}>{itemLabel}</span>
+            </div>
+            {task?.reason && (
+              <div style={{ fontFamily: SERIF, fontSize: 11, fontStyle: 'italic', lineHeight: 1.45, color: 'rgba(240,220,170,0.50)' }}>
+                {task.reason}
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, paddingRight: 2 }}>
+            <button
+              onClick={e => { e.stopPropagation(); onAction?.(action, plant, task?.label); }}
+              style={{
+                padding: '6px 10px',
+                background: isOptional ? 'rgba(80,120,40,0.20)' : 'rgba(200,112,32,0.22)',
+                border: isOptional ? '1px solid rgba(80,120,40,0.40)' : '1px solid rgba(200,112,32,0.45)',
+                borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12,
+                color: isOptional ? 'rgba(160,210,100,0.90)' : 'rgba(240,180,80,0.95)',
+                whiteSpace: 'nowrap',
+              }}>✓ Done</button>
+            <button
+              onClick={e => { e.stopPropagation(); onSelectPlant?.(plant); }}
+              style={{
+                padding: '6px 10px', background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(160,130,80,0.22)', borderRadius: 6, cursor: 'pointer',
+                fontFamily: SERIF, fontSize: 12, color: MUTED, whiteSpace: 'nowrap',
+              }}>Details →</button>
+          </div>
+        </div>
+        {task?.instructions && (
+          <div style={{ borderTop: `1px solid ${tierBorder}`, padding: '0 11px 0 19px' }}>
+            <button
+              onClick={e => { e.stopPropagation(); setHowToOpenKey(howToOpen ? null : itemKey); }}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', padding: '5px 0',
+                fontFamily: SERIF, fontSize: 11, color: 'rgba(240,220,170,0.45)', fontStyle: 'italic',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}>
+              <span>{howToOpen ? '▴' : '▾'}</span>
+              <span>How to</span>
+            </button>
+            {howToOpen && (
+              <div style={{ fontSize: 12, color: 'rgba(240,228,200,0.72)', fontFamily: SERIF, fontStyle: 'italic', lineHeight: 1.6, paddingBottom: 9 }}>
+                {task.instructions}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      width: 294, flexShrink: 0,
+      background: 'rgba(8,4,1,0.95)',
+      borderLeft: '1px solid rgba(160,130,80,0.18)',
+      display: 'flex', flexDirection: 'column',
+      overflowY: 'auto', overflowX: 'hidden',
+      position: 'relative', zIndex: 2,
+    }}>
+
+      {/* ── Header strip ── */}
+      <div style={{
+        padding: '12px 16px 0',
+        background: 'rgba(8,4,1,0.82)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ fontFamily: MONO, fontSize: 7.5, color: GOLD, letterSpacing: .6 }}>GARDEN PARTY</span>
+          <div style={{
+            background: seasonOpen ? 'rgba(88,192,48,0.15)' : 'rgba(96,144,160,0.15)',
+            border: `1px solid ${seasonOpen ? 'rgba(88,192,48,0.40)' : 'rgba(96,144,160,0.35)'}`,
+            borderRadius: 20, padding: '2px 8px',
+          }}>
+            <span style={{ fontFamily: MONO, fontSize: 6, color: seasonOpen ? '#88c840' : '#6090a0', letterSpacing: .3 }}>
+              {seasonOpen ? 'S2 · OPEN' : 'S2 · LOCKED'}
+            </span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 9 }}>
+          <span style={{ fontFamily: SERIF, fontSize: 11, color: MUTED, fontStyle: 'italic' }}>{today}</span>
+          {atCeremony ? (
+            <span style={{ fontFamily: SERIF, fontSize: 11, color: '#f0c060', fontStyle: 'italic' }}>
+              🔥 Fire pit tonight ♥
+            </span>
+          ) : (
+            <span style={{ fontFamily: MONO, fontSize: 7, color: nearCeremony ? '#f0a030' : 'rgba(212,168,48,0.55)', letterSpacing: .3 }}>
+              {warmth}<span style={{ opacity: .55, fontSize: 6 }}>/1000</span>
+            </span>
+          )}
+        </div>
+        {!seasonOpen && seasonBlocking && (
+          <div style={{ fontSize: 11, color: 'rgba(96,144,180,0.80)', fontFamily: SERIF, fontStyle: 'italic', lineHeight: 1.5, marginBottom: 8 }}>
+            {seasonBlocking === 'readiness'    ? `${photoCount}/${activePlantCount} plants photographed` :
+             seasonBlocking === 'calendar'     ? 'Too early in the season' :
+             seasonBlocking === 'rain-today'   ? 'Raining today' :
+             seasonBlocking === 'rain-tomorrow'? 'Rain forecast tomorrow' : ''}
+          </div>
+        )}
+        <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 0, margin: '0 -16px' }}>
+          <div style={{
+            height: '100%',
+            background: atCeremony ? '#f0a030' : nearCeremony
+              ? 'linear-gradient(90deg,#b07820,#f0a030)'
+              : 'linear-gradient(90deg,#7a4e18,#d4a830)',
+            width: `${warmthPct}%`, transition: 'width .5s',
+          }}/>
+        </div>
+        <div style={{ height: 1, background: RULE_STRONG, margin: '0 -16px' }}/>
+      </div>
+
+      {/* ── Tiered NEEDS CARE ── */}
+      {seasonOpen && attentionItems.length > 0 && (
+        <div style={{ padding: '12px 16px 4px' }}>
+          <div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: .6, marginBottom: 10, color: '#c87020', opacity: .95 }}>
+            NEEDS CARE · {attentionItems.length}
+          </div>
+
+          {/* TODAY tier */}
+          {todayItems.length > 0 && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontFamily: MONO, fontSize: 6, color: '#b84018', letterSpacing: .5 }}>TODAY</span>
+                <div style={{ height: 1, flex: 1, background: 'rgba(184,64,24,0.30)' }}/>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 12 }}>
+                {todayItems.map(item => <CareCard key={`${item.plant.id}-${item.action}-${item.task?.label||''}`} {...item} />)}
+              </div>
+            </>
+          )}
+
+          {/* WHEN YOU HAVE TIME tier */}
+          {laterItems.length > 0 && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontFamily: MONO, fontSize: 6, color: '#507050', letterSpacing: .4 }}>WHEN YOU HAVE TIME</span>
+                <div style={{ height: 1, flex: 1, background: 'rgba(80,112,80,0.28)' }}/>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 8 }}>
+                {laterItems.map(item => <CareCard key={`${item.plant.id}-${item.action}-${item.task?.label||''}`} {...item} />)}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {seasonOpen && attentionItems.length === 0 && (
+        <div style={{ padding: '14px 16px 10px', borderTop: `1px solid ${RULE}` }}>
+          <div style={{ fontFamily: SERIF, fontSize: 13, color: DIM, fontStyle: 'italic' }}>
+            All caught up ✓
+          </div>
+        </div>
+      )}
+
+      {/* ── Documented coverage bar ── */}
+      <Section label="DOCUMENTED">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+          <span style={{ fontFamily: SERIF, fontSize: 13, color: TEXT }}>
+            {recentPhotoCount}
+            <span style={{ color: MUTED, fontSize: 11 }}> of {activePlantCount} in last 10 days</span>
+          </span>
+          <span style={{ fontFamily: MONO, fontSize: 7, color: recentPhotoCount >= activePlantCount ? '#88c840' : GOLD }}>
+            {activePlantCount > 0 ? Math.round(recentPhotoCount / activePlantCount * 100) : 0}%
+          </span>
+        </div>
+        <div style={{ height: 3, background: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{
+            width: `${activePlantCount > 0 ? (recentPhotoCount / activePlantCount * 100) : 0}%`,
+            height: '100%',
+            background: recentPhotoCount >= activePlantCount ? '#88c840' : 'linear-gradient(90deg,#7a4e18,#d4a830)',
+            borderRadius: 2, transition: 'width .4s',
+          }}/>
+        </div>
+      </Section>
+
+      <div style={{ flex: 1, minHeight: 16 }}/>
+    </div>
+  );
+}
