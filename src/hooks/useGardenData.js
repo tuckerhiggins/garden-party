@@ -160,6 +160,17 @@ export function useGardenData({ user }) {
     if (!def && key !== 'tend') return;
     const label = customLabel || def?.label || key;
     const emoji = def?.emoji || '✨';
+
+    // Silent guard: skip if identical entry (same plant + action + calendar day) already exists
+    if (DEDUP_KEYS.has(key)) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const currentLog = lsLoad(LS.care, {});
+      const alreadyLogged = (currentLog[plant.id] || []).some(
+        e => e.action === key && e.date?.slice(0, 10) === todayStr
+      );
+      if (alreadyLogged) return 'duplicate';
+    }
+
     const entry = {
       action: key, label, emoji,
       date: new Date().toISOString(), withEmma, plantName: plant.name,

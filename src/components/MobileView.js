@@ -152,24 +152,16 @@ function parseOracleMsg(raw) {
 function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, weather, onLog, onClose }) {
   const def = ACTION_DEFS[actionKey];
   const color = plantColor(plant.type);
-  const [mode, setMode] = React.useState(null); // null | 'confirm' | 'help'
+  const [mode, setMode] = React.useState(null); // null | 'explain'
+  const [logged, setLogged] = React.useState(false);
 
-  // confirm mode
-  const [confirmPhoto, setConfirmPhoto] = React.useState(null);
-  const [confirmFeedback, setConfirmFeedback] = React.useState(null);
-  const [confirmLoading, setConfirmLoading] = React.useState(false);
-  const [confirmed, setConfirmed] = React.useState(false);
-  const confirmFileRef = React.useRef(null);
-
-  // help/chat mode
+  // chat state (only used in explain mode)
   const [messages, setMessages] = React.useState([]);
   const [input, setInput] = React.useState('');
   const [chatPhoto, setChatPhoto] = React.useState(null);
   const [chatLoading, setChatLoading] = React.useState(false);
-  const [logged, setLogged] = React.useState(false);
   const chatFileRef = React.useRef(null);
   const chatEndRef = React.useRef(null);
-  const inputRef = React.useRef(null);
 
   function buildContext() {
     const portrait = portraits?.[plant.id] || {};
@@ -184,13 +176,6 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
       forecast: next3 || null,
     };
   }
-
-  React.useEffect(() => {
-    if (mode === 'help' && messages.length === 0) {
-      const actionLabel = def?.label || task?.label || actionKey;
-      sendChat(`I'm about to ${actionLabel.toLowerCase()} my ${plant.name}. Walk me through exactly what to do.${task?.instructions ? ' Here are the basic instructions: ' + task.instructions : ''}`);
-    }
-  }, [mode]); // eslint-disable-line
 
   React.useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -214,7 +199,6 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
       setMessages(m => { const c=[...m]; c[c.length-1]={...c[c.length-1],content:'Could not reach the oracle.'}; return c; });
     }
     setChatLoading(false);
-    // Parse diagram/photo-request tags out of the final streamed response
     setMessages(m => {
       const c = [...m];
       const last = c[c.length - 1];
@@ -225,23 +209,12 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
     });
   }
 
-  async function sendConfirmPhoto(dataUrl) {
-    setConfirmPhoto(dataUrl); setConfirmLoading(true);
-    let feedback = '';
-    try {
-      await streamGardenChat({
-        messages: [{ role: 'user', content: `I just ${(def?.label || task?.label || actionKey).toLowerCase()}d my ${plant.name}. Here's a photo — did I do it right? One or two sentences.`, images: [dataUrl] }],
-        plantContext: buildContext(), action: def?.label || task?.label || actionKey,
-        onChunk: chunk => { feedback += chunk; setConfirmFeedback(feedback); },
-      });
-    } catch { setConfirmFeedback(mobileAffirmation(actionKey)); }
-    if (!feedback) setConfirmFeedback(mobileAffirmation(actionKey));
-    setConfirmLoading(false);
-  }
-
   function readPhoto(file) { return compressChatImage(file); }
 
-  // ── Fork screen ───────────────────────────────────────────────────────────
+  const actionLabel = def?.label || task?.label || actionKey;
+  const actionEmoji = def?.emoji || task?.emoji || '✨';
+
+  // ── Preview / fork screen ─────────────────────────────────────────────────
   if (!mode) return (
     <div style={{ position:'fixed', inset:0, zIndex:500, display:'flex', flexDirection:'column',
       background:'rgba(0,0,0,0.55)', WebkitBackdropFilter:'blur(4px)', backdropFilter:'blur(4px)' }}>
@@ -249,46 +222,50 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
       <div style={{ flex:1 }} onClick={onClose}/>
       {/* Sheet slides up */}
       <div style={{ background:'#faf6ee', borderRadius:'18px 18px 0 0',
-        padding:'0 0 calc(24px + env(safe-area-inset-bottom)) 0',
+        padding:'0 0 calc(20px + env(safe-area-inset-bottom)) 0',
         boxShadow:'0 -8px 40px rgba(0,0,0,0.22)' }}>
         {/* Handle */}
         <div style={{ display:'flex', justifyContent:'center', paddingTop:10, paddingBottom:4 }}>
           <div style={{ width:36, height:4, borderRadius:2, background:'rgba(160,130,80,0.25)' }}/>
         </div>
         <div style={{ padding:'12px 20px 20px' }}>
-          <div style={{ fontSize:28, marginBottom:4 }}>{def?.emoji || task?.emoji || '✨'}</div>
-          <div style={{ fontSize:20, color:'#2a1808', fontWeight:600, fontFamily:SERIF }}>{def?.label || task?.label || actionKey}</div>
-          <div style={{ fontSize:13, color:'#907050', fontFamily:SERIF, marginBottom:24 }}>{plant.name}</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            <button onClick={() => setMode('help')}
-              style={{ display:'flex', alignItems:'center', gap:14,
-                background: color + '14', border:`1.5px solid ${color}40`,
-                borderRadius:14, padding:'16px 18px', cursor:'pointer', textAlign:'left',
+          <div style={{ fontSize:28, marginBottom:4 }}>{actionEmoji}</div>
+          <div style={{ fontSize:20, color:'#2a1808', fontWeight:600, fontFamily:SERIF, marginBottom:2 }}>{actionLabel}</div>
+          <div style={{ fontSize:13, color:'#907050', fontFamily:SERIF, marginBottom:16 }}>{plant.name}</div>
+
+          {/* Task preview — instructions already generated, no API call */}
+          {(task?.instructions || task?.reason) && (
+            <div style={{ background:'rgba(160,130,80,0.07)', borderRadius:10, padding:'12px 14px', marginBottom:20,
+              border:'1px solid rgba(160,130,80,0.18)' }}>
+              {task.reason && (
+                <div style={{ fontFamily:SERIF, fontSize:13, color:'#6a4020', fontStyle:'italic', lineHeight:1.55, marginBottom: task.instructions ? 8 : 0 }}>
+                  {task.reason}
+                </div>
+              )}
+              {task.instructions && (
+                <div style={{ fontFamily:SERIF, fontSize:13, color:'#4a2c10', lineHeight:1.6 }}>
+                  {task.instructions}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Done / Explain */}
+          <div style={{ display:'flex', gap:10 }}>
+            <button
+              onClick={() => { onLog(); onClose(); }}
+              style={{ flex:1, background:color, border:'none', borderRadius:12, padding:'15px',
+                color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:8, letterSpacing:.3,
                 WebkitTapHighlightColor:'transparent' }}>
-              <span style={{ fontSize:28, flexShrink:0 }}>🌿</span>
-              <div>
-                <div style={{ fontSize:16, color:'#2a1808', fontFamily:SERIF, fontWeight:600, marginBottom:3 }}>
-                  Walk me through it
-                </div>
-                <div style={{ fontSize:13, color:'#907050', fontFamily:SERIF, lineHeight:1.4 }}>
-                  Step-by-step guidance. Ask questions, send photos.
-                </div>
-              </div>
+              ✓ DONE
             </button>
-            <button onClick={() => setMode('confirm')}
-              style={{ display:'flex', alignItems:'center', gap:14,
-                background:'rgba(0,0,0,0.03)', border:`1px solid rgba(160,130,80,0.25)`,
-                borderRadius:14, padding:'16px 18px', cursor:'pointer', textAlign:'left',
+            <button
+              onClick={() => setMode('explain')}
+              style={{ flex:1, background:'none', border:`1.5px solid ${color}40`,
+                borderRadius:12, padding:'15px', cursor:'pointer',
+                fontFamily:MONO, fontSize:8, letterSpacing:.3, color,
                 WebkitTapHighlightColor:'transparent' }}>
-              <span style={{ fontSize:28, flexShrink:0 }}>✓</span>
-              <div>
-                <div style={{ fontSize:16, color:'#2a1808', fontFamily:SERIF, fontWeight:600, marginBottom:3 }}>
-                  I already did it
-                </div>
-                <div style={{ fontSize:13, color:'#907050', fontFamily:SERIF, lineHeight:1.4 }}>
-                  Log it now. Add a photo for feedback.
-                </div>
-              </div>
+              EXPLAIN
             </button>
           </div>
         </div>
@@ -296,102 +273,7 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
     </div>
   );
 
-  // ── Confirm mode ──────────────────────────────────────────────────────────
-  if (mode === 'confirm') {
-    if (confirmed) return (
-      <div style={{ position:'fixed', inset:0, zIndex:500, background:'#faf6ee',
-        display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-        fontFamily:SERIF, padding:32, textAlign:'center' }}>
-        <div style={{ fontSize:48, marginBottom:12 }}>✓</div>
-        <div style={{ fontSize:20, color:'#2a1808', fontWeight:600, marginBottom:10 }}>{def?.label || task?.label || actionKey} logged</div>
-        {confirmFeedback && (
-          <div style={{ fontSize:15, color:'#605040', fontStyle:'italic', lineHeight:1.75,
-            maxWidth:280, marginBottom:32, fontFamily:SERIF }}>{confirmFeedback}</div>
-        )}
-        <button onClick={onClose}
-          style={{ background:color, border:'none', borderRadius:12, padding:'14px 40px',
-            color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:9, letterSpacing:.3 }}>
-          DONE
-        </button>
-      </div>
-    );
-    return (
-      <div style={{ position:'fixed', inset:0, zIndex:500, background:'#faf6ee',
-        display:'flex', flexDirection:'column', fontFamily:SERIF }}>
-        {/* Header */}
-        <div style={{ padding:'16px 18px 12px', paddingTop:'calc(16px + env(safe-area-inset-top))',
-          borderBottom:'1px solid rgba(160,130,80,0.18)',
-          display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
-          <div style={{ display:'flex', alignItems:'center' }}>
-            <button onClick={() => setMode(null)} style={{ background:'none', border:'none',
-              color:'#b09070', cursor:'pointer', fontSize:15, fontFamily:SERIF,
-              minHeight:44, minWidth:44, display:'flex', alignItems:'center', justifyContent:'center',
-              WebkitTapHighlightColor:'transparent' }}>←</button>
-            <span style={{ fontSize:15, color:'#2a1808', fontWeight:600 }}>{def?.emoji || task?.emoji || '✨'} {def?.label || task?.label || actionKey}</span>
-          </div>
-          <button onClick={onClose} style={{ background:'none', border:'none',
-            color:'#b09070', cursor:'pointer', fontSize:26, lineHeight:1,
-            minHeight:44, minWidth:44, display:'flex', alignItems:'center', justifyContent:'center',
-            WebkitTapHighlightColor:'transparent' }}>&times;</button>
-        </div>
-        {/* Body */}
-        <div style={{ flex:1, overflowY:'auto', padding:'24px 20px' }}>
-          <div style={{ fontSize:15, color:'#907050', fontFamily:SERIF, marginBottom:28, textAlign:'center' }}>
-            {confirmPhoto ? 'Oracle is looking…' : `Add a photo for feedback, or just log it.`}
-          </div>
-          {confirmPhoto ? (
-            <div style={{ marginBottom:20 }}>
-              <img src={confirmPhoto} alt="" style={{ width:'100%', borderRadius:12, marginBottom:14,
-                maxHeight:240, objectFit:'cover' }}/>
-              {confirmLoading ? (
-                <div style={{ fontSize:15, color:'#c0a880', fontStyle:'italic', fontFamily:SERIF, textAlign:'center' }}>
-                  Reading the photo…
-                </div>
-              ) : confirmFeedback ? (
-                <div style={{ fontSize:16, color:'#4a2c10', fontStyle:'italic', lineHeight:1.75,
-                  fontFamily:SERIF, textAlign:'center', marginBottom:8 }}>{confirmFeedback}</div>
-              ) : null}
-            </div>
-          ) : (
-            /* Big camera button */
-            <button onClick={() => confirmFileRef.current?.click()}
-              style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                width:'100%', height:180, background:color+'10', border:`2px dashed ${color}40`,
-                borderRadius:16, cursor:'pointer', gap:12,
-                WebkitTapHighlightColor:'transparent' }}>
-              <span style={{ fontSize:48 }}>📷</span>
-              <div style={{ fontSize:14, color, fontFamily:SERIF, fontWeight:600 }}>Take a photo</div>
-              <div style={{ fontSize:12, color:'#907050', fontFamily:SERIF }}>Get feedback from the oracle</div>
-            </button>
-          )}
-          <input ref={confirmFileRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }}
-            onChange={async e => { const f = e.target.files?.[0]; if (f) sendConfirmPhoto(await readPhoto(f)); }}/>
-        </div>
-        {/* Bottom bar */}
-        <div style={{ padding:'12px 20px', paddingBottom:'calc(12px + env(safe-area-inset-bottom))',
-          borderTop:'1px solid rgba(160,130,80,0.18)', flexShrink:0,
-          display:'flex', flexDirection:'column', gap:10 }}>
-          <button
-            onClick={() => { onLog(); if (!confirmPhoto) setConfirmFeedback(mobileAffirmation(actionKey)); setConfirmed(true); }}
-            disabled={confirmPhoto && !confirmFeedback}
-            style={{ background:color, border:'none', borderRadius:12, padding:'16px',
-              color:'#fff', cursor:'pointer', fontFamily:MONO, fontSize:9, letterSpacing:.3,
-              opacity:(confirmPhoto && !confirmFeedback) ? 0.4 : 1 }}>
-            ✓ LOG {(def?.label || task?.label || actionKey).toUpperCase()}
-          </button>
-          {!confirmPhoto && (
-            <button onClick={() => { onLog(); setConfirmed(true); setConfirmFeedback(mobileAffirmation(actionKey)); }}
-              style={{ background:'none', border:'none', color:'#b09070', cursor:'pointer',
-                fontSize:14, fontFamily:SERIF, padding:'4px 0', textAlign:'center' }}>
-              Skip photo — log now
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Help / chat mode (full screen, one-handed) ────────────────────────────
+  // ── Explain mode: instructions inline + follow-up chat ────────────────────
   return (
     <div style={{ position:'fixed', inset:0, zIndex:500, background:'#f5ede0',
       display:'flex', flexDirection:'column', fontFamily:SERIF }}>
@@ -407,7 +289,7 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
             minHeight:44, minWidth:44, display:'flex', alignItems:'center', justifyContent:'center',
             WebkitTapHighlightColor:'transparent' }}>←</button>
           <div>
-            <span style={{ fontSize:14, color:'#4a2c10', fontWeight:600 }}>{def?.emoji || task?.emoji || '✨'} {def?.label || task?.label || actionKey}</span>
+            <span style={{ fontSize:14, color:'#4a2c10', fontWeight:600 }}>{actionEmoji} {actionLabel}</span>
             <span style={{ fontSize:12, color:'#a08060', marginLeft:6, fontStyle:'italic' }}>{plant.name}</span>
           </div>
         </div>
@@ -429,6 +311,26 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
             WebkitTapHighlightColor:'transparent' }}>&times;</button>
         </div>
       </div>
+
+      {/* Static how-to — displayed immediately, no API call */}
+      {(task?.reason || task?.instructions) && (
+        <div style={{ padding:'14px 16px', borderBottom:'1px solid rgba(160,130,80,0.18)',
+          background:'rgba(250,246,238,0.95)', flexShrink:0 }}>
+          {task.reason && (
+            <div style={{ fontFamily:SERIF, fontSize:13, color:'#6a4020', fontStyle:'italic', lineHeight:1.55, marginBottom: task.instructions ? 8 : 0 }}>
+              {task.reason}
+            </div>
+          )}
+          {task.instructions && (
+            <div style={{ fontFamily:SERIF, fontSize:13.5, color:'#3a2010', lineHeight:1.65 }}>
+              {task.instructions}
+            </div>
+          )}
+          <div style={{ marginTop:8, fontFamily:MONO, fontSize:5.5, color:'rgba(160,130,80,0.55)', letterSpacing:.4 }}>
+            QUESTIONS? ASK BELOW
+          </div>
+        </div>
+      )}
 
       {/* Message thread */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px 16px 8px',
@@ -491,7 +393,6 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
               borderRadius:12, padding:'12px 14px', cursor:'pointer', fontSize:22, flexShrink:0, lineHeight:1,
               WebkitTapHighlightColor:'transparent' }}>📷</button>
           <textarea
-            ref={inputRef}
             value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -526,42 +427,33 @@ function StageArc({ stages, currentStage, color }) {
   const currentIdx = stages.indexOf(currentStage);
   return (
     <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(160,130,80,0.12)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 0, position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexWrap: 'wrap', rowGap: 4 }}>
         {stages.map((s, i) => {
           const isCurrent = i === currentIdx;
           const isPast = currentIdx >= 0 && i < currentIdx;
-          const isFuture = currentIdx < 0 || i > currentIdx;
           return (
             <React.Fragment key={s}>
               {i > 0 && (
                 <div style={{
-                  flex: 1, height: 1,
-                  background: isPast || isCurrent ? `${color}60` : 'rgba(160,130,80,0.20)',
+                  width: 10, height: 1, flexShrink: 0,
+                  background: isPast ? `${color}60` : 'rgba(160,130,80,0.20)',
                 }}/>
               )}
-              <div style={{
-                width: isCurrent ? 10 : 6,
-                height: isCurrent ? 10 : 6,
-                borderRadius: '50%',
-                background: isCurrent ? color : isPast ? `${color}50` : 'transparent',
-                border: `1.5px solid ${isCurrent ? color : isPast ? `${color}50` : 'rgba(160,130,80,0.30)'}`,
-                flexShrink: 0,
-                transition: 'all .2s',
-              }}/>
+              <span style={{
+                fontFamily: SERIF,
+                fontSize: 10,
+                fontStyle: 'italic',
+                color: isCurrent ? color : isPast ? `${color}70` : 'rgba(160,130,80,0.40)',
+                textDecoration: isPast ? 'line-through' : 'none',
+                fontWeight: isCurrent ? 600 : 400,
+                whiteSpace: 'nowrap',
+              }}>
+                {s}
+              </span>
             </React.Fragment>
           );
         })}
       </div>
-      {currentStage && (
-        <div style={{
-          fontFamily: SERIF, fontSize: 11, color,
-          fontStyle: 'italic', marginTop: 5,
-          textAlign: currentIdx >= 0 ? 'left' : 'center',
-          paddingLeft: currentIdx > 0 ? `${Math.round((currentIdx / (stages.length - 1)) * 100) - 6}%` : 0,
-        }}>
-          {currentStage}
-        </div>
-      )}
     </div>
   );
 }
@@ -1434,9 +1326,13 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
             {rowLabel}
           </span>
         </div>
-        {item.reason && !completed && (
-          <div style={{ fontSize: 12, color: '#6a4020', fontStyle: 'italic', lineHeight: 1.45 }}>
-            {item.reason}
+        {!completed && (item.reason || item.task?.instructions) && (
+          <div style={{ fontSize: 12, color: '#6a4020', fontStyle: 'italic', lineHeight: 1.5 }}>
+            {item.reason && <span>{item.reason}</span>}
+            {item.reason && item.task?.instructions && ' '}
+            {item.task?.instructions && (
+              <span style={{ color: '#7a5030' }}>{item.task.instructions}</span>
+            )}
           </div>
         )}
       </div>

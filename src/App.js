@@ -1147,6 +1147,43 @@ function ActionModal({ plant, actionKey, task = null, careLog, portraits, weathe
   );
 }
 
+// ── STAGE ARC (desktop) ────────────────────────────────────────────────────
+function StageArc({ stages, currentStage, color }) {
+  if (!stages || stages.length < 2) return null;
+  const currentIdx = stages.indexOf(currentStage);
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid rgba(160,130,80,0.12)`, marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexWrap: 'wrap', rowGap: 4 }}>
+        {stages.map((s, i) => {
+          const isCurrent = i === currentIdx;
+          const isPast = currentIdx >= 0 && i < currentIdx;
+          return (
+            <React.Fragment key={s}>
+              {i > 0 && (
+                <div style={{
+                  width: 10, height: 1, flexShrink: 0,
+                  background: isPast ? `${color}60` : 'rgba(160,130,80,0.20)',
+                }}/>
+              )}
+              <span style={{
+                fontFamily: SERIF,
+                fontSize: 11,
+                fontStyle: 'italic',
+                color: isCurrent ? color : isPast ? `${color}70` : 'rgba(160,130,80,0.40)',
+                textDecoration: isPast ? 'line-through' : 'none',
+                fontWeight: isCurrent ? 600 : 400,
+                whiteSpace: 'nowrap',
+              }}>
+                {s}
+              </span>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
 function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate, weather, briefings = {} }) {
   const [tab, setTab] = useState('care');
@@ -1196,6 +1233,9 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
               border:`1px solid ${color}20`}}>
               <PlantPortrait plant={plant} aiSvg={portraits?.[plant.id]?.svg}/>
             </div>
+            {/* Stage arc */}
+            {(() => { const p = portraits?.[plant.id]; return p?.stages?.length > 1 ? <StageArc stages={p.stages} currentStage={p.currentStage} color={color}/> : null; })()}
+
             {/* Photo section */}
             {plant.type !== 'empty-pot' && plant.health !== 'memorial' && (
               <PhotoSection plant={plant} color={color} careLog={careLog} onAnalyze={onAnalyze}
@@ -1855,22 +1895,10 @@ export default function App() {
   }, [careLog]);
 
   // Care action
-  const ONCE_PER_DAY = new Set(['water','fertilize','prune','neem','train','repot','worms']);
   const doAction = useCallback(async (key, plant, customLabel) => {
     const def = ACTION_DEFS[key];
     if (!def && key !== 'tend') return;
     const isWithEmma = role === 'emma';
-
-    // Duplicate check — warn if this action was already logged today for this plant
-    if (ONCE_PER_DAY.has(key)) {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const alreadyToday = (careLog[plant.id] || []).some(e => e.action === key && e.date?.startsWith(todayStr));
-      if (alreadyToday) {
-        const label = def?.label || key;
-        const ok = window.confirm(`You already logged "${label}" for ${plant.name} today. Log it again?`);
-        if (!ok) return;
-      }
-    }
 
     // Notes: parse first — log as detected care actions if found, else as a note
     if (key === 'note' && customLabel) {
@@ -1895,6 +1923,7 @@ export default function App() {
     }
 
     const syncError = await logAction(key, plant, isWithEmma, customLabel);
+    if (syncError === 'duplicate') return; // already logged today — silent skip
     const displayLabel = customLabel || def?.label || key;
     const emoji = def?.emoji || '✨';
     setFlash(syncError

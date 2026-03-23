@@ -179,7 +179,6 @@ export function MapInfoPanel({
 }) {
   const [briefExpanded, setBriefExpanded] = useState(false);
   const [weatherExpanded, setWeatherExpanded] = useState(false);
-  const [expandedCareKey, setExpandedCareKey] = useState(null);
 
   const forecast = weather?.forecast?.slice(0, 6) ?? [];
   const warmthPct = Math.min(warmth / 10, 100);
@@ -264,113 +263,78 @@ export function MapInfoPanel({
       {/* ── Needs Care — leads when urgent ── */}
       {seasonOpen && attentionItems.length > 0 && (
         <Section label={`NEEDS CARE · ${attentionItems.length}`} accent="#c87020">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {attentionItems.map(({ plant, action, def, task }) => {
-              const hc = healthColor(plant.health);
               const pc = plantColor(plant.type);
               const itemEmoji = def?.emoji || task?.emoji || '✨';
               const itemLabel = def?.label || task?.label || action;
               const isOptional = task?.optional === true;
               const itemKey = `${plant.id}-${action}-${task?.label || ''}`;
-              const isExpanded = expandedCareKey === itemKey;
-              const hasInstructions = !!(task?.instructions || task?.reason);
+              const tierBorder = isOptional ? 'rgba(160,130,80,0.18)' : 'rgba(200,112,32,0.28)';
+              const tierBg = isOptional ? 'rgba(160,130,80,0.06)' : 'rgba(200,112,32,0.08)';
               return (
-                <div key={itemKey}>
-                  <div
-                    onClick={() => setExpandedCareKey(isExpanded ? null : itemKey)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 9,
-                      padding: '8px 10px 8px 0',
-                      borderRadius: isExpanded ? '7px 7px 0 0' : 7,
-                      cursor: 'pointer',
-                      border: isOptional ? '1px solid rgba(160,130,80,0.16)' : '1px solid rgba(200,112,32,0.22)',
-                      borderBottom: isExpanded ? 'none' : undefined,
-                      background: isExpanded
-                        ? (isOptional ? 'rgba(160,130,80,0.10)' : 'rgba(200,112,32,0.14)')
-                        : (isOptional ? 'rgba(160,130,80,0.04)' : 'rgba(200,112,32,0.06)'),
-                      transition: 'background .12s',
-                      overflow: 'hidden', position: 'relative',
-                    }}
-                    onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = isOptional ? 'rgba(160,130,80,0.09)' : 'rgba(200,112,32,0.13)'; }}
-                    onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = isOptional ? 'rgba(160,130,80,0.04)' : 'rgba(200,112,32,0.06)'; }}
-                  >
-                    <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
-                    <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{itemEmoji}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, lineHeight: 1.2 }}>
+                <div key={itemKey} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 9,
+                  padding: '10px 11px 10px 0',
+                  borderRadius: 9,
+                  border: `1.5px solid ${tierBorder}`,
+                  background: tierBg,
+                  overflow: 'hidden', position: 'relative',
+                }}>
+                  {/* Left color bar — matches plant type (like AgendaRow's priority dot) */}
+                  <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
+                  <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1, marginTop: 1 }}>{itemEmoji}</span>
+
+                  {/* Content */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Header row: plant name + EXPLORE badge */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexWrap: 'wrap' }}>
+                      <span style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, lineHeight: 1.2 }}>
                         {plant.name}
                         {plant.subtitle && <span style={{ fontSize: 10, color: MUTED }}> · {plant.subtitle}</span>}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 1 }}>
-                        <span style={{ fontFamily: SERIF, fontSize: 11, color: isOptional ? 'rgba(160,130,80,0.55)' : MUTED }}>{itemLabel}</span>
-                        {isOptional && (
-                          <span style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(160,130,80,0.55)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 4, padding: '1px 4px' }}>EXPLORE</span>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, paddingRight: 4 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: hc }}/>
-                      {hasInstructions && (
-                        <span style={{ fontSize: 8, color: isExpanded ? GOLD : (isOptional ? 'rgba(160,130,80,0.40)' : 'rgba(200,112,32,0.50)'), fontFamily: MONO }}>
-                          {isExpanded ? '▴' : '▾'}
-                        </span>
+                      </span>
+                      {isOptional && (
+                        <span style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(160,130,80,0.55)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 4, padding: '1px 4px' }}>EXPLORE</span>
                       )}
+                    </div>
+                    {/* Action label */}
+                    <div style={{ fontFamily: SERIF, fontSize: 11, color: isOptional ? 'rgba(160,130,80,0.55)' : MUTED, marginBottom: 5 }}>{itemLabel}</div>
+                    {/* Inline reason + instructions (matches Today tab) */}
+                    {(task?.reason || task?.instructions) && (
+                      <div style={{ fontFamily: SERIF, fontSize: 12, fontStyle: 'italic', lineHeight: 1.55, color: 'rgba(240,220,170,0.60)' }}>
+                        {task.reason && <span>{task.reason}</span>}
+                        {task.reason && task.instructions && ' '}
+                        {task.instructions && <span style={{ color: 'rgba(240,228,200,0.80)' }}>{task.instructions}</span>}
+                      </div>
+                    )}
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', gap: 7, marginTop: 8 }}>
+                      <button
+                        onClick={e => { e.stopPropagation(); onAction?.(action, plant, task?.label); }}
+                        style={{
+                          flex: 1, padding: '7px 10px',
+                          background: isOptional ? 'rgba(80,120,40,0.20)' : 'rgba(200,112,32,0.22)',
+                          border: isOptional ? '1px solid rgba(80,120,40,0.40)' : '1px solid rgba(200,112,32,0.45)',
+                          borderRadius: 7, cursor: 'pointer',
+                          fontFamily: SERIF, fontSize: 12.5,
+                          color: isOptional ? 'rgba(160,210,100,0.90)' : 'rgba(240,180,80,0.95)',
+                        }}>
+                        ✓ Done
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); onSelectPlant?.(plant); }}
+                        style={{
+                          padding: '7px 10px',
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '1px solid rgba(160,130,80,0.22)',
+                          borderRadius: 7, cursor: 'pointer',
+                          fontFamily: SERIF, fontSize: 12.5,
+                          color: MUTED,
+                        }}>
+                        Plant →
+                      </button>
                     </div>
                   </div>
-                  {/* Expandable how-to panel */}
-                  {isExpanded && (
-                    <div style={{
-                      background: 'rgba(4,2,0,0.60)',
-                      border: isOptional ? '1px solid rgba(160,130,80,0.16)' : '1px solid rgba(200,112,32,0.22)',
-                      borderTop: 'none',
-                      borderRadius: '0 0 7px 7px',
-                      padding: '10px 12px 12px 13px',
-                    }}>
-                      {task?.reason && (
-                        <div style={{ marginBottom: 8 }}>
-                          <div style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(212,168,48,0.45)', letterSpacing: 0.5, marginBottom: 3 }}>WHY NOW</div>
-                          <div style={{ fontFamily: SERIF, fontSize: 12, color: 'rgba(240,220,170,0.62)', fontStyle: 'italic', lineHeight: 1.5 }}>
-                            {task.reason}
-                          </div>
-                        </div>
-                      )}
-                      {task?.instructions && (
-                        <div style={{ marginBottom: 10 }}>
-                          <div style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(212,168,48,0.45)', letterSpacing: 0.5, marginBottom: 3 }}>HOW TO</div>
-                          <div style={{ fontFamily: SERIF, fontSize: 12.5, color: 'rgba(240,228,200,0.85)', lineHeight: 1.7 }}>
-                            {task.instructions}
-                          </div>
-                        </div>
-                      )}
-                      {/* Action buttons */}
-                      <div style={{ display: 'flex', gap: 7, marginTop: task?.instructions ? 0 : 4 }}>
-                        <button
-                          onClick={e => { e.stopPropagation(); onAction?.(action, plant, task?.label); setExpandedCareKey(null); }}
-                          style={{
-                            flex: 1, padding: '7px 10px',
-                            background: isOptional ? 'rgba(80,120,40,0.20)' : 'rgba(200,112,32,0.22)',
-                            border: isOptional ? '1px solid rgba(80,120,40,0.40)' : '1px solid rgba(200,112,32,0.45)',
-                            borderRadius: 6, cursor: 'pointer',
-                            fontFamily: SERIF, fontSize: 12.5,
-                            color: isOptional ? 'rgba(160,210,100,0.90)' : 'rgba(240,180,80,0.95)',
-                          }}>
-                          ✓ Done
-                        </button>
-                        <button
-                          onClick={e => { e.stopPropagation(); onSelectPlant?.(plant); }}
-                          style={{
-                            padding: '7px 10px',
-                            background: 'rgba(255,255,255,0.04)',
-                            border: '1px solid rgba(160,130,80,0.22)',
-                            borderRadius: 6, cursor: 'pointer',
-                            fontFamily: SERIF, fontSize: 12.5,
-                            color: MUTED,
-                          }}>
-                          Plant →
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })}
