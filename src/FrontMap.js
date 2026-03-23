@@ -3,6 +3,7 @@
 // 75 8th Ave blurry in background, magnolia drifting in from upper-left
 
 import React, { useState, useEffect } from 'react';
+import { getPhenologicalStage } from './utils/phenology';
 
 const VW = 1400, VH = 900;
 const GBR = 1400;         // garden bed spans full width
@@ -93,6 +94,10 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
   const [signinWho, setSigninWho]     = useState(null);
   const [signinPw, setSigninPw]       = useState('');
   const [signinError, setSigninError] = useState('');
+
+  // Phenological stage drives visual state of scene elements
+  const roseStage     = getPhenologicalStage('rose');
+  const magnoliaStage = getPhenologicalStage('magnolia');
   useEffect(() => { if (!skipDelay) { const t = setTimeout(() => setVisible(true), 50); return () => clearTimeout(t); } }, [skipDelay]);
 
   useEffect(() => {
@@ -140,28 +145,60 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
     const handleEnter = () => plantId && setHoveredId(plantId);
     const handleLeave = () => setHoveredId(null);
 
+    // ── STAGE-BASED VISUAL STATE ──────────────────────────────────────────
+    const rs          = roseStage;
+    const inBloom     = rs === 'first flush' || rs === 'second flush';
+    const inBetween   = rs === 'between flushes';
+    const inLate      = rs === 'late season';
+    const inBudding   = rs === 'budding';
+    const inLeafOut   = rs === 'leafing out';
+    const inDormant   = rs === 'dormant' || rs === 'going dormant';
+    const inBudBreak  = rs === 'bud break';
+
+    // Dead stalks recede as spring progresses
+    const deadCount = inDormant ? v.dead : inBudBreak ? v.dead : inLeafOut ? Math.max(0, v.dead - 1) : 0;
+
+    // Tight buds visible bud-break → budding; hidden once blooming
+    const showBuds   = (inBudBreak || inLeafOut || inBudding) && !inBloom;
+
+    // Leaves appear at leafing-out, full by bloom
+    const showLeaves = inLeafOut || inBudding || inBloom || inBetween || inLate;
+    const leafScale  = inLeafOut ? 0.48 : inBudding ? 0.72 : 1.0;
+    const leafColor  = inLate ? '#8a8830' : '#4a7020';
+    const leafOp     = inLeafOut ? 0.65 : inLate ? 0.68 : 0.76;
+
+    // Blooms at flush periods; scattered in between / late
+    const showBlooms = inBloom || (inBetween && idx % 2 === 0) || (inLate && idx % 3 === 0);
+    const bloomOp    = inLate ? 0.60 : 0.88;
+
+    // Lateral tip positions (reused for leaves, buds, blooms)
+    const TIPS = [
+      [lx-54, base-h*0.55, -35],
+      [lx+58, base-h*0.65, +35],
+      [lx-62, base-h*0.76, -30],
+      [lx+56, base-h*0.83, +32],
+      [lx-44, base-h*0.90, -28],
+      [lx+40, base-h*0.95, +28],
+    ];
+
     return (
-      <g
-        onClick={handleClick}
-        onMouseEnter={handleEnter}
-        onMouseLeave={handleLeave}
-        style={{ cursor: plant ? 'pointer' : 'default' }}
-      >
-        {/* ── DEAD WINTER STALKS — thin, near-black, from last season ── */}
-        {v.dead >= 1 && (
+      <g onClick={handleClick} onMouseEnter={handleEnter} onMouseLeave={handleLeave}
+        style={{ cursor: plant ? 'pointer' : 'default' }}>
+
+        {/* ── DEAD WINTER STALKS — recede as spring progresses ── */}
+        {deadCount >= 1 && (
           <line x1={cx+18} y1={base} x2={cx+22} y2={base - h*v.tallDead}
             stroke={DEAD} strokeWidth={2.5} strokeLinecap="round"/>
         )}
-        {v.dead >= 2 && (
+        {deadCount >= 2 && (
           <line x1={cx-20} y1={base} x2={cx-26} y2={base - h*(v.tallDead-0.12)}
             stroke={DEAD} strokeWidth={2} strokeLinecap="round"/>
         )}
-        {v.dead >= 3 && (
+        {deadCount >= 3 && (
           <line x1={cx+32} y1={base} x2={cx+36} y2={base - h*(v.tallDead-0.22)}
             stroke={DEAD} strokeWidth={1.8} strokeLinecap="round"/>
         )}
-        {/* Broken dead tip stubs */}
-        {v.dead >= 2 && (
+        {deadCount >= 2 && (
           <>
             <line x1={cx+22} y1={base - h*v.tallDead}
                   x2={cx+28} y2={base - h*v.tallDead - 18}
@@ -172,7 +209,7 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
           </>
         )}
 
-        {/* ── LIVE CANES — warm brown, main stems ── */}
+        {/* ── LIVE CANES ── */}
         <line x1={cx-6}  y1={base} x2={lx-18} y2={base-h*0.90}
           stroke={C1} strokeWidth={13} strokeLinecap="round"/>
         <line x1={cx+1}  y1={base} x2={lx}    y2={base-h}
@@ -197,13 +234,12 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
           stroke={C3} strokeWidth={3}   strokeLinecap="round"/>
         <line x1={lx+2}  y1={base-h*0.86} x2={lx+40} y2={base-h*0.95}
           stroke={C2} strokeWidth={2.5} strokeLinecap="round"/>
-        {/* Fine tip twigs */}
         <line x1={lx-18} y1={base-h*0.90} x2={lx-28} y2={base-h*0.98}
           stroke={C3} strokeWidth={2}   strokeLinecap="round"/>
         <line x1={lx+16} y1={base-h*0.93} x2={lx+24} y2={base-h*1.00}
           stroke={C3} strokeWidth={2}   strokeLinecap="round"/>
 
-        {/* ── THORNS — small diagonal cuts off main cane ── */}
+        {/* ── THORNS ── */}
         <line x1={lx}    y1={base-h*0.28} x2={lx-9}  y2={base-h*0.25}
           stroke={C1} strokeWidth={2.2} strokeLinecap="round"/>
         <line x1={lx+2}  y1={base-h*0.46} x2={lx+11} y2={base-h*0.43}
@@ -213,83 +249,82 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
         <line x1={lx+1}  y1={base-h*0.75} x2={lx+10} y2={base-h*0.72}
           stroke={C2} strokeWidth={1.6} strokeLinecap="round"/>
 
-        {/* ── RED BUDS — main tip buds, swelling ── */}
-        <circle cx={lx}    cy={base-h}      r={11} fill={BUDB}/>
-        <circle cx={lx-18} cy={base-h*0.90} r={10} fill={BUDR}/>
-        <circle cx={lx+16} cy={base-h*0.93} r={9}  fill={BUDR}/>
-        {/* Lateral tip buds */}
-        <circle cx={lx-54} cy={base-h*0.55} r={7}  fill={BUDR} opacity="0.9"/>
-        <circle cx={lx+58} cy={base-h*0.65} r={7}  fill={BUDR} opacity="0.88"/>
-        <circle cx={lx-62} cy={base-h*0.76} r={6}  fill={BUDR} opacity="0.85"/>
-        <circle cx={lx+56} cy={base-h*0.83} r={6}  fill={BUDR} opacity="0.82"/>
-        <circle cx={lx-44} cy={base-h*0.90} r={5}  fill={BUDR} opacity="0.78"/>
-        <circle cx={lx+40} cy={base-h*0.95} r={5}  fill={BUDR} opacity="0.75"/>
-        <circle cx={lx-28} cy={base-h*0.98} r={4.5} fill={BUDR} opacity="0.70"/>
-        <circle cx={lx+24} cy={base-h*1.00} r={4.5} fill={BUDR} opacity="0.70"/>
-        {/* A couple of green buds (fewer) */}
-        <circle cx={lx+32} cy={base-h*0.74} r={5.5} fill={BUDG} opacity="0.80"/>
-        <circle cx={lx-36} cy={base-h*0.70} r={5}   fill={BUDG} opacity="0.72"/>
+        {/* ── LEAVES — compound leaf clusters at lateral tips ── */}
+        {showLeaves && TIPS.map(([tx, ty, ang], i) => {
+          const s = leafScale;
+          const side = ang > 0 ? 1 : -1;
+          return (
+            <g key={`lf${i}`} opacity={leafOp}>
+              <ellipse cx={tx} cy={ty} rx={7*s} ry={2.8*s} fill={leafColor}
+                transform={`rotate(${ang},${tx},${ty})`}/>
+              <ellipse cx={tx + side*5*s} cy={ty - 3.5*s} rx={5*s} ry={2.2*s} fill={leafColor}
+                transform={`rotate(${ang - side*18},${tx + side*5*s},${ty - 3.5*s})`}/>
+            </g>
+          );
+        })}
 
-        {/* Bud sepal details on main tip */}
-        <path d={`M ${lx-5} ${base-h+2} Q ${lx} ${base-h-6} ${lx+5} ${base-h+2}`}
-          fill="none" stroke="#6a1c20" strokeWidth="1.5"/>
+        {/* ── TIGHT BUDS — bud break through budding ── */}
+        {showBuds && (
+          <>
+            <circle cx={lx}    cy={base-h}      r={11} fill={BUDB}/>
+            <circle cx={lx-18} cy={base-h*0.90} r={10} fill={BUDR}/>
+            <circle cx={lx+16} cy={base-h*0.93} r={9}  fill={BUDR}/>
+            {TIPS.map(([tx, ty], i) => (
+              <circle key={`bud${i}`} cx={tx} cy={ty}
+                r={7 - i*0.4} fill={i < 2 ? BUDR : BUDG}
+                opacity={0.88 - i*0.04}/>
+            ))}
+            <path d={`M ${lx-5} ${base-h+2} Q ${lx} ${base-h-6} ${lx+5} ${base-h+2}`}
+              fill="none" stroke="#6a1c20" strokeWidth="1.5"/>
+          </>
+        )}
 
-        {/* ── GROWTH STATE: petals starting if g > 0.6 ── */}
-        {g > 0.6 && [0,60,120,180,240,300].map(angle => (
-          <ellipse key={angle}
-            cx={lx + Math.cos(angle*Math.PI/180)*11}
-            cy={(base-h) + Math.sin(angle*Math.PI/180)*11}
-            rx={6} ry={4} fill="#d84060" opacity={Math.min(1,(g-0.6)*2.5)}
-            transform={`rotate(${angle},${lx+Math.cos(angle*Math.PI/180)*11},${(base-h)+Math.sin(angle*Math.PI/180)*11})`}
-          />
-        ))}
+        {/* ── OPEN BLOOMS — first/second flush ── */}
+        {showBlooms && (() => {
+          const bh = base - h;
+          const dist = 14;
+          // Open rose: 5 petals + center circles
+          const Rose = ({ bx, by, scale = 1 }) => (
+            <g>
+              {[0,72,144,216,288].map(a => {
+                const rad = a * Math.PI / 180;
+                const px = bx + Math.cos(rad) * dist * scale;
+                const py = by + Math.sin(rad) * dist * scale;
+                return <ellipse key={a} cx={px} cy={py}
+                  rx={12*scale} ry={7.5*scale} fill="#cc2840" opacity={bloomOp}
+                  transform={`rotate(${a},${px},${py})`}/>;
+              })}
+              <circle cx={bx} cy={by} r={10*scale} fill="#a81e30" opacity={bloomOp}/>
+              <circle cx={bx} cy={by} r={5*scale}  fill="#d83848" opacity={bloomOp*0.92}/>
+            </g>
+          );
+          return (
+            <>
+              <Rose bx={lx} by={bh}/>
+              {/* Smaller blooms on upper two laterals */}
+              <Rose bx={TIPS[0][0]} by={TIPS[0][1]} scale={0.62}/>
+              <Rose bx={TIPS[1][0]} by={TIPS[1][1]} scale={0.62}/>
+            </>
+          );
+        })()}
 
-        {/* ── INTERACTIVE HIT AREA + SELECTION RING ── */}
-        <rect
-          x={cx - 80} y={base - h - 20}
-          width={160} height={h + 20}
-          fill="transparent"
-        />
+        {/* ── HIT AREA + SELECTION RING ── */}
+        <rect x={cx - 80} y={base - h - 20} width={160} height={h + 20} fill="transparent"/>
         {(sel || hov) && (
           <ellipse cx={cx} cy={base - 30} rx={50} ry={16}
-            fill="none"
-            stroke={GLD}
+            fill="none" stroke={GLD}
             strokeWidth={sel ? 2.5 : 1.5}
             strokeDasharray={sel ? "0" : "6 4"}
             opacity={sel ? 0.92 : 0.65}
           />
         )}
         {sel && (
-          <text x={cx} y={base - 50}
-            textAnchor="middle"
+          <text x={cx} y={base - 50} textAnchor="middle"
             fontFamily="Georgia, serif" fontSize="13"
             fill={GLD} opacity="0.9" fontStyle="italic">
             {plant?.name ?? ''}
           </text>
         )}
-
-        {/* ── PORTRAIT (if AI portrait exists for this rose) ── */}
-        {plant && portraits[plantId]?.svg && (() => {
-          const py = base - h - 44;
-          const pr = 34;
-          const clipId = `roseClip_${idx}`;
-          return (
-            <g>
-              <defs>
-                <clipPath id={clipId}>
-                  <circle cx={lx} cy={py} r={pr}/>
-                </clipPath>
-              </defs>
-              <circle cx={lx} cy={py} r={pr + 1.5} fill="none" stroke="rgba(232,64,112,0.35)" strokeWidth={1.5}/>
-              <image
-                href={`data:image/svg+xml,${encodeURIComponent(portraits[plantId].svg)}`}
-                x={lx - pr} y={py - pr} width={pr * 2} height={pr * 2}
-                clipPath={`url(#${clipId})`}
-                preserveAspectRatio="xMidYMid slice"
-              />
-            </g>
-          );
-        })()}
       </g>
     );
   }
@@ -698,38 +733,93 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
           <line x1="270" y1="88"  x2="302" y2="58"  stroke="#a0988a" strokeWidth="4"  strokeLinecap="round"/>
           <line x1="640" y1="22"  x2="668" y2="6"   stroke="#a0988a" strokeWidth="3.5" strokeLinecap="round"/>
           <line x1="200" y1="240" x2="228" y2="214" stroke="#a0988a" strokeWidth="4"  strokeLinecap="round"/>
-          {/* Tight buds — pre-bloom, silvery grey, mid-March */}
-          {[
-            [920,44,9,16,-25], [800,44,8,14,-15], [760,66,8,15,10],
-            [595,68,9,16,-20], [640,22,7,13,-10], [668,6,6,11,5],
-            [480,44,9,16,-18], [352,116,10,18,-22], [302,58,8,14,8],
-            [270,88,8,14,-5], [320,148,9,15,12], [96,45,9,16,3],
-            [228,214,8,14,-10],
-          ].map(([cx,cy,rx,ry,rot],i) => (
-            <ellipse key={i} cx={cx} cy={cy} rx={rx} ry={ry}
-              fill="#d4cfc4" opacity={0.78 + (i%3)*0.05}
-              transform={`rotate(${rot},${cx},${cy})`}/>
-          ))}
-          {/* Magnolia portrait inset — replaces bud cluster at trunk tip */}
-          {portraits['magnolia']?.svg && (() => {
-            const mx = 96, my = 120, mr = 52;
-            return (
-              <>
-                <defs>
-                  <clipPath id="magClip">
-                    <circle cx={mx} cy={my} r={mr}/>
-                  </clipPath>
-                </defs>
-                <circle cx={mx} cy={my} r={mr + 2} fill="none" stroke="rgba(220,200,180,0.30)" strokeWidth={2}/>
-                <image
-                  href={`data:image/svg+xml,${encodeURIComponent(portraits['magnolia'].svg)}`}
-                  x={mx - mr} y={my - mr} width={mr * 2} height={mr * 2}
-                  clipPath="url(#magClip)"
-                  preserveAspectRatio="xMidYMid slice"
-                  opacity={0.88}
-                />
-              </>
-            );
+          {/* Buds / blooms — appearance changes by phenological stage */}
+          {(() => {
+            const ms = magnoliaStage;
+            const BUDS = [
+              [920,44,9,16,-25], [800,44,8,14,-15], [760,66,8,15,10],
+              [595,68,9,16,-20], [640,22,7,13,-10], [668,6,6,11,5],
+              [480,44,9,16,-18], [352,116,10,18,-22], [302,58,8,14,8],
+              [270,88,8,14,-5], [320,148,9,15,12], [96,45,9,16,3],
+              [228,214,8,14,-10],
+            ];
+
+            if (ms === 'dormant') {
+              // Tight, very small — barely there
+              return BUDS.map(([cx,cy,rx,ry,rot],i) => (
+                <ellipse key={i} cx={cx} cy={cy} rx={rx*0.8} ry={ry*0.8}
+                  fill="#c8c4b8" opacity={0.60 + (i%3)*0.04}
+                  transform={`rotate(${rot},${cx},${cy})`}/>
+              ));
+            }
+            if (ms === 'bud swell') {
+              // Slightly larger, same silver-grey
+              return BUDS.map(([cx,cy,rx,ry,rot],i) => (
+                <ellipse key={i} cx={cx} cy={cy} rx={rx} ry={ry}
+                  fill="#d0ccc0" opacity={0.74 + (i%3)*0.04}
+                  transform={`rotate(${rot},${cx},${cy})`}/>
+              ));
+            }
+            if (ms === 'pre-bloom') {
+              // Buds larger, warm grey-pink tinge — about to open
+              return BUDS.map(([cx,cy,rx,ry,rot],i) => (
+                <ellipse key={i} cx={cx} cy={cy} rx={rx*1.2} ry={ry*1.1}
+                  fill="#cdb8be" opacity={0.80 + (i%3)*0.04}
+                  transform={`rotate(${rot},${cx},${cy})`}/>
+              ));
+            }
+            if (ms === 'blooming') {
+              // Open tulip flowers — outer spread petals + inner cup
+              // The blur filter turns these into impressionistic soft blooms
+              return BUDS.map(([cx,cy,rx,ry,rot],i) => (
+                <g key={i}>
+                  {/* Outer spreading petals — wide, horizontal */}
+                  <ellipse cx={cx} cy={cy} rx={rx*2.2} ry={ry*0.60}
+                    fill="#f0c8d4" opacity={0.70 + (i%2)*0.06}
+                    transform={`rotate(${rot+90},${cx},${cy})`}/>
+                  {/* Inner upright cup */}
+                  <ellipse cx={cx} cy={cy} rx={rx*1.1} ry={ry*1.35}
+                    fill="#e890b0" opacity={0.82 + (i%3)*0.04}
+                    transform={`rotate(${rot},${cx},${cy})`}/>
+                </g>
+              ));
+            }
+            if (ms === 'post-bloom') {
+              // Flowers fading, paler — green starts at lower tips
+              return BUDS.map(([cx,cy,rx,ry,rot],i) => (
+                <g key={i}>
+                  <ellipse cx={cx} cy={cy} rx={rx*1.6} ry={ry*0.55}
+                    fill="#d8b8c4" opacity={0.48 + (i%2)*0.06}
+                    transform={`rotate(${rot+90},${cx},${cy})`}/>
+                  <ellipse cx={cx} cy={cy} rx={rx*0.9} ry={ry*1.1}
+                    fill={i >= 8 ? '#6a8838' : '#d0a0b8'} opacity={0.60}
+                    transform={`rotate(${rot},${cx},${cy})`}/>
+                </g>
+              ));
+            }
+            if (ms === 'leafing out' || ms === 'summer foliage') {
+              // Green canopy — small leaf ellipses where blossoms were
+              const leafColor = ms === 'summer foliage' ? '#3a6020' : '#4a7828';
+              return BUDS.map(([cx,cy,rx,ry,rot],i) => (
+                <ellipse key={i} cx={cx} cy={cy} rx={rx*1.4} ry={ry*0.7}
+                  fill={leafColor} opacity={0.68 + (i%3)*0.05}
+                  transform={`rotate(${rot},${cx},${cy})`}/>
+              ));
+            }
+            if (ms === 'late season') {
+              // Gold-green turning leaves
+              return BUDS.map(([cx,cy,rx,ry,rot],i) => (
+                <ellipse key={i} cx={cx} cy={cy} rx={rx*1.3} ry={ry*0.65}
+                  fill="#9a9028" opacity={0.62 + (i%3)*0.05}
+                  transform={`rotate(${rot},${cx},${cy})`}/>
+              ));
+            }
+            // going dormant / default — sparse, dropping leaves
+            return BUDS.slice(0, 7).map(([cx,cy,rx,ry,rot],i) => (
+              <ellipse key={i} cx={cx} cy={cy} rx={rx*0.9} ry={ry*0.5}
+                fill="#8a7840" opacity={0.40 + (i%3)*0.05}
+                transform={`rotate(${rot},${cx},${cy})`}/>
+            ));
           })()}
         </g>
 

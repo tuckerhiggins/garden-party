@@ -9,6 +9,18 @@
 // Each entry: [month (1-based), day-of-month-start, stage label]
 // Ranges are inclusive on the start, exclusive on next entry's start.
 const CALENDARS = {
+  // Ground-level Zone 7b Brooklyn timing (not rooftop-accelerated)
+  magnolia: [
+    [1,1,'dormant'],
+    [2,1,'bud swell'],
+    [3,10,'pre-bloom'],
+    [3,19,'blooming'],
+    [4,8,'post-bloom'],
+    [4,22,'leafing out'],
+    [5,20,'summer foliage'],
+    [10,15,'late season'],
+    [11,15,'going dormant'],
+  ],
   wisteria: [
     [1,1,'dormant'],
     [2,17,'bud swell'],
