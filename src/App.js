@@ -2361,8 +2361,6 @@ export default function App() {
                       plants={gardenPlants.terrace}
                       careLog={careLog}
                       weather={weather}
-                      morningBrief={morningBrief}
-                      fullBrief={dailyBrief}
                       portraits={portraits}
                       allPhotos={allPhotos}
                     />
@@ -2376,6 +2374,8 @@ export default function App() {
                       recentPhotoCount={recentPhotoCount}
                       attentionItems={attentionItems}
                       warmth={warmth}
+                      morningBrief={morningBrief}
+                      fullBrief={dailyBrief}
                       onSelectPlant={p=>setSel(p)}
                       onAction={doAction}
                     />
