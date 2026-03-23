@@ -1838,8 +1838,8 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
             <text x={bx+PAD} y={cy+10} fontFamily="'Press Start 2P', monospace" fontSize={7.5}
               fill={accentColor} letterSpacing={0.4}>{hp.name.toUpperCase()}</text>
             {stage && <text x={bx+boxW-PAD} y={cy+10} textAnchor="end"
-              fontFamily="'Crimson Pro', Georgia, serif" fontSize={9.5} fontStyle="italic"
-              fill="rgba(240,228,200,0.40)">{stage}</text>}
+              fontFamily="'Crimson Pro', Georgia, serif" fontSize={12} fontStyle="italic"
+              fill={accentColor} opacity={0.88}>{stage}</text>}
             {(() => { cy += ROW + 5; return null; })()}
             <line x1={bx+PAD} y1={cy} x2={bx+boxW-PAD} y2={cy} stroke="rgba(160,130,80,0.16)" strokeWidth={0.7}/>
             {(() => { cy += 8; return null; })()}
@@ -1904,7 +1904,8 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                         {pp.name.toUpperCase()}
                       </div>
                       {portrait.currentStage && (
-                        <div style={{ fontSize: 11, color: 'rgba(240,228,200,0.40)', fontStyle: 'italic', marginTop: 1 }}>
+                        <div style={{ fontSize: 13, color: accentColor, fontStyle: 'italic',
+                          marginTop: 2, fontFamily: '"Crimson Pro", Georgia, serif', opacity: 0.92 }}>
                           {portrait.currentStage}
                         </div>
                       )}
@@ -1925,6 +1926,34 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                       💧 {daysSinceWater === 0 ? 'Watered today' : `${daysSinceWater}d since water`}
                     </div>
                   )}
+                  {/* Stage arc — full progression */}
+                  {portrait.stages?.length > 1 && portrait.currentStage && (() => {
+                    const stages = portrait.stages;
+                    const currentIdx = stages.indexOf(portrait.currentStage);
+                    return (
+                      <div style={{ marginTop: 9, paddingTop: 8, borderTop: '1px solid rgba(160,130,80,0.10)',
+                        display: 'flex', alignItems: 'center', gap: 0, flexWrap: 'wrap', rowGap: 4 }}>
+                        {stages.map((s, i) => {
+                          const isCurrent = i === currentIdx;
+                          const isPast = currentIdx >= 0 && i < currentIdx;
+                          return (
+                            <React.Fragment key={s}>
+                              {i > 0 && <div style={{ width: 8, height: 1, flexShrink: 0,
+                                background: isPast ? `${accentColor}55` : 'rgba(160,130,80,0.18)' }}/>}
+                              <span style={{
+                                fontFamily: '"Crimson Pro", Georgia, serif',
+                                fontSize: isCurrent ? 11 : 9.5, fontStyle: 'italic',
+                                color: isCurrent ? accentColor : isPast ? `${accentColor}60` : 'rgba(160,130,80,0.32)',
+                                fontWeight: isCurrent ? 600 : 400,
+                                textDecoration: isPast ? 'line-through' : 'none',
+                                whiteSpace: 'nowrap',
+                              }}>{s}</span>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Claude note */}

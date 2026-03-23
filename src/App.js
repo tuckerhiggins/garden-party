@@ -661,10 +661,51 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait,
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:2}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:14,color:'#2a1808',fontWeight:600,lineHeight:1.2,fontFamily:SERIF}}>{plant.name}</div>
-            {plant.subtitle && <div style={{fontSize:11,color:'#907050',marginTop:1,fontFamily:SERIF}}>{plant.subtitle}</div>}
+            {plant.subtitle && (
+              <div style={{fontSize:12,color:color,marginTop:2,fontFamily:SERIF,fontStyle:'italic',opacity:0.85}}>
+                {plant.subtitle}
+              </div>
+            )}
           </div>
           <span style={{fontSize:15,flexShrink:0,marginLeft:6,opacity:0.8}}>{typeEmoji(plant.type)}</span>
         </div>
+
+        {/* Current stage — prominent */}
+        {portrait?.currentStage && (
+          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:7,marginTop:4}}>
+            <div style={{width:6,height:6,borderRadius:'50%',background:color,flexShrink:0,opacity:0.75}}/>
+            <span style={{fontSize:13,color:color,fontFamily:SERIF,fontStyle:'italic',fontWeight:600,opacity:0.92}}>
+              {portrait.currentStage}
+            </span>
+          </div>
+        )}
+
+        {/* Stage arc — full progression */}
+        {portrait?.stages?.length > 1 && portrait?.currentStage && (() => {
+          const stages = portrait.stages;
+          const currentIdx = stages.indexOf(portrait.currentStage);
+          return (
+            <div style={{display:'flex',alignItems:'center',gap:0,flexWrap:'wrap',rowGap:3,marginBottom:8}}>
+              {stages.map((s, i) => {
+                const isCurrent = i === currentIdx;
+                const isPast = currentIdx >= 0 && i < currentIdx;
+                return (
+                  <React.Fragment key={s}>
+                    {i > 0 && <div style={{width:8,height:1,flexShrink:0,
+                      background:isPast?`${color}50`:'rgba(160,130,80,0.18)'}}/>}
+                    <span style={{fontFamily:SERIF,fontSize:isCurrent?12:10,fontStyle:'italic',
+                      color:isCurrent?color:isPast?`${color}70`:'rgba(160,130,80,0.40)',
+                      fontWeight:isCurrent?600:400,
+                      textDecoration:isPast?'line-through':'none',
+                      whiteSpace:'nowrap'}}>
+                      {s}
+                    </span>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Species · container */}
         {(plant.species || plant.container) && (
@@ -2279,28 +2320,44 @@ export default function App() {
             <div style={{flex:1,overflowY:'auto',padding:'0'}}>
               <div style={{padding:'14px 16px 24px',display:'flex',flexDirection:'column',gap:0}}>
                 {(()=>{
-                  const renderGroups = (plants, groups, sectionLabel) => groups.map(grp => {
-                    const ps = plants.filter(p => grp.types.includes(p.type));
-                    if (ps.length === 0) return null;
-                    return (
-                      <div key={grp.key} style={{marginBottom:24}}>
-                        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-                          <span style={{fontSize:10,color:'#a08060',fontFamily:MONO,letterSpacing:.5,whiteSpace:'nowrap'}}>
-                            {sectionLabel ? `${sectionLabel} · ` : ''}{grp.label.toUpperCase()}
-                          </span>
-                          <div style={{height:1,flex:1,background:C.cardBorder}}/>
-                          <span style={{fontSize:9,color:C.uiDim,fontFamily:MONO}}>{ps.length}</span>
+                  // Urgency: lower = more urgent (struggling=0, thirsty=1, overlooked=2, else 9)
+                  const URGENCY = {struggling:0,thirsty:1,overlooked:2};
+                  const plantUrgency = p => URGENCY[p.health] ?? 9;
+                  const renderGroups = (plants, groups, sectionLabel) => {
+                    const populated = groups.map(grp => ({
+                      ...grp,
+                      ps: [...plants.filter(p => grp.types.includes(p.type))]
+                        .sort((a,b) => plantUrgency(a) - plantUrgency(b) || a.name.localeCompare(b.name)),
+                    })).filter(grp => grp.ps.length > 0);
+                    // Sort groups so most-urgent group comes first
+                    populated.sort((a,b) => {
+                      const ua = Math.min(...a.ps.map(p => plantUrgency(p)));
+                      const ub = Math.min(...b.ps.map(p => plantUrgency(p)));
+                      return ua !== ub ? ua - ub : a.label.localeCompare(b.label);
+                    });
+                    return populated.map(grp => {
+                      const hasUrgent = grp.ps.some(p => plantUrgency(p) < 9);
+                      const grpColor = hasUrgent ? healthColor(grp.ps[0].health) : '#a08060';
+                      return (
+                        <div key={grp.key} style={{marginBottom:24}}>
+                          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                            <span style={{fontSize:10,color:grpColor,fontFamily:MONO,letterSpacing:.5,whiteSpace:'nowrap'}}>
+                              {sectionLabel ? `${sectionLabel} · ` : ''}{grp.label.toUpperCase()}
+                            </span>
+                            <div style={{height:1,flex:1,background:hasUrgent?`${grpColor}30`:C.cardBorder}}/>
+                            <span style={{fontSize:9,color:hasUrgent?grpColor:C.uiDim,fontFamily:MONO}}>{grp.ps.length}</span>
+                          </div>
+                          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
+                            {grp.ps.map(p=>(
+                              <PlantCard key={p.id} plant={p} careLog={careLog}
+                                onSelect={p=>{setSel(p);}} isSelected={sel?.id===p.id} seasonOpen={seasonOpen}
+                                portrait={portraits[p.id]} photos={allPhotos[p.id] || []}/>
+                            ))}
+                          </div>
                         </div>
-                        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
-                          {ps.map(p=>(
-                            <PlantCard key={p.id} plant={p} careLog={careLog}
-                              onSelect={p=>{setSel(p);}} isSelected={sel?.id===p.id} seasonOpen={seasonOpen}
-                              portrait={portraits[p.id]} photos={allPhotos[p.id] || []}/>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  });
+                      );
+                    });
+                  };
                   return (
                     <>
                       {gardenPlants.terrace.length>0&&renderGroups(gardenPlants.terrace, TERRACE_GROUPS, null)}

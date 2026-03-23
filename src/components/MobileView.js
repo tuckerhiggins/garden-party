@@ -2542,6 +2542,10 @@ export function MobileView({
   }
   const [briefings, setBriefings] = useState({});
   const [agendaData, setAgendaData] = useState(null); // { sessionMinutes, tasks }
+  // Guest sign-in state
+  const [guestWho, setGuestWho]     = useState(null);
+  const [guestPw, setGuestPw]       = useState('');
+  const [guestError, setGuestError] = useState('');
   // Briefs come exclusively from App.js (externalMorningBrief / externalDailyBrief).
   // No local fetch — App.js is the single source of truth so both platforms show identical text.
   const [analysisNotice, setAnalysisNotice] = useState(null);
@@ -2688,6 +2692,110 @@ export function MobileView({
     { id: 'journal', label: '📖', title: 'Journal' },
     { id: 'spend',   label: '💰', title: 'Spend'   },
   ];
+
+  // ── GUEST GATE — full-screen sign-in for unauthenticated mobile visitors ──
+  if (role === 'guest') {
+    return (
+      <div style={{
+        width: '100vw', height: '100dvh',
+        background: C.uiBg, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        fontFamily: SERIF, padding: '0 32px',
+      }}>
+        {/* Botanical emblem */}
+        <svg width="52" height="54" viewBox="0 0 54 56" style={{ display: 'block', marginBottom: 14 }}>
+          <path d="M27 52 C26 44 26 34 27 22" stroke="#3a5810" strokeWidth="2" fill="none" strokeLinecap="round"/>
+          <line x1="27" y1="42" x2="22" y2="38" stroke="#3a5810" strokeWidth="1.2" strokeLinecap="round"/>
+          <line x1="27" y1="33" x2="32" y2="29" stroke="#3a5810" strokeWidth="1.2" strokeLinecap="round"/>
+          <path d="M27 44 C18 39 12 30 14 21 C20 27 25 36 27 44Z" fill="#4a6820" opacity="0.90"/>
+          <path d="M27 38 C36 33 41 24 39 15 C33 22 28 31 27 38Z" fill="#4a6820" opacity="0.90"/>
+          <circle cx="11" cy="15" r="3.2" fill="#9ab8d0" opacity="0.82"/>
+          <circle cx="7" cy="21" r="2.6" fill="#b0c8e0" opacity="0.70"/>
+          <circle cx="43" cy="13" r="3.2" fill="#9ab8d0" opacity="0.82"/>
+          <circle cx="47" cy="19" r="2.6" fill="#b0c8e0" opacity="0.70"/>
+          <circle cx="27" cy="18" r="10.5" fill="#8a1c2c" opacity="0.92"/>
+          <path d="M17 18 C17 9 27 7 37 9 C36 18 27 19 17 18Z" fill="#b02030" opacity="0.62"/>
+          <circle cx="27" cy="17" r="7" fill="#c22838" opacity="0.93"/>
+          <circle cx="27" cy="15.5" r="4.2" fill="#d83848" opacity="0.90"/>
+          <circle cx="27" cy="13.5" r="2.2" fill="#f04858" opacity="0.85"/>
+        </svg>
+
+        <div style={{ fontFamily: MONO, fontSize: 14, color: C.uiGold, letterSpacing: 3,
+          textShadow: `1px 2px 0 #1a0804, 0 0 20px rgba(200,160,24,0.35)`,
+          marginBottom: 6, textAlign: 'center' }}>
+          GARDEN<br/>PARTY
+        </div>
+        <div style={{ fontFamily: SERIF, fontSize: 14, fontStyle: 'italic',
+          color: 'rgba(200,180,140,0.55)', marginBottom: 40, letterSpacing: 0.3 }}>
+          Emma's Rose Garden · Park Slope
+        </div>
+
+        {/* Who-picker or password step */}
+        {!guestWho ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, width: '100%', maxWidth: 260 }}>
+            <div style={{ fontFamily: SERIF, fontSize: 13, fontStyle: 'italic',
+              color: 'rgba(200,180,140,0.50)', marginBottom: 4 }}>who's there?</div>
+            {['tucker', 'emma'].map(who => (
+              <button key={who} onClick={() => { setGuestWho(who); setGuestPw(''); setGuestError(''); }}
+                style={{ width: '100%', padding: '14px 0', background: 'rgba(30,15,5,0.80)',
+                  border: '1px solid rgba(90,60,24,0.45)', borderRadius: 10,
+                  fontFamily: MONO, fontSize: 8, color: C.uiText, cursor: 'pointer',
+                  minHeight: 52, WebkitTapHighlightColor: 'transparent' }}>
+                {who === 'tucker' ? '🌿 Tucker' : '🌹 Emma'}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, width: '100%', maxWidth: 260 }}>
+            <div style={{ fontFamily: SERIF, fontSize: 13, fontStyle: 'italic',
+              color: 'rgba(200,180,140,0.55)' }}>
+              {guestWho === 'tucker' ? '🌿 Tucker' : '🌹 Emma'}
+            </div>
+            <input
+              type="password"
+              placeholder="password"
+              value={guestPw}
+              onChange={e => setGuestPw(e.target.value)}
+              onKeyDown={async e => {
+                if (e.key === 'Enter') {
+                  setGuestError('');
+                  try { await signIn(guestWho, guestPw); }
+                  catch (err) { setGuestError(err.message); }
+                }
+              }}
+              autoFocus
+              style={{ width: '100%', padding: '14px 16px', boxSizing: 'border-box',
+                background: 'rgba(20,10,3,0.80)', border: '1px solid rgba(90,60,24,0.45)',
+                borderRadius: 10, fontFamily: SERIF, fontSize: 16,
+                color: C.uiText, outline: 'none', textAlign: 'center',
+                WebkitAppearance: 'none', minHeight: 52 }}
+            />
+            {guestError && (
+              <div style={{ fontFamily: SERIF, fontSize: 12, color: '#e87040', fontStyle: 'italic' }}>{guestError}</div>
+            )}
+            <button
+              onClick={async () => {
+                setGuestError('');
+                try { await signIn(guestWho, guestPw); }
+                catch (err) { setGuestError(err.message); }
+              }}
+              style={{ width: '100%', padding: '14px 0', minHeight: 52,
+                background: 'rgba(212,168,48,0.16)', border: '1px solid rgba(212,168,48,0.45)',
+                borderRadius: 10, fontFamily: MONO, fontSize: 8, color: C.uiGold,
+                cursor: 'pointer', letterSpacing: 0.5, WebkitTapHighlightColor: 'transparent' }}>
+              ENTER
+            </button>
+            <button onClick={() => { setGuestWho(null); setGuestPw(''); setGuestError(''); }}
+              style={{ background: 'none', border: 'none', color: 'rgba(160,130,80,0.45)',
+                fontFamily: SERIF, fontSize: 12, cursor: 'pointer', fontStyle: 'italic',
+                padding: '4px 0', WebkitTapHighlightColor: 'transparent' }}>
+              back
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <HighContrastCtx.Provider value={highContrast}>
