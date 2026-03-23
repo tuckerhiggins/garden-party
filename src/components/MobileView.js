@@ -4,7 +4,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { OracleChat } from './OracleChat';
 import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
-import { fetchPlantBriefing, fetchMorningBrief, fetchDailyAgenda, fetchDailyBrief, fetchJournalEntry, streamGardenChat } from '../claude';
+import { fetchPlantBriefing, fetchDailyAgenda, fetchJournalEntry, streamGardenChat } from '../claude';
 import { compressChatImage } from '../utils/compressChatImage';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
@@ -2514,8 +2514,8 @@ export function MobileView({
   }
   const [briefings, setBriefings] = useState({});
   const [agendaData, setAgendaData] = useState(null); // { sessionMinutes, tasks }
-  const [morningBrief, setMorningBrief] = useState(null);
-  const [dailyBrief, setDailyBrief] = useState(null); // structured: { weather, garden, today, watch }
+  // Briefs come exclusively from App.js (externalMorningBrief / externalDailyBrief).
+  // No local fetch — App.js is the single source of truth so both platforms show identical text.
   const [analysisNotice, setAnalysisNotice] = useState(null);
   const prevAnalyzingRef = useRef({});
   const completedKeysRef = useRef(new Set());
@@ -2614,24 +2614,6 @@ export function MobileView({
       .catch(() => {}); // fallback: rawAgendaItems shown with no AI reasons
   }, [rawAgendaKeys, weather]); // intentional: stable string dep
 
-  // Fetch morning brief once weather is available — skip if App.js already provides one
-  useEffect(() => {
-    if (!weather || morningBrief || externalMorningBrief) return;
-    fetchMorningBrief({ plants: [...plants, ...frontPlants], careLog, weather, portraits })
-      .then(brief => { if (brief) setMorningBrief(brief); })
-      .catch(() => {});
-  }, [weather]); // intentional: fetch once per weather load
-
-  // Fetch structured daily brief — skip if App.js already provides one
-  useEffect(() => {
-    if (!weather || dailyBrief || externalDailyBrief) return;
-    fetchDailyBrief({
-      plants: [...plants, ...frontPlants], careLog, weather, portraits,
-      agendaTasks: rawAgendaItems,
-    })
-      .then(brief => { if (brief) setDailyBrief(brief); })
-      .catch(() => {});
-  }, [weather]); // intentional: fetch once per weather load
 
   // Watch portraits for analysis completion → show notification
   useEffect(() => {
@@ -2763,7 +2745,7 @@ export function MobileView({
             rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
             agendaData={agendaData} seasonOpen={seasonOpen}
             totalActivePlants={totalActivePlants}
-            morningBrief={externalMorningBrief || morningBrief} fullBrief={externalDailyBrief || dailyBrief}
+            morningBrief={externalMorningBrief} fullBrief={externalDailyBrief}
             onStartAction={handleStartAction}
             portraits={portraits} completedThisSession={completedKeysRef.current}
             doneTodayItems={doneTodayItems}
