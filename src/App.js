@@ -1780,7 +1780,8 @@ export default function App() {
 
   // Live attention items — computed from briefings, used as fallback before agenda freezes
   const liveAttentionItems = useMemo(() => {
-    const rainSoon = weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60) ?? false;
+    const rainedToday = (weather?.forecast?.[0]?.precip > 1) || (weather?.forecast?.[0]?.precipChance >= 70);
+    const rainSoon = rainedToday || (weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60) ?? false);
     const SKIP = new Set(['photo', 'visit', 'note', 'plant']);
     const required = [], optional = [];
 
@@ -1791,7 +1792,7 @@ export default function App() {
       if (briefing && briefing !== 'loading' && Array.isArray(briefing.tasks) && briefing.tasks.length > 0) {
         for (const task of briefing.tasks) {
           if (task.key === 'neem' && rainSoon) continue;
-          if (task.key === 'water' && rainSoon && weather?.forecast?.[0]?.precipChance >= 80) continue;
+          if (task.key === 'water' && rainSoon) continue;
           (task.optional ? optional : required).push({ plant: p, action: task.key, def: ACTION_DEFS[task.key] || null, task });
         }
       } else {

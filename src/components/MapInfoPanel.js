@@ -179,6 +179,7 @@ export function MapInfoPanel({
 }) {
   const [briefExpanded, setBriefExpanded] = useState(false);
   const [weatherExpanded, setWeatherExpanded] = useState(false);
+  const [howToOpenKey, setHowToOpenKey] = useState(null);
 
   const forecast = weather?.forecast?.slice(0, 6) ?? [];
   const warmthPct = Math.min(warmth / 10, 100);
@@ -266,75 +267,96 @@ export function MapInfoPanel({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {attentionItems.map(({ plant, action, def, task }) => {
               const pc = plantColor(plant.type);
-              const itemEmoji = def?.emoji || task?.emoji || '✨';
-              const itemLabel = def?.label || task?.label || action;
+              const itemEmoji = task?.emoji || def?.emoji || '✨';
+              // Task-specific label takes priority over generic ACTION_DEFS label
+              const itemLabel = task?.label || def?.label || action;
               const isOptional = task?.optional === true;
               const itemKey = `${plant.id}-${action}-${task?.label || ''}`;
               const tierBorder = isOptional ? 'rgba(160,130,80,0.18)' : 'rgba(200,112,32,0.28)';
               const tierBg = isOptional ? 'rgba(160,130,80,0.06)' : 'rgba(200,112,32,0.08)';
+              const howToOpen = howToOpenKey === itemKey;
               return (
                 <div key={itemKey} style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 9,
-                  padding: '10px 11px 10px 0',
                   borderRadius: 9,
                   border: `1.5px solid ${tierBorder}`,
                   background: tierBg,
-                  overflow: 'hidden', position: 'relative',
+                  overflow: 'hidden',
                 }}>
-                  {/* Left color bar — matches plant type (like AgendaRow's priority dot) */}
-                  <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
-                  <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1, marginTop: 1 }}>{itemEmoji}</span>
+                  {/* Main row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 11px 10px 0' }}>
+                    {/* Left color bar */}
+                    <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
+                    <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{itemEmoji}</span>
 
-                  {/* Content */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Header row: plant name + EXPLORE badge */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexWrap: 'wrap' }}>
-                      <span style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, lineHeight: 1.2 }}>
-                        {plant.name}
-                        {plant.subtitle && <span style={{ fontSize: 10, color: MUTED }}> · {plant.subtitle}</span>}
-                      </span>
-                      {isOptional && (
-                        <span style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(160,130,80,0.55)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 4, padding: '1px 4px' }}>EXPLORE</span>
+                    {/* Content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+                        <span style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, fontWeight: 500 }}>
+                          {plant.name}
+                        </span>
+                        <span style={{ fontFamily: SERIF, fontSize: 12, color: isOptional ? 'rgba(160,130,80,0.55)' : MUTED }}>
+                          {itemLabel}
+                        </span>
+                      </div>
+                      {/* Reason only — instructions behind expand */}
+                      {task?.reason && (
+                        <div style={{ fontFamily: SERIF, fontSize: 11.5, fontStyle: 'italic', lineHeight: 1.45, color: 'rgba(240,220,170,0.55)' }}>
+                          {task.reason}
+                        </div>
                       )}
                     </div>
-                    {/* Action label */}
-                    <div style={{ fontFamily: SERIF, fontSize: 11, color: isOptional ? 'rgba(160,130,80,0.55)' : MUTED, marginBottom: 5 }}>{itemLabel}</div>
-                    {/* Inline reason + instructions (matches Today tab) */}
-                    {(task?.reason || task?.instructions) && (
-                      <div style={{ fontFamily: SERIF, fontSize: 12, fontStyle: 'italic', lineHeight: 1.55, color: 'rgba(240,220,170,0.60)' }}>
-                        {task.reason && <span>{task.reason}</span>}
-                        {task.reason && task.instructions && ' '}
-                        {task.instructions && <span style={{ color: 'rgba(240,228,200,0.80)' }}>{task.instructions}</span>}
-                      </div>
-                    )}
-                    {/* Action buttons */}
-                    <div style={{ display: 'flex', gap: 7, marginTop: 8 }}>
+
+                    {/* Buttons */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, paddingRight: 2 }}>
                       <button
                         onClick={e => { e.stopPropagation(); onAction?.(action, plant, task?.label); }}
                         style={{
-                          flex: 1, padding: '7px 10px',
+                          padding: '6px 10px',
                           background: isOptional ? 'rgba(80,120,40,0.20)' : 'rgba(200,112,32,0.22)',
                           border: isOptional ? '1px solid rgba(80,120,40,0.40)' : '1px solid rgba(200,112,32,0.45)',
-                          borderRadius: 7, cursor: 'pointer',
-                          fontFamily: SERIF, fontSize: 12.5,
+                          borderRadius: 6, cursor: 'pointer',
+                          fontFamily: SERIF, fontSize: 12,
                           color: isOptional ? 'rgba(160,210,100,0.90)' : 'rgba(240,180,80,0.95)',
+                          whiteSpace: 'nowrap',
                         }}>
                         ✓ Done
                       </button>
                       <button
                         onClick={e => { e.stopPropagation(); onSelectPlant?.(plant); }}
                         style={{
-                          padding: '7px 10px',
+                          padding: '6px 10px',
                           background: 'rgba(255,255,255,0.04)',
                           border: '1px solid rgba(160,130,80,0.22)',
-                          borderRadius: 7, cursor: 'pointer',
-                          fontFamily: SERIF, fontSize: 12.5,
-                          color: MUTED,
+                          borderRadius: 6, cursor: 'pointer',
+                          fontFamily: SERIF, fontSize: 12,
+                          color: MUTED, whiteSpace: 'nowrap',
                         }}>
-                        Plant →
+                        Details →
                       </button>
                     </div>
                   </div>
+
+                  {/* How-to expand — only when instructions exist */}
+                  {task?.instructions && (
+                    <div style={{ borderTop: `1px solid ${tierBorder}`, padding: '0 11px 0 19px' }}>
+                      <button
+                        onClick={e => { e.stopPropagation(); setHowToOpenKey(howToOpen ? null : itemKey); }}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer', padding: '5px 0',
+                          fontFamily: SERIF, fontSize: 11, color: 'rgba(240,220,170,0.45)', fontStyle: 'italic',
+                          display: 'flex', alignItems: 'center', gap: 4,
+                        }}
+                      >
+                        <span>{howToOpen ? '▴' : '▾'}</span>
+                        <span>How to</span>
+                      </button>
+                      {howToOpen && (
+                        <div style={{ fontSize: 12, color: 'rgba(240,228,200,0.72)', fontFamily: SERIF, fontStyle: 'italic', lineHeight: 1.6, paddingBottom: 9 }}>
+                          {task.instructions}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

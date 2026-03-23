@@ -1320,7 +1320,9 @@ function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seaso
   if (!seasonOpen) return { items: [], isWeekend: false };
   const isWeekend = [0, 6].includes(new Date().getDay());
   const emmaPlantsSet = new Set(frontPlants.map(p => p.id));
-  const hasRainSoon = weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60);
+  // Suppress watering if it rained today (actual precip > 1mm), or high precip chance today/tomorrow
+  const rainedToday = (weather?.forecast?.[0]?.precip > 1) || (weather?.forecast?.[0]?.precipChance >= 70);
+  const hasRainSoon = rainedToday || weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60);
   const hasFrostSoon = weather?.forecast?.slice(0, 2).some(d => d.low <= 35);
   const todayStr = new Date().toISOString().slice(0, 10);
   const nowMs = Date.now();
@@ -1463,111 +1465,129 @@ function computeStreak(plantId, careLog) {
 }
 
 function AgendaRow({ item, completed, justDone, justDoneStreak, onTap, onDone, portrait }) {
+  const [howToOpen, setHowToOpen] = React.useState(false);
   const def = ACTION_DEFS[item.actionKey];
-  const rowEmoji = def?.emoji || item.task?.emoji || '✨';
-  const rowLabel = def?.label || item.task?.label || item.actionKey;
-  const isOptional = item.task?.optional === true || item.actionKey === 'tend';
+  const rowEmoji = item.task?.emoji || def?.emoji || '✨';
+  // Task-specific label takes priority over the generic ACTION_DEFS label
+  const rowLabel = item.task?.label || def?.label || item.actionKey;
+  const isOptional = item.priority === 'optional';
   const tierColors = {
     urgent:      { border: 'rgba(200,80,30,0.35)', bg: 'rgba(200,80,30,0.06)', accent: '#b84018', dot: '#c85020' },
     recommended: { border: 'rgba(72,120,32,0.28)', bg: 'rgba(72,120,32,0.05)', accent: '#3a6818', dot: '#487820' },
     routine:     { border: 'rgba(160,130,80,0.22)', bg: 'rgba(250,246,238,0.9)', accent: '#7a5c30', dot: '#907050' },
     optional:    { border: 'rgba(80,120,80,0.22)', bg: 'rgba(80,120,80,0.04)', accent: '#507050', dot: '#608060' },
-  }[isOptional ? 'optional' : item.priority];
+  }[item.priority] || { border: 'rgba(160,130,80,0.22)', bg: 'rgba(250,246,238,0.9)', accent: '#7a5c30', dot: '#907050' };
 
-  const isUrgentOrRec = !isOptional && (item.priority === 'urgent' || item.priority === 'recommended');
+  const isUrgentOrRec = item.priority === 'urgent' || item.priority === 'recommended';
+  const hasHowTo = !!item.task?.instructions;
 
   return (
     <div
-      onClick={() => !completed && onTap(item)}
       className={justDone ? 'gp-flash-row' : undefined}
       style={{
-        display: 'flex', alignItems: 'flex-start', gap: 11,
-        padding: '11px 13px', borderRadius: 10, marginBottom: 9,
+        borderRadius: 10, marginBottom: 8,
         border: `1.5px solid ${justDone ? 'rgba(72,120,32,0.45)' : tierColors.border}`,
         background: completed && !justDone ? 'rgba(160,130,80,0.04)' : tierColors.bg,
-        opacity: completed && !justDone ? 0.45 : 1,
-        cursor: completed ? 'default' : 'pointer',
+        opacity: completed && !justDone ? 0.40 : 1,
         transition: 'opacity .2s, border-color .3s',
+        overflow: 'hidden',
       }}
     >
-      {/* Priority dot — pulses for urgent/recommended */}
+      {/* Main row — tappable to open action sheet */}
       <div
-        className={isUrgentOrRec && !completed ? 'gp-pulse-dot' : undefined}
+        onClick={() => !completed && onTap(item)}
         style={{
-          width: isUrgentOrRec ? 8 : 7,
-          height: isUrgentOrRec ? 8 : 7,
-          borderRadius: '50%',
-          background: completed ? '#c0b090' : tierColors.dot,
-          marginTop: 6, flexShrink: 0,
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 12px',
+          cursor: completed ? 'default' : 'pointer',
         }}
-      />
+      >
+        {/* Priority dot — pulses for urgent/recommended */}
+        <div
+          className={isUrgentOrRec && !completed ? 'gp-pulse-dot' : undefined}
+          style={{
+            width: isUrgentOrRec ? 8 : 6, height: isUrgentOrRec ? 8 : 6,
+            borderRadius: '50%',
+            background: completed ? '#c0b090' : tierColors.dot,
+            flexShrink: 0,
+          }}
+        />
 
-      {/* Portrait — glow border when just done */}
-      {portrait?.svg && (
-        <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 6, overflow: 'hidden',
-          border: justDone ? '1.5px solid rgba(72,120,32,0.55)' : '1px solid rgba(160,130,80,0.18)',
-          background: '#f8f0e0',
-          transition: 'border-color .4s',
-        }}>
-          <PlantPortrait plant={item.plant} aiSvg={portrait.svg}/>
-        </div>
-      )}
-
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: MONO, fontSize: 6.5, color: completed ? '#b0a080' : tierColors.accent,
-            letterSpacing: .4, textDecoration: completed && !justDone ? 'line-through' : 'none' }}>
-            {item.plantName.toUpperCase()}
-          </span>
-          {/* DUE TODAY badge — urgent/recommended only */}
-          {isUrgentOrRec && !completed && (
-            <span style={{
-              fontFamily: MONO, fontSize: 5, letterSpacing: .3,
-              color: item.priority === 'urgent' ? '#b84018' : '#3a6818',
-              border: `1px solid ${item.priority === 'urgent' ? 'rgba(200,80,30,0.40)' : 'rgba(72,120,32,0.35)'}`,
-              borderRadius: 5, padding: '1px 5px',
-            }}>DUE TODAY</span>
-          )}
-          {isOptional && !completed && (
-            <span style={{ fontFamily: MONO, fontSize: 5.5, color: '#507050', border: '1px solid rgba(80,120,80,0.30)', borderRadius: 6, padding: '1px 5px' }}>EXPLORE</span>
-          )}
-          <span style={{ fontSize: 13 }}>{rowEmoji}</span>
-          <span style={{ fontFamily: SERIF, fontSize: 12, color: completed ? '#b0a080' : tierColors.accent }}>
-            {rowLabel}
-          </span>
-        </div>
-        {/* Just-done payoff: streak counter */}
-        {justDone && justDoneStreak > 1 && (
-          <div style={{ fontFamily: SERIF, fontSize: 12, color: '#487820', fontStyle: 'italic', marginTop: 2 }}>
-            ✦ {justDoneStreak}-day streak
+        {/* Portrait — glow border when just done */}
+        {portrait?.svg && (
+          <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 5, overflow: 'hidden',
+            border: justDone ? '1.5px solid rgba(72,120,32,0.55)' : '1px solid rgba(160,130,80,0.15)',
+            background: '#f8f0e0', transition: 'border-color .4s',
+          }}>
+            <PlantPortrait plant={item.plant} aiSvg={portrait.svg}/>
           </div>
         )}
-        {!completed && !justDone && (item.reason || item.task?.instructions) && (
-          <div style={{ fontSize: 12, color: '#6a4020', fontStyle: 'italic', lineHeight: 1.5 }}>
-            {item.reason && <span>{item.reason}</span>}
-            {item.reason && item.task?.instructions && ' '}
-            {item.task?.instructions && (
-              <span style={{ color: '#7a5030' }}>{item.task.instructions}</span>
-            )}
+
+        {/* Content */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: MONO, fontSize: 6, color: completed ? '#b0a080' : tierColors.accent,
+              letterSpacing: .4, textDecoration: completed && !justDone ? 'line-through' : 'none' }}>
+              {item.plantName.toUpperCase()}
+            </span>
+            <span style={{ fontSize: 12 }}>{rowEmoji}</span>
+            <span style={{ fontFamily: SERIF, fontSize: 13, color: completed ? '#b0a080' : '#2a1808',
+              textDecoration: completed && !justDone ? 'line-through' : 'none', fontWeight: isUrgentOrRec ? 500 : 400 }}>
+              {rowLabel}
+            </span>
           </div>
+          {/* Reason — one line, always visible */}
+          {!completed && !justDone && item.reason && (
+            <div style={{ fontSize: 11.5, color: '#7a5030', fontStyle: 'italic', lineHeight: 1.4, marginTop: 2 }}>
+              {item.reason}
+            </div>
+          )}
+          {/* Just-done streak */}
+          {justDone && justDoneStreak > 1 && (
+            <div style={{ fontFamily: SERIF, fontSize: 11, color: '#487820', fontStyle: 'italic', marginTop: 2 }}>
+              ✦ {justDoneStreak}-day streak
+            </div>
+          )}
+        </div>
+
+        {/* Done button */}
+        {!completed && (
+          <button
+            onClick={e => { e.stopPropagation(); onDone(item); }}
+            style={{
+              background: 'none', border: '1px solid rgba(160,130,80,0.32)',
+              borderRadius: 7, padding: '0 12px', color: '#907050',
+              fontSize: 13, fontFamily: SERIF, cursor: 'pointer', flexShrink: 0,
+              minHeight: 40, display: 'flex', alignItems: 'center',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            Done
+          </button>
         )}
       </div>
 
-      {/* Done button — 44px minimum touch target */}
-      {!completed && (
-        <button
-          onClick={e => { e.stopPropagation(); onDone(item); }}
-          style={{
-            background: 'none', border: '1px solid rgba(160,130,80,0.32)',
-            borderRadius: 8, padding: '0 14px', color: '#907050',
-            fontSize: 13, fontFamily: SERIF, cursor: 'pointer', flexShrink: 0,
-            minHeight: 44, display: 'flex', alignItems: 'center',
-            WebkitTapHighlightColor: 'transparent',
-          }}
-        >
-          Done
-        </button>
+      {/* How-to expand — only when instructions exist and task isn't complete */}
+      {!completed && hasHowTo && (
+        <div style={{ borderTop: `1px solid ${tierColors.border}`, padding: '0 12px' }}>
+          <button
+            onClick={e => { e.stopPropagation(); setHowToOpen(o => !o); }}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0',
+              fontFamily: SERIF, fontSize: 11, color: '#907050', fontStyle: 'italic',
+              display: 'flex', alignItems: 'center', gap: 4,
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <span>{howToOpen ? '▴' : '▾'}</span>
+            <span>How to</span>
+          </button>
+          {howToOpen && (
+            <div style={{ fontSize: 12, color: '#5a3c18', lineHeight: 1.6, paddingBottom: 10, fontStyle: 'italic' }}>
+              {item.task.instructions}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -1630,17 +1650,17 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
   const isCompleted = (item) => doneTodayKeys.has(item.key) || completedThisSession.has(item.key);
 
   const pendingNotDone = items.filter(i => !isCompleted(i));
-  const urgentRec = pendingNotDone.filter(i => i.priority !== 'routine');
-  const routineItems = pendingNotDone.filter(i => i.priority === 'routine');
-  const doneCount = items.filter(isCompleted).length;
-  const totalCount = items.length;
-  const allDone = totalCount > 0 && doneCount === totalCount;
-  // Latch the "essential tasks done" banner once it first becomes true — don't let briefing
-  // reloads or new tasks arriving flip it back off mid-session.
-  const essentialsDoneNow = urgentRec.length === 0 && doneTodayItems.length > 0 && routineItems.length > 0;
+  const todayItems   = pendingNotDone.filter(i => i.priority === 'urgent' || i.priority === 'recommended');
+  const weekItems    = pendingNotDone.filter(i => i.priority === 'routine');
+  const optItems     = pendingNotDone.filter(i => i.priority === 'optional');
+  const completedItems = items.filter(isCompleted);
+  const doneCount = completedItems.length;
+  const totalCount = todayItems.length + weekItems.length + optItems.length;
+  const allDone = (todayItems.length + weekItems.length) === 0 && doneCount > 0;
+  // Latch essentials-done banner
+  const essentialsDoneNow = todayItems.length === 0 && doneCount > 0 && (weekItems.length > 0 || optItems.length > 0);
   if (essentialsDoneNow) essentialsDoneLatchRef.current = true;
   const urgentRecAllDone = essentialsDoneLatchRef.current && !allDone;
-  const hasRemainingRoutine = routineItems.length > 0;
 
   if (!seasonOpen) {
     return (
@@ -1693,7 +1713,7 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
               {agendaData?.sessionMinutes ? ` · ~${agendaData.sessionMinutes} MIN` : ''}
             </span>
             <span style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 700, color: '#2a1808' }}>
-              {doneCount} <span style={{ fontSize: 14, fontWeight: 400, color: '#907050' }}>of {totalCount}</span>
+              {doneCount} <span style={{ fontSize: 14, fontWeight: 400, color: '#907050' }}>of {totalCount + doneCount}</span>
             </span>
           </div>
           <div style={{ height: 4, background: 'rgba(160,130,80,0.15)', borderRadius: 2, overflow: 'hidden' }}>
@@ -1757,20 +1777,83 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
         </div>
       )}
 
-      {/* Essential tasks done — routine tasks still available */}
-      {urgentRecAllDone && hasRemainingRoutine && (
+      {/* ── TODAY section ── */}
+      {todayItems.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{
+            fontFamily: MONO, fontSize: 6.5, letterSpacing: .6,
+            color: '#b84018', marginBottom: 8,
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <span>TODAY</span>
+            <div style={{ flex: 1, height: 1, background: 'rgba(200,80,30,0.20)' }}/>
+            <span style={{ color: 'rgba(200,80,30,0.55)' }}>{todayItems.length}</span>
+          </div>
+          {todayItems.map(item => (
+            <AgendaRow key={item.key} item={item} completed={false}
+              justDone={justDoneKey === item.key} justDoneStreak={justDoneStreak}
+              onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
+              onDone={handleDone} portrait={portraits[item.plantId]}/>
+          ))}
+        </div>
+      )}
+
+      {/* "Essential tasks done" — when today is clear but more below */}
+      {urgentRecAllDone && weekItems.length + optItems.length > 0 && (
         <div style={{ background: 'rgba(72,120,32,0.07)', border: '1px solid rgba(72,120,32,0.22)',
-          borderRadius: 9, padding: '10px 14px', marginBottom: 14,
-          display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 16 }}>✦</span>
-          <div style={{ fontFamily: SERIF, fontSize: 13, color: '#3a6818', fontStyle: 'italic', lineHeight: 1.4 }}>
-            Essential tasks done. Optional tasks below.
+          borderRadius: 9, padding: '9px 13px', marginBottom: 16,
+          display: 'flex', alignItems: 'center', gap: 9 }}>
+          <span style={{ fontSize: 15 }}>✦</span>
+          <div style={{ fontFamily: SERIF, fontSize: 12.5, color: '#3a6818', fontStyle: 'italic' }}>
+            Today's essentials done.
           </div>
         </div>
       )}
 
-      {/* Agenda items */}
-      {items.length === 0 ? (
+      {/* ── THIS WEEK section ── */}
+      {weekItems.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{
+            fontFamily: MONO, fontSize: 6.5, letterSpacing: .6,
+            color: '#7a5c30', marginBottom: 8,
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <span>THIS WEEK</span>
+            <div style={{ flex: 1, height: 1, background: 'rgba(160,130,80,0.20)' }}/>
+            <span style={{ color: 'rgba(160,130,80,0.45)' }}>{weekItems.length}</span>
+          </div>
+          {weekItems.map(item => (
+            <AgendaRow key={item.key} item={item} completed={false}
+              justDone={justDoneKey === item.key} justDoneStreak={justDoneStreak}
+              onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
+              onDone={handleDone} portrait={portraits[item.plantId]}/>
+          ))}
+        </div>
+      )}
+
+      {/* ── WHEN YOU HAVE TIME section ── */}
+      {optItems.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{
+            fontFamily: MONO, fontSize: 6.5, letterSpacing: .6,
+            color: '#507050', marginBottom: 8,
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <span>WHEN YOU HAVE TIME</span>
+            <div style={{ flex: 1, height: 1, background: 'rgba(80,120,80,0.18)' }}/>
+            <span style={{ color: 'rgba(80,120,80,0.40)' }}>{optItems.length}</span>
+          </div>
+          {optItems.map(item => (
+            <AgendaRow key={item.key} item={item} completed={false}
+              justDone={justDoneKey === item.key} justDoneStreak={justDoneStreak}
+              onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
+              onDone={handleDone} portrait={portraits[item.plantId]}/>
+          ))}
+        </div>
+      )}
+
+      {/* ── Nothing pending ── */}
+      {todayItems.length === 0 && weekItems.length === 0 && optItems.length === 0 && doneCount === 0 && (
         <div style={{ padding: '32px 0', textAlign: 'center' }}>
           <div style={{ fontSize: 28, marginBottom: 10 }}>✦</div>
           <div style={{ fontFamily: SERIF, fontSize: 16, color: '#907050', fontStyle: 'italic' }}>
@@ -1782,19 +1865,17 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
             </div>
           )}
         </div>
-      ) : (
-        items.map(item => (
-          <AgendaRow
-            key={item.key}
-            item={item}
-            completed={isCompleted(item)}
-            justDone={justDoneKey === item.key}
-            justDoneStreak={justDoneStreak}
-            onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
-            onDone={handleDone}
-            portrait={portraits[item.plantId]}
-          />
-        ))
+      )}
+
+      {/* ── Completed today — collapsed footer ── */}
+      {completedItems.length > 0 && (
+        <div style={{ marginTop: 8, borderTop: '1px solid rgba(160,130,80,0.12)', paddingTop: 12 }}>
+          {completedItems.map(item => (
+            <AgendaRow key={item.key} item={item} completed={true}
+              justDone={justDoneKey === item.key} justDoneStreak={justDoneStreak}
+              onTap={() => {}} onDone={handleDone} portrait={portraits[item.plantId]}/>
+          ))}
+        </div>
       )}
 
       {/* Resting plants count */}
@@ -1823,9 +1904,17 @@ function buildMobileDayMap(allPlants, careLog, portraits, allPhotos) {
     const plant = allPlants.find(p => p.id === plantId);
     if (!plant) return;
     entries.forEach(e => {
-      ensure(e.date.slice(0, 10)).careEntries.push({
-        plantId, plantName: plant.name, label: e.label, action: e.action, withEmma: !!e.withEmma,
-      });
+      const bucket = ensure(e.date.slice(0, 10));
+      const entryLabel = e.label || e.action;
+      // Skip duplicate entries (same plant + action + label on same day)
+      const isDupe = bucket.careEntries.some(
+        c => c.plantId === plantId && c.action === e.action && c.label === entryLabel
+      );
+      if (!isDupe) {
+        bucket.careEntries.push({
+          plantId, plantName: plant.name, label: entryLabel, action: e.action, withEmma: !!e.withEmma,
+        });
+      }
     });
   });
 
@@ -1913,21 +2002,31 @@ function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, 
         </p>
       ) : null}
 
-      {careEntries.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: narrative ? 10 : 4 }}>
-          {careEntries.map((e, i) => (
-            <span key={i} style={{
-              fontSize: 9, fontFamily: MONO,
-              background: e.withEmma ? 'rgba(232,64,112,0.06)' : 'rgba(160,130,80,0.07)',
-              border: `1px solid ${e.withEmma ? 'rgba(232,64,112,0.18)' : 'rgba(160,130,80,0.15)'}`,
-              borderRadius: 10, padding: '2px 7px',
-              color: e.withEmma ? '#c04060' : '#907050',
-            }}>
-              {e.plantName} · {e.label}
-            </span>
-          ))}
-        </div>
-      )}
+      {careEntries.length > 0 && (() => {
+        // Group by plant — one row per plant, all their actions for the day
+        const byPlant = {};
+        careEntries.forEach(e => {
+          if (!byPlant[e.plantId]) byPlant[e.plantId] = { plantName: e.plantName, labels: [], withEmma: false };
+          byPlant[e.plantId].labels.push(e.label);
+          if (e.withEmma) byPlant[e.plantId].withEmma = true;
+        });
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: narrative ? 10 : 4 }}>
+            {Object.values(byPlant).map(g => (
+              <span key={g.plantName} style={{
+                fontSize: 9, fontFamily: MONO,
+                background: g.withEmma ? 'rgba(232,64,112,0.06)' : 'rgba(160,130,80,0.07)',
+                border: `1px solid ${g.withEmma ? 'rgba(232,64,112,0.18)' : 'rgba(160,130,80,0.15)'}`,
+                borderRadius: 10, padding: '3px 8px',
+                color: g.withEmma ? '#c04060' : '#907050',
+                display: 'inline-flex', alignSelf: 'flex-start',
+              }}>
+                {g.plantName} · {g.labels.join(' · ')}
+              </span>
+            ))}
+          </div>
+        );
+      })()}
 
       {photos.length > 0 && (
         <div style={{ display: 'flex', gap: 5, marginTop: 10, flexWrap: 'wrap' }}>
