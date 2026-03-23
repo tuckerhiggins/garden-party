@@ -660,7 +660,6 @@ export function MapCarePanel({
   onAction,
 }) {
   const [howToOpenKey, setHowToOpenKey] = useState(null);
-  const [briefExpanded, setBriefExpanded] = useState(false);
 
   const warmthPct = Math.min(warmth / 10, 100);
   const atCeremony = warmth >= 1000;
@@ -807,6 +806,21 @@ export function MapCarePanel({
         <div style={{ height: 1, background: RULE_STRONG, margin: '0 -16px' }}/>
       </div>
 
+      {/* ── Today's Brief — above care ── */}
+      <div style={{ borderTop: `1px solid ${RULE}`, padding: '12px 16px 11px' }}>
+        {morningBrief ? (
+          <div style={{ borderLeft: `3px solid rgba(212,168,48,0.45)`, paddingLeft: 11 }}>
+            <div style={{ fontFamily: SERIF, fontSize: 13, color: 'rgba(240,220,170,0.88)', fontStyle: 'italic', lineHeight: 1.6 }}>
+              {renderBriefText(morningBrief)}
+            </div>
+          </div>
+        ) : (
+          <div style={{ borderLeft: `3px solid ${RULE}`, paddingLeft: 11 }}>
+            <div style={{ fontFamily: SERIF, fontSize: 12, color: DIM, fontStyle: 'italic' }}>Reading the garden…</div>
+          </div>
+        )}
+      </div>
+
       {/* ── Tiered NEEDS CARE ── */}
       {seasonOpen && attentionItems.length > 0 && (
         <div style={{ padding: '12px 16px 4px' }}>
@@ -850,52 +864,21 @@ export function MapCarePanel({
         </div>
       )}
 
-      {/* ── Today's Brief ── */}
-      <div style={{ borderTop: `1px solid ${RULE}`, padding: '12px 16px 11px' }}>
-        <div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: .6, marginBottom: 9, color: GOLD, opacity: .90 }}>
-          TODAY'S BRIEF
-        </div>
-        {morningBrief ? (
-          <div
-            onClick={() => fullBrief && setBriefExpanded(e => !e)}
-            style={{ cursor: fullBrief ? 'pointer' : 'default' }}
-          >
-            <div style={{ borderLeft: `3px solid rgba(212,168,48,0.45)`, paddingLeft: 11 }}>
-              <div style={{ fontFamily: SERIF, fontSize: 13, color: 'rgba(240,220,170,0.88)', fontStyle: 'italic', lineHeight: 1.6 }}>
-                {renderBriefText(morningBrief)}
-              </div>
-              {fullBrief && (
-                <div style={{
-                  fontFamily: MONO, fontSize: 6, letterSpacing: .4, marginTop: 7,
-                  color: briefExpanded ? 'rgba(160,130,80,0.50)' : GOLD,
-                  opacity: briefExpanded ? .6 : 1,
-                }}>
-                  {briefExpanded ? '▴ CLOSE' : 'READ MORE ▾'}
-                </div>
-              )}
+      {/* ── Garden State / Today / Watch — always expanded below care ── */}
+      {fullBrief && (
+        <div style={{ borderTop: `1px solid ${RULE}`, padding: '12px 16px 4px' }}>
+          {[
+            { key: 'garden', label: 'GARDEN STATE' },
+            { key: 'today',  label: 'TODAY' },
+            { key: 'watch',  label: 'WATCH' },
+          ].filter(s => fullBrief[s.key]).map(s => (
+            <div key={s.key} style={{ marginBottom: 12 }}>
+              <div style={{ fontFamily: MONO, fontSize: 6, color: 'rgba(212,168,48,0.55)', letterSpacing: .5, marginBottom: 4 }}>{s.label}</div>
+              <div style={{ fontFamily: SERIF, fontSize: 12, color: MUTED, lineHeight: 1.65 }}>{renderBriefText(fullBrief[s.key])}</div>
             </div>
-            {briefExpanded && fullBrief && (
-              <div style={{ marginTop: 11, paddingTop: 11, borderTop: `1px solid ${RULE}` }}>
-                {[
-                  { key: 'weather', label: 'CONTEXT' },
-                  { key: 'garden',  label: 'GARDEN STATE' },
-                  { key: 'today',   label: 'TODAY' },
-                  { key: 'watch',   label: 'WATCH' },
-                ].filter(s => fullBrief[s.key]).map(s => (
-                  <div key={s.key} style={{ marginBottom: 11 }}>
-                    <div style={{ fontFamily: MONO, fontSize: 6, color: GOLD, letterSpacing: .5, marginBottom: 4 }}>{s.label}</div>
-                    <div style={{ fontFamily: SERIF, fontSize: 12, color: TEXT, lineHeight: 1.65 }}>{renderBriefText(fullBrief[s.key])}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ borderLeft: `3px solid ${RULE}`, paddingLeft: 11 }}>
-            <div style={{ fontFamily: SERIF, fontSize: 12, color: DIM, fontStyle: 'italic' }}>Reading the garden…</div>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Documented coverage bar ── */}
       <Section label="DOCUMENTED">
