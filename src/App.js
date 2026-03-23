@@ -2059,13 +2059,30 @@ export default function App() {
           setGlowPlantId(plantId);
           setTimeout(() => setGlowPlantId(null), 2500);
         }}
+        morningBrief={morningBrief}
+        dailyBrief={dailyBrief}
       />
     );
   }
 
   // ── FRONT SCENE (desktop opening screen) ───────────────────────────────
+  // If logged in and on the front scene, skip directly to the map
+  if (scene === 'front' && !checking && role !== 'guest') {
+    setScene('game');
+    setMode('garden');
+    setGardenView('map');
+    return null;
+  }
+
+  // If not logged in and somehow on the game scene, bounce back to front
+  if (scene === 'game' && role === 'guest') {
+    setScene('front');
+    return null;
+  }
+
   if (scene === 'front') {
     const isOpener = seasonOpen && !seasonOpenerDismissed && seasonOpener && seasonOpener !== 'loading';
+    const isGuest = role === 'guest';
     return (
       <div style={{width:'100vw',height:'100vh',overflow:'hidden'}}>
         <FrontMap
@@ -2073,11 +2090,11 @@ export default function App() {
           growth={growth}
           weather={weather}
           skipDelay={seasonOpenerDismissed}
-          oracle={isOpener ? null : oracle}
-          seasonOpenerText={isOpener ? seasonOpener : null}
+          oracle={null}
+          seasonOpenerText={isOpener && !isGuest ? seasonOpener : null}
           selectedId={isOpener ? null : sel}
           onSelect={isOpener ? () => {} : (p) => setSel(p?.id ?? null)}
-          onEnter={isOpener
+          onEnter={isGuest ? null : isOpener
             ? () => {
                 localStorage.setItem('gp_season_opener_dismissed_2026', '1');
                 setSeasonOpenerDismissed(true);
@@ -2088,6 +2105,9 @@ export default function App() {
             : () => { setScene('game'); setMode('garden'); setGardenView('map'); }
           }
           warmth={warmth}
+          signIn={signIn}
+          checking={checking}
+          isGuest={isGuest}
         />
       </div>
     );

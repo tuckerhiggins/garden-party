@@ -66,6 +66,34 @@ function dayAbbr(dateStr) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
 }
 
+// Detect "On the morning of [Month Day]" references to a future date in task instructions.
+// Used to push frost-check / post-event tasks out of the TODAY tier.
+function extractFutureActionDate(instructions) {
+  if (!instructions) return null;
+  const m = instructions.match(/\bOn the morning of ([A-Za-z]+ \d{1,2})\b/i);
+  if (!m) return null;
+  const parsed = new Date(m[1] + ', ' + new Date().getFullYear());
+  if (isNaN(parsed.getTime())) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return parsed > today ? m[1] : null;
+}
+
+// Garden-day condition scoring for the week-ahead grid
+function gardenCondition(day) {
+  const low = day.low ?? 99;
+  if (low <= 35)
+    return { tag: 'FROST', note: 'protect tender plants', color: '#70b8e0', bg: 'rgba(80,160,210,0.13)', icon: '🧊' };
+  if ((day.precip > 2) || day.precipChance >= 65)
+    return { tag: 'RAIN', note: 'skip watering', color: '#5080c8', bg: 'rgba(60,100,190,0.12)', icon: '🌧' };
+  if (day.high >= 88)
+    return { tag: 'HOT', note: 'water deeply', color: '#d05828', bg: 'rgba(200,80,32,0.12)', icon: '☀️' };
+  if (day.precipChance < 30 && day.high >= 55 && day.high <= 84 && low > 38)
+    return { tag: 'IDEAL', note: 'get outside', color: '#4a9a30', bg: 'rgba(60,140,40,0.14)', icon: '🌱' };
+  if (day.high < 50)
+    return { tag: 'COLD', note: 'wait it out', color: '#7090a8', bg: 'rgba(80,110,140,0.10)', icon: '🌥' };
+  return { tag: 'MILD', note: null, color: '#807860', bg: 'rgba(100,90,60,0.06)', icon: null };
+}
+
 function fmtRelative(iso) {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
   if (days === 0) return 'today';
@@ -105,7 +133,7 @@ function PanelJournalLog({ careLog, plants, portraits, allPhotos }) {
       (port?.history || []).forEach(h => { if (h.visualNote && h.date) { const b = ensure(h.date.slice(0,10)); if (!b.obs.some(o => o.plantId === p.id && o.visualNote === h.visualNote)) b.obs.push({ plantId: p.id, plantName: p.name, visualNote: h.visualNote, bloomState: h.bloomState, foliageState: h.foliageState, stage: h.stage }); }});
       (allPhotos?.[p.id] || []).forEach(ph => { const d = (ph.date || '').slice(0,10); if (d) ensure(d).photos++; });
     });
-    return Object.entries(days).sort(([a],[b]) => b.localeCompare(a)).slice(0, 3);
+    return Object.entries(days).sort(([a],[b]) => b.localeCompare(a)).slice(0, 4);
   }, [careLog, plants, portraits, allPhotos]);
 
   React.useEffect(() => {
@@ -118,6 +146,7 @@ function PanelJournalLog({ careLog, plants, portraits, allPhotos }) {
         portraitObservations: day.obs,
         photoCount: day.photos,
         plantHistories: [],
+        brief: true,
       }).then(text => setEntries(prev => ({ ...prev, [dateStr]: text || null })))
         .catch(() => setEntries(prev => ({ ...prev, [dateStr]: null })));
     });
@@ -542,26 +571,30 @@ export function MapContextPanel({
           {/* 7-day forecast grid — always visible */}
           {forecast.length > 0 && (
             <div style={{ display: 'flex', gap: 3 }}>
-              {forecast.map((day, i) => (
-                <div key={day.date} style={{
-                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  gap: 2, padding: '6px 2px',
-                  background: i === 0 ? 'rgba(212,168,48,0.10)' : 'rgba(255,255,255,0.03)',
-                  borderRadius: 6,
-                  border: `1px solid ${i === 0 ? 'rgba(212,168,48,0.24)' : 'rgba(255,255,255,0.05)'}`,
-                }}>
-                  <span style={{ fontFamily: MONO, fontSize: 5.5, color: i === 0 ? GOLD : DIM, letterSpacing: .2 }}>
-                    {i === 0 ? 'NOW' : dayAbbr(day.date)}
-                  </span>
-                  <span style={{ fontSize: 12, lineHeight: 1 }}>{wmoEmoji(day.code)}</span>
-                  <span style={{ fontFamily: SERIF, fontSize: 11, color: TEXT }}>{day.high}°</span>
-                  {day.precipChance >= 30 && (
-                    <span style={{ fontFamily: MONO, fontSize: 5, color: '#6090c0', letterSpacing: .1 }}>
-                      {day.precipChance}%
+              {forecast.map((day, i) => {
+                const goodDay = day.precipChance < 25 && day.high >= 52 && day.high <= 85 && (day.low == null || day.low > 38);
+                return (
+                  <div key={day.date} style={{
+                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    gap: 2, padding: '6px 2px',
+                    background: i === 0 ? 'rgba(212,168,48,0.10)' : 'rgba(255,255,255,0.03)',
+                    borderRadius: 6,
+                    border: `1px solid ${i === 0 ? 'rgba(212,168,48,0.24)' : 'rgba(255,255,255,0.05)'}`,
+                  }}>
+                    <span style={{ fontFamily: MONO, fontSize: 5.5, color: i === 0 ? GOLD : DIM, letterSpacing: .2 }}>
+                      {i === 0 ? 'NOW' : dayAbbr(day.date)}
                     </span>
-                  )}
-                </div>
-              ))}
+                    <span style={{ fontSize: 12, lineHeight: 1 }}>{wmoEmoji(day.code)}</span>
+                    <span style={{ fontFamily: SERIF, fontSize: 11, color: TEXT }}>{day.high}°</span>
+                    {day.precipChance >= 30 && (
+                      <span style={{ fontFamily: MONO, fontSize: 5, color: '#6090c0', letterSpacing: .1 }}>
+                        {day.precipChance}%
+                      </span>
+                    )}
+                    {goodDay && <span style={{ fontSize: 8, lineHeight: 1 }}>🌱</span>}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -614,35 +647,36 @@ export function MapContextPanel({
         )}
       </div>
 
-      {/* ── Week Ahead ── */}
+      {/* ── Week Ahead — garden-condition grid ── */}
       {forecast.length > 1 && (
         <div style={{ borderTop: `1px solid ${RULE}`, padding: '12px 16px 11px' }}>
-          <div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: .6, marginBottom: 9, color: GOLD, opacity: .90 }}>
+          <div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: .6, marginBottom: 10, color: GOLD, opacity: .90 }}>
             WEEK AHEAD
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {forecast.slice(1).map((day, i) => {
-              const isGoodDay = day.precipChance < 30 && day.high > 45 && day.high < 88;
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
+            {forecast.slice(1, 7).map(day => {
+              const gc = gardenCondition(day);
               return (
                 <div key={day.date} style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '5px 7px', borderRadius: 6,
-                  background: 'rgba(255,255,255,0.025)',
+                  borderRadius: 8,
+                  background: gc.bg,
+                  border: `1px solid ${gc.color}40`,
+                  padding: '8px 7px 8px',
+                  display: 'flex', flexDirection: 'column', gap: 4,
                 }}>
-                  <span style={{ fontFamily: MONO, fontSize: 6, color: DIM, width: 24, flexShrink: 0 }}>
+                  <span style={{ fontFamily: MONO, fontSize: 5.5, color: DIM, letterSpacing: .3 }}>
                     {dayAbbr(day.date)}
                   </span>
-                  <span style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>{wmoEmoji(day.code)}</span>
-                  <span style={{ fontFamily: SERIF, fontSize: 12, color: MUTED, flex: 1 }}>
-                    {day.high}°{day.low != null ? `/${day.low}°` : ''}
-                  </span>
-                  {day.precipChance >= 30 && (
-                    <span style={{ fontFamily: MONO, fontSize: 5.5, color: '#6090c0', flexShrink: 0 }}>
-                      {day.precipChance}%
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {gc.icon && <span style={{ fontSize: 13, lineHeight: 1 }}>{gc.icon}</span>}
+                    <span style={{ fontFamily: MONO, fontSize: 6, color: gc.color, letterSpacing: .3, lineHeight: 1.3 }}>
+                      {gc.tag}
                     </span>
-                  )}
-                  {isGoodDay && (
-                    <span style={{ fontSize: 10, flexShrink: 0 }} title="Good day to work outside">🌱</span>
+                  </div>
+                  {gc.note && (
+                    <span style={{ fontFamily: SERIF, fontSize: 10.5, color: MUTED, lineHeight: 1.35, fontStyle: 'italic' }}>
+                      {gc.note}
+                    </span>
                   )}
                 </div>
               );
@@ -680,18 +714,20 @@ export function MapCarePanel({
   const nearCeremony = !atCeremony && warmth >= 850;
   const today = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
-  const todayItems = attentionItems.filter(i => !i.task?.optional);
-  const laterItems = attentionItems.filter(i => i.task?.optional === true);
+  const todayItems = attentionItems.filter(i => !i.task?.optional && !extractFutureActionDate(i.task?.instructions));
+  const laterItems = attentionItems.filter(i => i.task?.optional === true || !!extractFutureActionDate(i.task?.instructions));
 
   function CareCard({ plant, action, def, task }) {
     const pc = plantColor(plant.type);
     const itemEmoji = task?.emoji || def?.emoji || '✨';
     const itemLabel = task?.label || def?.label || action;
     const isOptional = task?.optional === true;
+    const futureDate = extractFutureActionDate(task?.instructions);
+    const isDeferred = isOptional || !!futureDate;
     const itemKey = `${plant.id}-${action}-${task?.label || ''}`;
     const howToOpen = howToOpenKey === itemKey;
-    const tierBorder = isOptional ? 'rgba(160,130,80,0.18)' : 'rgba(200,112,32,0.28)';
-    const tierBg = isOptional ? 'rgba(160,130,80,0.06)' : 'rgba(200,112,32,0.08)';
+    const tierBorder = isDeferred ? 'rgba(160,130,80,0.18)' : 'rgba(200,112,32,0.28)';
+    const tierBg = isDeferred ? 'rgba(160,130,80,0.06)' : 'rgba(200,112,32,0.08)';
     return (
       <div style={{ borderRadius: 9, border: `1.5px solid ${tierBorder}`, background: tierBg, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 11px 10px 0' }}>
@@ -707,16 +743,21 @@ export function MapCarePanel({
                 {task.reason}
               </div>
             )}
+            {futureDate && (
+              <div style={{ fontFamily: MONO, fontSize: 5.5, color: '#6090c0', marginTop: 2, letterSpacing: .3 }}>
+                → DO THIS: {futureDate.toUpperCase()}
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, paddingRight: 2 }}>
             <button
               onClick={e => { e.stopPropagation(); onAction?.(action, plant, task?.label); }}
               style={{
                 padding: '6px 10px',
-                background: isOptional ? 'rgba(80,120,40,0.20)' : 'rgba(200,112,32,0.22)',
-                border: isOptional ? '1px solid rgba(80,120,40,0.40)' : '1px solid rgba(200,112,32,0.45)',
+                background: isDeferred ? 'rgba(80,120,40,0.20)' : 'rgba(200,112,32,0.22)',
+                border: isDeferred ? '1px solid rgba(80,120,40,0.40)' : '1px solid rgba(200,112,32,0.45)',
                 borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12,
-                color: isOptional ? 'rgba(160,210,100,0.90)' : 'rgba(240,180,80,0.95)',
+                color: isDeferred ? 'rgba(160,210,100,0.90)' : 'rgba(240,180,80,0.95)',
                 whiteSpace: 'nowrap',
               }}>✓ Done</button>
             <button

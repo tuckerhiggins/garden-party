@@ -497,6 +497,7 @@ export async function fetchJournalEntry({
   portraitObservations, // [{ plantId, plantName, visualNote, bloomState, foliageState, stage }]
   photoCount,           // total photos taken this day across all plants
   plantHistories,       // [{ plantName, recentCare: [{ label, date }] }] — care before this date
+  brief = false,        // if true, 1–2 sentences (for map panel garden log)
 }) {
   if (!careEntries.length && !portraitObservations.length) return null;
 
@@ -505,7 +506,7 @@ export async function fetchJournalEntry({
   const portraitToken = portraitObservations
     .map(p => (p.visualNote || '').slice(0, 8))
     .join('').replace(/\W/g, '').slice(0, 16);
-  const cacheKey = `journal3_${dateStr}_c${careCacheToken}_o${portraitToken}`;
+  const cacheKey = `journal${brief ? '_brief' : '3'}_${dateStr}_c${careCacheToken}_o${portraitToken}`;
   const ttl = isToday ? null : 30 * 24 * 60 * 60 * 1000; // today: until midnight; past: 30 days
 
   const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
@@ -532,7 +533,7 @@ Rules:
 - When care history shows a relevant action weeks before a current observation, connect them explicitly: "the first blooms appeared three weeks after the February fertilizing"
 - If photos were taken, mention it naturally: "photographed the first blooms," "documented the new growth"
 - If Emma was involved in care, mention her by name
-- 2–4 sentences. Past tense. Warm and specific. No generic garden advice.
+- ${brief ? '1–2 sentences' : '2–4 sentences'}. Past tense. Warm and specific. No generic garden advice.
 - Start mid-action or mid-observation — not with "Today" or the date
 - Never use the words "journal," "entry," "log," or "overall"`;
 

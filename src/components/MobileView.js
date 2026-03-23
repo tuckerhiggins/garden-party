@@ -137,6 +137,20 @@ const MOBILE_AFFIRMATIONS = {
   repot:     ['Logged. Keep water consistent.', 'New roots incoming.'],
   worms:     ['Soil biology logged.', 'Good long-term investment.'],
 };
+// ── FUTURE ACTION DATE DETECTOR ────────────────────────────────────────────
+// Detects "On the morning of [Month Day]" in task instructions and returns
+// the date string if it's in the future — used to keep frost-check / post-event
+// tasks out of the TODAY tier until they're actually actionable.
+function extractFutureActionDate(instructions) {
+  if (!instructions) return null;
+  const m = instructions.match(/\bOn the morning of ([A-Za-z]+ \d{1,2})\b/i);
+  if (!m) return null;
+  const parsed = new Date(m[1] + ', ' + new Date().getFullYear());
+  if (isNaN(parsed.getTime())) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return parsed > today ? m[1] : null;
+}
+
 // ── NATURAL LANGUAGE DATE PARSER ──────────────────────────────────────────
 function parsePastDate(text) {
   const t = (text || '').toLowerCase().trim();
@@ -1756,9 +1770,9 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
   const isCompleted = (item) => doneTodayKeys.has(item.key) || completedThisSession.has(item.key);
 
   const pendingNotDone = items.filter(i => !isCompleted(i));
-  const todayItems   = pendingNotDone.filter(i => i.priority === 'urgent' || i.priority === 'recommended');
-  const weekItems    = pendingNotDone.filter(i => i.priority === 'routine');
-  const optItems     = pendingNotDone.filter(i => i.priority === 'optional');
+  const todayItems   = pendingNotDone.filter(i => (i.priority === 'urgent' || i.priority === 'recommended') && !extractFutureActionDate(i.task?.instructions)).slice(0, 6);
+  const weekItems    = pendingNotDone.filter(i => i.priority === 'routine' || ((i.priority === 'urgent' || i.priority === 'recommended') && !!extractFutureActionDate(i.task?.instructions))).slice(0, 5);
+  const optItems     = pendingNotDone.filter(i => i.priority === 'optional').slice(0, 5);
   const completedItems = items.filter(isCompleted);
   const doneCount = completedItems.length;
   const totalCount = todayItems.length + weekItems.length + optItems.length;
@@ -2482,6 +2496,8 @@ export function MobileView({
   expenses = [], onAddExpense,
   onDeleteAction,
   onTaskDone,
+  morningBrief: externalMorningBrief = null,
+  dailyBrief: externalDailyBrief = null,
 }) {
   const [tab, setTab] = useState('today');
   const [flash, setFlash] = useState(null);
@@ -2598,17 +2614,17 @@ export function MobileView({
       .catch(() => {}); // fallback: rawAgendaItems shown with no AI reasons
   }, [rawAgendaKeys, weather]); // intentional: stable string dep
 
-  // Fetch morning brief once weather is available
+  // Fetch morning brief once weather is available — skip if App.js already provides one
   useEffect(() => {
-    if (!weather || morningBrief) return;
+    if (!weather || morningBrief || externalMorningBrief) return;
     fetchMorningBrief({ plants: [...plants, ...frontPlants], careLog, weather, portraits })
       .then(brief => { if (brief) setMorningBrief(brief); })
       .catch(() => {});
   }, [weather]); // intentional: fetch once per weather load
 
-  // Fetch structured daily brief (weather/garden/today/watch) — for expanded view
+  // Fetch structured daily brief — skip if App.js already provides one
   useEffect(() => {
-    if (!weather || dailyBrief) return;
+    if (!weather || dailyBrief || externalDailyBrief) return;
     fetchDailyBrief({
       plants: [...plants, ...frontPlants], careLog, weather, portraits,
       agendaTasks: rawAgendaItems,
@@ -2747,7 +2763,7 @@ export function MobileView({
             rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
             agendaData={agendaData} seasonOpen={seasonOpen}
             totalActivePlants={totalActivePlants}
-            morningBrief={morningBrief} fullBrief={dailyBrief}
+            morningBrief={externalMorningBrief || morningBrief} fullBrief={externalDailyBrief || dailyBrief}
             onStartAction={handleStartAction}
             portraits={portraits} completedThisSession={completedKeysRef.current}
             doneTodayItems={doneTodayItems}

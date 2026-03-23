@@ -84,7 +84,7 @@ function BotanicalEmblem() {
   );
 }
 
-export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = {}, weather = null, oracle = null, seasonOpenerText = null, skipDelay = false, warmth = 0 }) {
+export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = {}, weather = null, oracle = null, seasonOpenerText = null, skipDelay = false, warmth = 0, signIn, checking = false, isGuest = false }) {
   const [hoveredId, setHoveredId]     = useState(null);
   const [showEnter, setShowEnter]     = useState(false);
   const [enterHover, setEnterHover]   = useState(false);
@@ -387,41 +387,80 @@ export function FrontMap({ plants = [], selectedId, onSelect, onEnter, growth = 
         </div>
       )}
 
-      {/* ── ENTER PROMPT — fades in after 1.6s ── */}
-      <div
-        onClick={onEnter}
-        onMouseEnter={() => setEnterHover(true)}
-        onMouseLeave={() => setEnterHover(false)}
-        style={{
+      {/* ── ENTER / SIGN-IN PROMPT — fades in after 1.6s ── */}
+      {isGuest ? (
+        /* Guest: show sign-in prompt, no entry button */
+        <div style={{
           position: 'absolute',
-          bottom: selectedId ? 2 : 20, left: '50%',
+          bottom: 32, left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 10,
           textAlign: 'center',
-          cursor: 'pointer',
-          opacity: showEnter ? (enterHover ? 1 : 0.78) : 0,
-          transition: showEnter ? 'opacity 1.4s ease-in' : 'none',
+          opacity: showEnter ? 0.92 : 0,
+          transition: showEnter ? 'opacity 1.8s ease-in' : 'none',
           pointerEvents: showEnter ? 'auto' : 'none',
-          userSelect: 'none',
-          padding: '22px 48px',
-          touchAction: 'manipulation',
-        }}
-      >
-        <div style={{
-          fontFamily: '"Crimson Pro", Georgia, serif',
-          fontSize: 18, fontStyle: 'italic',
-          color: enterHover ? '#f0e0b0' : '#e0cfa0',
-          letterSpacing: 1,
-          textShadow: '0 1px 10px rgba(15,8,3,0.9)',
-          transition: 'color 0.2s',
-        }}>{seasonOpenerText ? 'begin season 2' : isNight ? 'the fire is lit' : 'step inside'}</div>
-        <div style={{
-          color: enterHover ? '#e8c030' : '#c8a018',
-          fontSize: 13, marginTop: 5,
-          textShadow: '0 1px 6px rgba(15,8,3,0.8)',
-          transition: 'color 0.2s',
-        }}>↑</div>
-      </div>
+        }}>
+          <div style={{
+            fontFamily: '"Crimson Pro", Georgia, serif',
+            fontSize: 15, fontStyle: 'italic',
+            color: '#d8ccb0',
+            letterSpacing: 0.4,
+            textShadow: '0 1px 12px rgba(4,2,1,0.95)',
+            marginBottom: 14,
+          }}>Emma's Rose Garden</div>
+          <button
+            onClick={() => signIn?.()}
+            style={{
+              background: 'rgba(212,168,48,0.18)',
+              border: '1px solid rgba(212,168,48,0.50)',
+              borderRadius: 8,
+              padding: '10px 28px',
+              fontFamily: '"Press Start 2P", monospace',
+              fontSize: 8,
+              color: '#d4a830',
+              cursor: 'pointer',
+              letterSpacing: 0.5,
+              textShadow: '0 1px 6px rgba(4,2,1,0.8)',
+            }}>
+            {checking ? 'CHECKING...' : 'SIGN IN'}
+          </button>
+        </div>
+      ) : (
+        <div
+          onClick={onEnter}
+          onMouseEnter={() => setEnterHover(true)}
+          onMouseLeave={() => setEnterHover(false)}
+          style={{
+            position: 'absolute',
+            bottom: selectedId ? 2 : 20, left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            textAlign: 'center',
+            cursor: 'pointer',
+            opacity: showEnter ? (enterHover ? 1 : 0.78) : 0,
+            transition: showEnter ? 'opacity 1.4s ease-in' : 'none',
+            pointerEvents: showEnter ? 'auto' : 'none',
+            userSelect: 'none',
+            padding: '22px 48px',
+            touchAction: 'manipulation',
+          }}
+        >
+          <div style={{
+            fontFamily: '"Crimson Pro", Georgia, serif',
+            fontSize: 18, fontStyle: 'italic',
+            color: enterHover ? '#f0e0b0' : '#e0cfa0',
+            letterSpacing: 1,
+            textShadow: '0 1px 10px rgba(15,8,3,0.9)',
+            transition: 'color 0.2s',
+          }}>{seasonOpenerText ? 'begin season 2' : isNight ? 'the fire is lit' : 'step inside'}</div>
+          <div style={{
+            color: enterHover ? '#e8c030' : '#c8a018',
+            fontSize: 13, marginTop: 5,
+            textShadow: '0 1px 6px rgba(15,8,3,0.8)',
+            transition: 'color 0.2s',
+          }}>↑</div>
+        </div>
+      )}
 
       {/* ── MAIN SVG ── */}
       <svg
