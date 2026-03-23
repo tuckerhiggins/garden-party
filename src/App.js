@@ -1673,6 +1673,7 @@ export default function App() {
   const { portraits, updatePortrait } = usePortraits({ user });
   const { allPhotos, addPhoto } = usePhotos({ user });
   const [mapConditions, setMapConditions] = useState({});
+  const [glowPlantId, setGlowPlantId] = useState(null);
   const [customPlants, setCustomPlants] = useState(() => {
     try { return JSON.parse(localStorage.getItem('gp_custom_plants_v1') || '[]'); } catch { return []; }
   });
@@ -1950,7 +1951,7 @@ export default function App() {
   }, [careLog]);
 
   // Care action
-  const doAction = useCallback(async (key, plant, customLabel) => {
+  const doAction = useCallback(async (key, plant, customLabel, customDate = null) => {
     const def = ACTION_DEFS[key];
     if (!def && key !== 'tend') return;
     const isWithEmma = role === 'emma';
@@ -1960,24 +1961,24 @@ export default function App() {
       parseNoteActions(customLabel, plant.name).then(async actions => {
         if (actions.length > 0) {
           for (const act of actions) {
-            await logAction(act.key, plant, isWithEmma, act.label);
+            await logAction(act.key, plant, isWithEmma, act.label, customDate);
           }
           const firstDef = ACTION_DEFS[actions[0].key];
           setFlash(`${firstDef?.emoji || '✨'} ${actions[0].label}${isWithEmma ? ' with Emma' : ''}${actions.length > 1 ? ` +${actions.length - 1} more` : ''}`);
         } else {
-          await logAction('note', plant, isWithEmma, customLabel);
+          await logAction('note', plant, isWithEmma, customLabel, customDate);
           setFlash(`📝 ${customLabel}${isWithEmma ? ' with Emma' : ''}`);
         }
         setTimeout(() => setFlash(null), 2500);
       }).catch(async () => {
-        await logAction('note', plant, isWithEmma, customLabel);
+        await logAction('note', plant, isWithEmma, customLabel, customDate);
         setFlash(`📝 ${customLabel}${isWithEmma ? ' with Emma' : ''}`);
         setTimeout(() => setFlash(null), 2500);
       });
       return;
     }
 
-    const syncError = await logAction(key, plant, isWithEmma, customLabel);
+    const syncError = await logAction(key, plant, isWithEmma, customLabel, customDate);
     if (syncError === 'duplicate') return; // already logged today — silent skip
     const displayLabel = customLabel || def?.label || key;
     const emoji = def?.emoji || '✨';
@@ -2053,6 +2054,10 @@ export default function App() {
         expenses={expenses}
         onAddExpense={addExpenseDb}
         onDeleteAction={deleteAction}
+        onTaskDone={plantId => {
+          setGlowPlantId(plantId);
+          setTimeout(() => setGlowPlantId(null), 2500);
+        }}
       />
     );
   }
@@ -2324,6 +2329,7 @@ export default function App() {
                       weather={weather}
                       briefings={briefings}
                       mapConditions={mapConditions}
+                      glowPlantId={glowPlantId}
                     />
                   </div>
                 </div>

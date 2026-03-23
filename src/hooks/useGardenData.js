@@ -155,14 +155,16 @@ export function useGardenData({ user }) {
   }, []);
 
   // ── WRITE OPERATIONS ──────────────────────────────────────────────────────
-  const logAction = useCallback(async (key, plant, withEmma, customLabel) => {
+  const logAction = useCallback(async (key, plant, withEmma, customLabel, customDate = null) => {
     const def = ACTION_DEFS[key];
     if (!def && key !== 'tend') return;
     const label = customLabel || def?.label || key;
     const emoji = def?.emoji || '✨';
+    const entryDate = customDate || new Date().toISOString();
 
     // Silent guard: skip if identical entry (same plant + action + calendar day) already exists
-    if (DEDUP_KEYS.has(key)) {
+    // Only applies when logging to today (not a past date)
+    if (DEDUP_KEYS.has(key) && !customDate) {
       const todayStr = new Date().toISOString().slice(0, 10);
       const currentLog = lsLoad(LS.care, {});
       const alreadyLogged = (currentLog[plant.id] || []).some(
@@ -173,7 +175,7 @@ export function useGardenData({ user }) {
 
     const entry = {
       action: key, label, emoji,
-      date: new Date().toISOString(), withEmma, plantName: plant.name,
+      date: entryDate, withEmma, plantName: plant.name,
     };
 
     // Optimistic local update — visible immediately regardless of Supabase status
@@ -187,6 +189,7 @@ export function useGardenData({ user }) {
       const { error } = await supabase.from('care_log').insert({
         plant_id: plant.id, action: key, label, emoji,
         with_emma: withEmma, plant_name: plant.name, logged_by: user.id,
+        ...(customDate ? { created_at: customDate } : {}),
       });
       if (error) return error.message;
     }

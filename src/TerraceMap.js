@@ -1024,7 +1024,7 @@ function tokenR(type) {
     ? 28 : 18;
 }
 
-function PlantToken({ plant, isSelected, isHovered, mapCondition = null }) {
+function PlantToken({ plant, isSelected, isHovered, mapCondition = null, isGlowing = false }) {
   const { x, y } = pxy(plant.pos);
   const color = plant.color || '#909080';
   const r = tokenR(plant.type);
@@ -1049,6 +1049,11 @@ function PlantToken({ plant, isSelected, isHovered, mapCondition = null }) {
       {isHovered && !isSelected && (
         <circle cx={0} cy={0} r={r + 7} fill="none"
           stroke={color} strokeWidth={1.2} opacity={0.40}/>
+      )}
+      {/* Tended glow — brief gold ring after care action logged from mobile */}
+      {isGlowing && !isEmpty && (
+        <circle cx={0} cy={0} r={r + 10} fill="none"
+          stroke="#d4a830" strokeWidth={3} opacity={0.55}/>
       )}
       {/* Bloom glow ring — subtle warm halo when plant is blooming */}
       {isBlooming && !isEmpty && (
@@ -1163,7 +1168,7 @@ function CookieSVG({ pose }) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
-export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0, weather = null, briefings: externalBriefings = {}, mapConditions = {} }) {
+export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0, weather = null, briefings: externalBriefings = {}, mapConditions = {}, glowPlantId = null }) {
   const [hovId, setHovId] = useState(null);
   const [pinnedId, setPinnedId] = useState(null);
   const [cookiePetted, setCookiePetted] = useState(false);
@@ -1752,7 +1757,8 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           plant={p}
           isSelected={p.id === selectedId}
           isHovered={p.id === hovId}
-          mapCondition={mapConditions[p.id] || null}/>
+          mapCondition={mapConditions[p.id] || null}
+          isGlowing={p.id === glowPlantId}/>
       ))}
 
       {/* ── Vignette (depth) ── */}

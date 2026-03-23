@@ -10,6 +10,13 @@ import { compressChatImage } from '../utils/compressChatImage';
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO = '"Press Start 2P", monospace';
 
+const AGENDA_CSS = `
+  @keyframes gpPulseDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.55;transform:scale(1.5)} }
+  @keyframes gpFlashRow { 0%{background:rgba(72,120,32,0.22)} 80%{background:rgba(72,120,32,0.06)} 100%{background:transparent} }
+  .gp-pulse-dot { animation: gpPulseDot 1.6s ease-in-out infinite; }
+  .gp-flash-row { animation: gpFlashRow 1.4s ease forwards; }
+`;
+
 const C = {
   appBg: '#f2ece0', cardBg: '#faf6ee', cardBorder: 'rgba(160,130,80,0.18)',
   uiBg: '#120c06', uiPane: '#1c1008', uiBorder: '#5a3c18',
@@ -130,6 +137,47 @@ const MOBILE_AFFIRMATIONS = {
   repot:     ['Logged. Keep water consistent.', 'New roots incoming.'],
   worms:     ['Soil biology logged.', 'Good long-term investment.'],
 };
+// ── NATURAL LANGUAGE DATE PARSER ──────────────────────────────────────────
+function parsePastDate(text) {
+  const t = (text || '').toLowerCase().trim();
+  if (!t) return null;
+  const now = new Date();
+
+  if (t === 'today') return now.toISOString();
+  if (t === 'yesterday') { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString(); }
+
+  const daysAgoM = t.match(/^(\d+)\s+days?\s+ago$/);
+  if (daysAgoM) { const d = new Date(); d.setDate(d.getDate() - parseInt(daysAgoM[1])); return d.toISOString(); }
+
+  const weeksAgoM = t.match(/^(\d+)\s+weeks?\s+ago$/);
+  if (weeksAgoM) { const d = new Date(); d.setDate(d.getDate() - parseInt(weeksAgoM[1]) * 7); return d.toISOString(); }
+
+  const DAYS = { monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6, sunday:0 };
+  const weekdayM = t.match(/^(?:last\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/);
+  if (weekdayM) {
+    const target = DAYS[weekdayM[1]];
+    const d = new Date();
+    let back = (d.getDay() - target + 7) % 7;
+    if (back === 0) back = 7;
+    d.setDate(d.getDate() - back);
+    return d.toISOString();
+  }
+
+  const MONTHS = { january:0, february:1, march:2, april:3, may:4, june:5, july:6, august:7, september:8, october:9, november:10, december:11 };
+  const monthDayM = t.match(/^(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?$/);
+  if (monthDayM) {
+    const d = new Date(now.getFullYear(), MONTHS[monthDayM[1]], parseInt(monthDayM[2]));
+    if (d > now) d.setFullYear(d.getFullYear() - 1);
+    return d.toISOString();
+  }
+
+  // ISO or native parseable date (e.g. "2026-03-15")
+  const native = new Date(text);
+  if (!isNaN(native.getTime())) return native.toISOString();
+
+  return null;
+}
+
 function mobileAffirmation(key) {
   const arr = MOBILE_AFFIRMATIONS[key] || ['Logged.'];
   return arr[Math.floor(Math.random() * arr.length)];
@@ -469,6 +517,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
   const [photoFailed, setPhotoFailed] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
+  const [noteDate, setNoteDate] = useState('');
   const [confirmDeleteDate, setConfirmDeleteDate] = useState(null);
   const { stages, currentStage } = portrait;
 
@@ -557,9 +606,9 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
   function submitNote() {
     const text = noteText.trim();
     if (!text) { setNoteOpen(false); return; }
-    onAction('note', plant, text);
-    setNoteText('');
-    setNoteOpen(false);
+    const customDate = parsePastDate(noteDate) || null;
+    onAction('note', plant, text, customDate);
+    setNoteText(''); setNoteDate(''); setNoteOpen(false);
   }
 
   const waterStatus = actionStatus(plant, 'water', careLog, seasonOpen);
@@ -578,27 +627,44 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
       border: `1px solid ${C.cardBorder}`,
       overflow: 'hidden', marginBottom: 12,
     }}>
-      {/* Photo strip — tap to add */}
+      {/* Hero — SVG illustration preferred; fall back to photo, then generic portrait */}
       <div
         onClick={() => fileRef.current?.click()}
         style={{
           height: 160,
-          background: lastPhoto ? 'transparent' : `${color}08`,
+          background: `${color}08`,
           cursor: 'pointer', position: 'relative', overflow: 'hidden',
           border: (!lastPhoto && !seasonOpen) ? '2px solid rgba(212,168,48,0.40)' : 'none',
           boxSizing: 'border-box',
         }}>
-        {photoSrc && !photoFailed ? (
+        {portrait?.svg ? (
+          /* AI SVG illustration — primary hero */
+          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <PlantPortrait plant={plant} aiSvg={portrait.svg}/>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(4,2,1,0.18)' }}/>
+            {/* Photo count badge so user knows photos exist */}
+            {photos.length > 0 && (
+              <div style={{
+                position: 'absolute', top: 8, right: 8,
+                background: 'rgba(18,12,6,0.70)',
+                borderRadius: 20, padding: '3px 9px',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}>
+                <span style={{ fontSize: 9 }}>📷</span>
+                <span style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(212,168,48,0.85)' }}>{photos.length}</span>
+              </div>
+            )}
+          </div>
+        ) : photoSrc && !photoFailed ? (
+          /* No SVG yet — show raw photo as fallback */
           <img src={photoSrc} alt={plant.name}
             onError={() => setPhotoFailed(true)}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
         ) : (
+          /* No photo either — generic portrait */
           <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-            <PlantPortrait plant={plant} aiSvg={portrait?.svg}/>
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: 'rgba(4,2,1,0.30)',
-            }}/>
+            <PlantPortrait plant={plant} aiSvg={null}/>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(4,2,1,0.30)' }}/>
             {!seasonOpen && !lastPhoto && (
               <div style={{
                 position: 'absolute', top: 10, left: 10,
@@ -625,18 +691,20 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
             <span style={{ fontFamily: MONO, fontSize: 5, color: C.uiGold, letterSpacing: .5 }}>analyzing…</span>
           </div>
         )}
-        {/* Camera overlay button */}
-        <div style={{
-          position: 'absolute', bottom: 8, right: 8,
-          background: 'rgba(18,12,6,0.75)',
-          borderRadius: 20, padding: '5px 10px',
-          display: 'flex', alignItems: 'center', gap: 5,
-        }}>
-          <span style={{ fontSize: 13 }}>📷</span>
-          <span style={{ fontFamily: MONO, fontSize: 6, color: '#d4a830' }}>
-            {photos.length > 0 ? `${photos.length} · ADD` : 'ADD 1-4'}
-          </span>
-        </div>
+        {/* Camera overlay button — hidden when photo badge is shown (SVG mode) */}
+        {!portrait?.svg && (
+          <div style={{
+            position: 'absolute', bottom: 8, right: 8,
+            background: 'rgba(18,12,6,0.75)',
+            borderRadius: 20, padding: '5px 10px',
+            display: 'flex', alignItems: 'center', gap: 5,
+          }}>
+            <span style={{ fontSize: 13 }}>📷</span>
+            <span style={{ fontFamily: MONO, fontSize: 6, color: '#d4a830' }}>
+              {photos.length > 0 ? `${photos.length} · ADD` : 'ADD 1-4'}
+            </span>
+          </div>
+        )}
       </div>
       <input ref={fileRef} type="file" accept="image/*" multiple
         style={{ display: 'none' }} onChange={handleFiles}/>
@@ -778,32 +846,65 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
 
         {/* Note input — inline, expands when open */}
         {noteOpen && (
-          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-            <input
-              autoFocus
-              type="text"
-              value={noteText}
-              onChange={e => setNoteText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') submitNote(); if (e.key === 'Escape') setNoteOpen(false); }}
-              placeholder="What did you notice?"
-              style={{
-                flex: 1, padding: '9px 12px',
-                background: 'rgba(255,255,255,0.7)',
-                border: '1px solid rgba(160,130,80,0.3)',
-                borderRadius: 8, fontFamily: SERIF, fontSize: 14,
-                color: '#2a1808', outline: 'none',
-              }}
-            />
-            <button onClick={submitNote}
-              style={{
-                padding: '9px 14px',
-                background: 'rgba(212,168,48,0.15)',
-                border: '1px solid rgba(212,168,48,0.35)',
-                borderRadius: 8, cursor: 'pointer',
-                fontFamily: MONO, fontSize: 6, color: C.uiGold,
-              }}>
-              LOG
-            </button>
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                autoFocus
+                type="text"
+                value={noteText}
+                onChange={e => setNoteText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') submitNote(); if (e.key === 'Escape') setNoteOpen(false); }}
+                placeholder="What did you notice?"
+                style={{
+                  flex: 1, padding: '9px 12px',
+                  background: 'rgba(255,255,255,0.7)',
+                  border: '1px solid rgba(160,130,80,0.3)',
+                  borderRadius: 8, fontFamily: SERIF, fontSize: 14,
+                  color: '#2a1808', outline: 'none',
+                }}
+              />
+              <button onClick={submitNote}
+                style={{
+                  padding: '9px 14px',
+                  background: 'rgba(212,168,48,0.15)',
+                  border: '1px solid rgba(212,168,48,0.35)',
+                  borderRadius: 8, cursor: 'pointer',
+                  fontFamily: MONO, fontSize: 6, color: C.uiGold,
+                }}>
+                LOG
+              </button>
+            </div>
+            {/* When? date input */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontFamily: MONO, fontSize: 6, color: CC.dim, letterSpacing: .5, flexShrink: 0 }}>WHEN?</span>
+              <input
+                type="text"
+                value={noteDate}
+                onChange={e => setNoteDate(e.target.value)}
+                placeholder="today · yesterday · last Thursday · April 5"
+                style={{
+                  flex: 1, padding: '6px 10px',
+                  background: 'rgba(255,255,255,0.5)',
+                  border: '1px solid rgba(160,130,80,0.2)',
+                  borderRadius: 6, fontFamily: SERIF, fontSize: 12,
+                  color: '#5a3c18', outline: 'none',
+                  fontStyle: 'italic',
+                }}
+              />
+            </div>
+            {/* Parsed date confirmation */}
+            {noteDate.trim() && (() => {
+              const parsed = parsePastDate(noteDate);
+              return parsed ? (
+                <div style={{ fontFamily: SERIF, fontSize: 11, color: '#6a9a40', fontStyle: 'italic', paddingLeft: 2 }}>
+                  → {new Date(parsed).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </div>
+              ) : (
+                <div style={{ fontFamily: SERIF, fontSize: 11, color: '#b07040', fontStyle: 'italic', paddingLeft: 2 }}>
+                  couldn't parse date — will log as today
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1215,12 +1316,14 @@ const AGENDA_URGENT_HEALTH = new Set(['struggling', 'thirsty', 'overlooked']);
 const AGENDA_TIER = { urgent: 0, recommended: 1, routine: 2, optional: 3 };
 const AGENDA_HEALTH_SEV = { struggling: 0, thirsty: 1, overlooked: 2 };
 
-function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen }) {
+function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen, allPhotos = {} }) {
   if (!seasonOpen) return { items: [], isWeekend: false };
   const isWeekend = [0, 6].includes(new Date().getDay());
   const emmaPlantsSet = new Set(frontPlants.map(p => p.id));
   const hasRainSoon = weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60);
   const hasFrostSoon = weather?.forecast?.slice(0, 2).some(d => d.low <= 35);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const nowMs = Date.now();
   const items = [];
 
   for (const plant of [...plants, ...frontPlants]) {
@@ -1296,6 +1399,39 @@ function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seaso
         });
       }
     }
+
+    // Photo-due check: 7+ days without a photo → prompt as care action
+    // (skipped if they already logged a photo today)
+    const alreadyPhotoedToday = (careLog[plant.id] || []).some(
+      e => e.action === 'photo' && e.date?.slice(0, 10) === todayStr
+    );
+    if (!alreadyPhotoedToday) {
+      const plantPhotos = allPhotos[plant.id] || [];
+      const lastPhotoMs = plantPhotos.length
+        ? Math.max(...plantPhotos.map(ph => new Date(ph.date).getTime()))
+        : 0;
+      const daysSincePhoto = lastPhotoMs ? (nowMs - lastPhotoMs) / 86400000 : Infinity;
+      if (daysSincePhoto >= 7) {
+        const photoKey = `${plant.id}:photo`;
+        if (!items.some(i => i.key === photoKey)) {
+          items.push({
+            key: photoKey,
+            plant, plantId: plant.id, plantName: plant.name,
+            plantType: plant.type, plantHealth: plant.health,
+            actionKey: 'photo',
+            task: {
+              key: 'photo', label: 'Document', emoji: '📷',
+              instructions: 'Photograph the plant to track its progress.',
+            },
+            priority: 'recommended',
+            reason: daysSincePhoto === Infinity
+              ? 'No photos yet — document how it looks now.'
+              : `${Math.floor(daysSincePhoto)} days since last photo.`,
+            section,
+          });
+        }
+      }
+    }
   }
 
   items.sort((a, b) => {
@@ -1307,7 +1443,26 @@ function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seaso
   return { items, isWeekend };
 }
 
-function AgendaRow({ item, completed, onTap, onDone, portrait }) {
+function computeStreak(plantId, careLog) {
+  const entries = careLog[plantId] || [];
+  const days = new Set(
+    entries
+      .filter(e => !['note', 'visit', 'photo'].includes(e.action))
+      .map(e => e.date?.slice(0, 10))
+      .filter(Boolean)
+  );
+  if (!days.size) return 0;
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < 90; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    if (days.has(d.toISOString().slice(0, 10))) { streak++; } else { break; }
+  }
+  return streak;
+}
+
+function AgendaRow({ item, completed, justDone, justDoneStreak, onTap, onDone, portrait }) {
   const def = ACTION_DEFS[item.actionKey];
   const rowEmoji = def?.emoji || item.task?.emoji || '✨';
   const rowLabel = def?.label || item.task?.label || item.actionKey;
@@ -1319,30 +1474,41 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
     optional:    { border: 'rgba(80,120,80,0.22)', bg: 'rgba(80,120,80,0.04)', accent: '#507050', dot: '#608060' },
   }[isOptional ? 'optional' : item.priority];
 
+  const isUrgentOrRec = !isOptional && (item.priority === 'urgent' || item.priority === 'recommended');
+
   return (
     <div
       onClick={() => !completed && onTap(item)}
+      className={justDone ? 'gp-flash-row' : undefined}
       style={{
         display: 'flex', alignItems: 'flex-start', gap: 11,
         padding: '11px 13px', borderRadius: 10, marginBottom: 9,
-        border: `1.5px solid ${tierColors.border}`,
-        background: completed ? 'rgba(160,130,80,0.04)' : tierColors.bg,
-        opacity: completed ? 0.45 : 1,
+        border: `1.5px solid ${justDone ? 'rgba(72,120,32,0.45)' : tierColors.border}`,
+        background: completed && !justDone ? 'rgba(160,130,80,0.04)' : tierColors.bg,
+        opacity: completed && !justDone ? 0.45 : 1,
         cursor: completed ? 'default' : 'pointer',
-        transition: 'opacity .2s',
+        transition: 'opacity .2s, border-color .3s',
       }}
     >
-      {/* Priority dot */}
-      <div style={{
-        width: 7, height: 7, borderRadius: '50%',
-        background: completed ? '#c0b090' : tierColors.dot,
-        marginTop: 6, flexShrink: 0,
-      }}/>
+      {/* Priority dot — pulses for urgent/recommended */}
+      <div
+        className={isUrgentOrRec && !completed ? 'gp-pulse-dot' : undefined}
+        style={{
+          width: isUrgentOrRec ? 8 : 7,
+          height: isUrgentOrRec ? 8 : 7,
+          borderRadius: '50%',
+          background: completed ? '#c0b090' : tierColors.dot,
+          marginTop: 6, flexShrink: 0,
+        }}
+      />
 
-      {/* Portrait */}
+      {/* Portrait — glow border when just done */}
       {portrait?.svg && (
         <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 6, overflow: 'hidden',
-          border: '1px solid rgba(160,130,80,0.18)', background: '#f8f0e0' }}>
+          border: justDone ? '1.5px solid rgba(72,120,32,0.55)' : '1px solid rgba(160,130,80,0.18)',
+          background: '#f8f0e0',
+          transition: 'border-color .4s',
+        }}>
           <PlantPortrait plant={item.plant} aiSvg={portrait.svg}/>
         </div>
       )}
@@ -1351,9 +1517,18 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: MONO, fontSize: 6.5, color: completed ? '#b0a080' : tierColors.accent,
-            letterSpacing: .4, textDecoration: completed ? 'line-through' : 'none' }}>
+            letterSpacing: .4, textDecoration: completed && !justDone ? 'line-through' : 'none' }}>
             {item.plantName.toUpperCase()}
           </span>
+          {/* DUE TODAY badge — urgent/recommended only */}
+          {isUrgentOrRec && !completed && (
+            <span style={{
+              fontFamily: MONO, fontSize: 5, letterSpacing: .3,
+              color: item.priority === 'urgent' ? '#b84018' : '#3a6818',
+              border: `1px solid ${item.priority === 'urgent' ? 'rgba(200,80,30,0.40)' : 'rgba(72,120,32,0.35)'}`,
+              borderRadius: 5, padding: '1px 5px',
+            }}>DUE TODAY</span>
+          )}
           {isOptional && !completed && (
             <span style={{ fontFamily: MONO, fontSize: 5.5, color: '#507050', border: '1px solid rgba(80,120,80,0.30)', borderRadius: 6, padding: '1px 5px' }}>EXPLORE</span>
           )}
@@ -1362,7 +1537,13 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
             {rowLabel}
           </span>
         </div>
-        {!completed && (item.reason || item.task?.instructions) && (
+        {/* Just-done payoff: streak counter */}
+        {justDone && justDoneStreak > 1 && (
+          <div style={{ fontFamily: SERIF, fontSize: 12, color: '#487820', fontStyle: 'italic', marginTop: 2 }}>
+            ✦ {justDoneStreak}-day streak
+          </div>
+        )}
+        {!completed && !justDone && (item.reason || item.task?.instructions) && (
           <div style={{ fontSize: 12, color: '#6a4020', fontStyle: 'italic', lineHeight: 1.5 }}>
             {item.reason && <span>{item.reason}</span>}
             {item.reason && item.task?.instructions && ' '}
@@ -1394,9 +1575,28 @@ function AgendaRow({ item, completed, onTap, onDone, portrait }) {
 
 function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seasonOpen,
   totalActivePlants = 0, morningBrief, fullBrief, onStartAction, portraits, completedThisSession = new Set(),
-  doneTodayItems = [], onMarkDone, onOpenAsk }) {
+  doneTodayItems = [], onMarkDone, onOpenAsk, careLog = {} }) {
   const [briefExpanded, setBriefExpanded] = React.useState(false);
   const essentialsDoneLatchRef = React.useRef(false);
+  const [justDoneKey, setJustDoneKey] = React.useState(null);
+  const [justDoneStreak, setJustDoneStreak] = React.useState(0);
+
+  // Inject CSS animations once
+  React.useEffect(() => {
+    if (document.getElementById('gp-agenda-css')) return;
+    const el = document.createElement('style');
+    el.id = 'gp-agenda-css';
+    el.textContent = AGENDA_CSS;
+    document.head.appendChild(el);
+  }, []);
+
+  function handleDone(item) {
+    const streak = computeStreak(item.plantId, careLog);
+    setJustDoneKey(item.key);
+    setJustDoneStreak(streak + 1); // +1 for the action being logged now
+    onMarkDone(item);
+    setTimeout(() => setJustDoneKey(null), 3000);
+  }
 
   // Merge deterministic items with AI-enriched agenda (reason + priority + order)
   const pendingItems = useMemo(() => {
@@ -1588,8 +1788,10 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
             key={item.key}
             item={item}
             completed={isCompleted(item)}
+            justDone={justDoneKey === item.key}
+            justDoneStreak={justDoneStreak}
             onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
-            onDone={onMarkDone}
+            onDone={handleDone}
             portrait={portraits[item.plantId]}
           />
         ))
@@ -2074,6 +2276,7 @@ export function MobileView({
   briefings: externalBriefings = {},
   expenses = [], onAddExpense,
   onDeleteAction,
+  onTaskDone,
 }) {
   const [tab, setTab] = useState('today');
   const [flash, setFlash] = useState(null);
@@ -2100,7 +2303,15 @@ export function MobileView({
   function handleMarkDone(item) {
     completedKeysRef.current.add(item.key);
     setCompletedCount(n => n + 1);
+    // Photo tasks: navigate to garden tab instead of logging care action
+    if (item.actionKey === 'photo') {
+      setTab('garden');
+      setFlash('📷 Find the plant in Garden to add a photo');
+      setTimeout(() => setFlash(null), 3000);
+      return;
+    }
     handleAction(item.actionKey, item.plant, item.actionKey === 'tend' ? item.task?.label : undefined);
+    onTaskDone?.(item.plantId);
   }
 
   // Version string that changes when any plant's last care action changes
@@ -2143,8 +2354,8 @@ export function MobileView({
 
   // Compute today's agenda deterministically (instant, no API needed)
   const { items: rawAgendaItems, isWeekend: agendaIsWeekend } = useMemo(
-    () => computeAgenda({ plants, frontPlants, careLog, briefings: mergedBriefings, weather, seasonOpen }),
-    [plants, frontPlants, careLog, mergedBriefings, weather, seasonOpen]
+    () => computeAgenda({ plants, frontPlants, careLog, briefings: mergedBriefings, weather, seasonOpen, allPhotos }),
+    [plants, frontPlants, careLog, mergedBriefings, weather, seasonOpen, allPhotos]
   );
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -2153,7 +2364,7 @@ export function MobileView({
   // Tasks completed today from careLog — persists across page reloads.
   // Grows as care is logged; complements rawAgendaItems (which shrinks as tasks are done).
   const doneTodayItems = useMemo(() => {
-    const skipActions = new Set(['note', 'photo', 'visit']);
+    const skipActions = new Set(['note', 'visit']); // 'photo' included so photo-logged-today counts as done
     const seen = new Set();
     const result = [];
     for (const [plantId, entries] of Object.entries(careLog)) {
@@ -2219,8 +2430,8 @@ export function MobileView({
     );
   }, [portraits]); // intentional: only track portrait analyzing transitions
 
-  function handleAction(key, plant, customLabel) {
-    onAction(key, plant, customLabel);
+  function handleAction(key, plant, customLabel, customDate = null) {
+    onAction(key, plant, customLabel, customDate);
     const def = ACTION_DEFS[key];
     const displayLabel = customLabel || def?.label || key;
     const emoji = def?.emoji || '✨';
@@ -2229,6 +2440,13 @@ export function MobileView({
   }
 
   function handleStartAction(plant, key, task = null) {
+    // Photo tasks: navigate to garden tab so user can add a photo from the plant card
+    if (key === 'photo') {
+      setTab('garden');
+      setFlash('📷 Find the plant in Garden to add a photo');
+      setTimeout(() => setFlash(null), 3000);
+      return;
+    }
     setActionSession({ plant, key, task });
   }
 
@@ -2330,6 +2548,7 @@ export function MobileView({
             doneTodayItems={doneTodayItems}
             onMarkDone={handleMarkDone}
             onOpenAsk={() => setTab('ask')}
+            careLog={careLog}
           />
         )}
 
