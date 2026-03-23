@@ -7,7 +7,7 @@ import { TERRACE_PLANTS, FRONT_PLANTS, ACTION_DEFS, ACTION_HOWTO } from './data/
 import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
-import { fetchOracle, fetchSeasonOpener, fetchPlantBriefing, streamGardenChat, fetchMorningBrief, fetchDailyBrief, fetchJournalEntry, parseNoteActions } from './claude';
+import { fetchOracle, fetchSeasonOpener, fetchPlantBriefing, streamGardenChat, fetchMorningBrief, fetchDailyBrief, fetchJournalEntry, parseNoteActions, fetchMapCondition } from './claude';
 import { usePortraits } from './hooks/usePortraits';
 import { usePhotos } from './hooks/usePhotos';
 import { useAuth } from './hooks/useAuth';
@@ -1185,9 +1185,10 @@ function StageArc({ stages, currentStage, color }) {
 }
 
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
-function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate, weather, briefings = {} }) {
+function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate, weather, briefings = {}, onDeleteAction }) {
   const [tab, setTab] = useState('care');
   const [actionModal, setActionModal] = useState(null); // { key, task } or null
+  const [confirmDeleteDate, setConfirmDeleteDate] = useState(null); // ISO date string of entry pending deletion
   const briefing = briefings[plant.id] && briefings[plant.id] !== 'loading' ? briefings[plant.id] : null;
   const history = careLog[plant.id] || [];
   const color = plantColor(plant.type);
@@ -1260,19 +1261,53 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
               </div>
             ) : (
               <div style={{display:'flex',flexDirection:'column',gap:0}}>
-                {[...history].reverse().map((e,i)=>(
-                  <div key={i} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'8px 0',
-                    borderBottom:i<history.length-1?`1px solid rgba(160,130,80,0.12)`:'none'}}>
-                    <span style={{fontSize:14,flexShrink:0}}>{e.emoji}</span>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,color:'#2a1808',fontFamily:SERIF}}>{e.label}</div>
-                      {e.withEmma&&<div style={{fontSize:11,color:'#a07030',fontFamily:SERIF}}>with Emma ♥</div>}
+                {[...history].reverse().map((e,i)=>{
+                  const isPendingDelete = confirmDeleteDate === e.date;
+                  return (
+                    <div key={i} style={{padding:'8px 0',
+                      borderBottom:i<history.length-1?`1px solid rgba(160,130,80,0.12)`:'none'}}>
+                      <div style={{display:'flex',alignItems:'flex-start',gap:8}}>
+                        <span style={{fontSize:14,flexShrink:0}}>{e.emoji}</span>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,color:'#2a1808',fontFamily:SERIF}}>{e.label}</div>
+                          {e.withEmma&&<div style={{fontSize:11,color:'#a07030',fontFamily:SERIF}}>with Emma ♥</div>}
+                        </div>
+                        <div style={{textAlign:'right',flexShrink:0}}>
+                          <div style={{fontSize:11,color:'#b09070',fontFamily:SERIF,marginBottom:4}}>{fmtDate(e.date)}</div>
+                          {onDeleteAction && (
+                            <button onClick={()=>setConfirmDeleteDate(isPendingDelete ? null : e.date)}
+                              style={{background:'none',border:'none',color:'#c09070',cursor:'pointer',
+                                fontSize:11,fontFamily:SERIF,padding:0,opacity:0.6}}>
+                              {isPendingDelete ? 'cancel' : '×'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {isPendingDelete && (
+                        <div style={{marginTop:6,display:'flex',alignItems:'center',gap:8,
+                          background:'rgba(200,80,30,0.06)',borderRadius:6,padding:'6px 10px'}}>
+                          <span style={{fontSize:12,color:'#a05020',fontFamily:SERIF,flex:1,fontStyle:'italic'}}>
+                            Delete this entry?
+                          </span>
+                          <button
+                            onClick={()=>{ onDeleteAction(plant.id, e.date); setConfirmDeleteDate(null); }}
+                            style={{background:'rgba(200,80,30,0.15)',border:'1px solid rgba(200,80,30,0.35)',
+                              borderRadius:6,padding:'4px 10px',cursor:'pointer',
+                              fontSize:12,color:'#a05020',fontFamily:SERIF}}>
+                            Delete
+                          </button>
+                          <button
+                            onClick={()=>setConfirmDeleteDate(null)}
+                            style={{background:'none',border:'1px solid rgba(160,130,80,0.30)',
+                              borderRadius:6,padding:'4px 10px',cursor:'pointer',
+                              fontSize:12,color:'#b09070',fontFamily:SERIF}}>
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div style={{textAlign:'right',flexShrink:0}}>
-                      <div style={{fontSize:11,color:'#b09070',fontFamily:SERIF}}>{fmtDate(e.date)}</div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
@@ -1613,7 +1648,7 @@ export default function App() {
   const [sel, setSel] = useState(null);
   const [hov, setHov] = useState(null);
   const { user, role, signIn, signOut, checking, authError } = useAuth();
-  const { careLog, expenses, positions, growth, logAction, updateGrowth, movePosition, addExpense: addExpenseDb } = useGardenData({ user });
+  const { careLog, expenses, positions, growth, logAction, deleteAction, updateGrowth, movePosition, addExpense: addExpenseDb } = useGardenData({ user });
   useMigration({ user });
   const isMobile = useIsMobile();
   const [flash, setFlash] = useState(null);
@@ -1637,6 +1672,7 @@ export default function App() {
   });
   const { portraits, updatePortrait } = usePortraits({ user });
   const { allPhotos, addPhoto } = usePhotos({ user });
+  const [mapConditions, setMapConditions] = useState({});
   const [customPlants, setCustomPlants] = useState(() => {
     try { return JSON.parse(localStorage.getItem('gp_custom_plants_v1') || '[]'); } catch { return []; }
   });
@@ -1861,6 +1897,25 @@ export default function App() {
     setBriefings({});
   }, [todayCareCount]);
 
+  // Map condition synthesis — runs when photos change, only for plants with ≥3 photos
+  // and only when ≥2 new photos have accumulated since the last synthesis.
+  useEffect(() => {
+    const allPlants = [...gardenPlants.terrace, ...frontPlants];
+    allPlants.forEach(plant => {
+      const photos = allPhotos[plant.id] || [];
+      if (photos.length < 3) return;
+      const lastSynthCount = mapConditions[plant.id]?.photoCount ?? 0;
+      if (photos.length < lastSynthCount + 2 && lastSynthCount > 0) return; // not enough new photos
+      const dataUrls = photos.map(p => p.dataUrl || p.url).filter(Boolean);
+      if (dataUrls.length < 3) return;
+      fetchMapCondition(plant, dataUrls)
+        .then(cond => {
+          if (cond) setMapConditions(prev => ({ ...prev, [plant.id]: { ...cond, photoCount: photos.length } }));
+        })
+        .catch(() => {});
+    });
+  }, [allPhotos]); // eslint-disable-line
+
   // Season opener — show once when season first opens
   useEffect(() => {
     if (!seasonOpen) return;
@@ -1997,6 +2052,7 @@ export default function App() {
         onGoFront={() => setScene('front')}
         expenses={expenses}
         onAddExpense={addExpenseDb}
+        onDeleteAction={deleteAction}
       />
     );
   }
@@ -2235,7 +2291,7 @@ export default function App() {
                 <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                   onAction={doAction} seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}
                   photos={allPhotos[sel.id] || []} onAddPhoto={addPhoto} onGrowthUpdate={updateGrowth}
-                  weather={weather} briefings={briefings}/>
+                  weather={weather} briefings={briefings} onDeleteAction={deleteAction}/>
               </div>
             )}
             </>)}
@@ -2267,6 +2323,7 @@ export default function App() {
                       warmth={warmth}
                       weather={weather}
                       briefings={briefings}
+                      mapConditions={mapConditions}
                     />
                   </div>
                 </div>
@@ -2298,7 +2355,7 @@ export default function App() {
                     <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                       onAction={doAction} seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}
                       photos={allPhotos[sel.id] || []} onAddPhoto={addPhoto} onGrowthUpdate={updateGrowth}
-                      briefings={briefings}/>
+                      briefings={briefings} onDeleteAction={deleteAction}/>
                   </div>
                 )}
               </div>

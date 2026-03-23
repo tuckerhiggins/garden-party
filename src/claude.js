@@ -627,6 +627,41 @@ export async function parseNoteActions(noteText, plantName) {
   }
 }
 
+// ── MAP CONDITION SYNTHESIS ───────────────────────────────────────────────
+// Synthesizes a plant's general visual condition from 3-5 recent photos.
+// Cached by plant ID + photo count so it only re-runs when new photos accumulate.
+// Threshold: only synthesizes when photos.length >= 3 AND
+//            photos.length >= (lastSynthCount + 2), to avoid jarring map updates.
+export async function fetchMapCondition(plant, photoDataUrls) {
+  const count = photoDataUrls.length;
+  if (count < 3) return null;
+
+  const cacheKey = `mapCond_${plant.id}_${count}`;
+  const cached = lsGet(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const res = await fetch('/api/map-condition', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        plantName: plant.name,
+        plantType: plant.type,
+        imagesBase64: photoDataUrls.slice(-5), // most recent 5
+      }),
+    });
+    if (!res.ok) return null;
+    const condition = await res.json();
+    if (condition && !condition.error) {
+      lsSet(cacheKey, condition);
+      return condition;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function streamGardenChat({ messages, plantContext, action, onChunk }) {
   const res = await fetch('/api/garden-chat', {
     method: 'POST',

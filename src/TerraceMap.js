@@ -1024,7 +1024,7 @@ function tokenR(type) {
     ? 28 : 18;
 }
 
-function PlantToken({ plant, isSelected, isHovered }) {
+function PlantToken({ plant, isSelected, isHovered, mapCondition = null }) {
   const { x, y } = pxy(plant.pos);
   const color = plant.color || '#909080';
   const r = tokenR(plant.type);
@@ -1032,6 +1032,12 @@ function PlantToken({ plant, isSelected, isHovered }) {
   const sc = isSelected ? 1.14 : isHovered ? 1.07 : 1;
   const showLabel = isHovered ||
     ['hydrangea','serviceberry','maple','evergreen','evergreen-xmas'].includes(plant.type);
+
+  // Map condition visual modifiers
+  const isBlooming = mapCondition && ['budding','blooming','peak'].includes(mapCondition.bloomStatus);
+  const isStressed = mapCondition?.healthSignal === 'stressed';
+  const isLush = mapCondition?.leafCoverage === 'lush' && mapCondition?.healthSignal === 'excellent';
+  const tokenOpacity = isEmpty ? 0.88 : isStressed ? 0.55 : 0.88;
 
   return (
     <g transform={`translate(${x},${y}) scale(${sc})`}
@@ -1044,14 +1050,27 @@ function PlantToken({ plant, isSelected, isHovered }) {
         <circle cx={0} cy={0} r={r + 7} fill="none"
           stroke={color} strokeWidth={1.2} opacity={0.40}/>
       )}
+      {/* Bloom glow ring — subtle warm halo when plant is blooming */}
+      {isBlooming && !isEmpty && (
+        <circle cx={0} cy={0} r={r + 6} fill="none"
+          stroke={color} strokeWidth={2.5} opacity={0.30}/>
+      )}
+      {/* Lush health glow */}
+      {isLush && !isEmpty && (
+        <circle cx={0} cy={0} r={r + 4} fill={color} opacity={0.12}/>
+      )}
       <circle cx={2} cy={3} r={r} fill="rgba(0,0,0,0.40)"
         opacity={isEmpty ? 0.25 : 0.65}/>
       <circle cx={0} cy={0} r={r}
         fill={isEmpty ? 'rgba(38,36,34,0.65)' : color}
-        fillOpacity={isEmpty ? 1 : 0.88}
+        fillOpacity={isEmpty ? 1 : tokenOpacity}
         stroke={isEmpty ? color : 'rgba(255,255,255,0.14)'}
         strokeWidth={isEmpty ? 1.5 : 1}/>
       <PlantIcon type={plant.type} r={r}/>
+      {/* Bloom indicator dot — small colored dot at top of token */}
+      {isBlooming && !isEmpty && (
+        <circle cx={r * 0.55} cy={-r * 0.55} r={3} fill="#fff8e0" opacity={0.90}/>
+      )}
       {showLabel && (
         <text x={0} y={r + 13} textAnchor="middle"
           fontFamily={SERIF} fontSize={9} fontStyle="italic"
@@ -1144,7 +1163,7 @@ function CookieSVG({ pose }) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
-export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0, weather = null, briefings: externalBriefings = {} }) {
+export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0, weather = null, briefings: externalBriefings = {}, mapConditions = {} }) {
   const [hovId, setHovId] = useState(null);
   const [pinnedId, setPinnedId] = useState(null);
   const [cookiePetted, setCookiePetted] = useState(false);
@@ -1732,7 +1751,8 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           key={p.id}
           plant={p}
           isSelected={p.id === selectedId}
-          isHovered={p.id === hovId}/>
+          isHovered={p.id === hovId}
+          mapCondition={mapConditions[p.id] || null}/>
       ))}
 
       {/* ── Vignette (depth) ── */}

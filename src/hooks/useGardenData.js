@@ -193,6 +193,17 @@ export function useGardenData({ user }) {
     return null;
   }, [user]);
 
+  const deleteAction = useCallback(async (plantId, entryDate) => {
+    setCareLogState(prev => {
+      const u = { ...prev, [plantId]: (prev[plantId] || []).filter(e => e.date !== entryDate) };
+      lsSave(LS.care, u);
+      return u;
+    });
+    if (supabase && user) {
+      await supabase.from('care_log').delete().eq('plant_id', plantId).eq('created_at', entryDate);
+    }
+  }, [user]);
+
   const updateGrowth = useCallback(async (plantId, val) => {
     setGrowthState(prev => { const u = { ...prev, [plantId]: val }; lsSave(LS.growth, u); return u; });
     if (supabase && user) {
@@ -219,6 +230,6 @@ export function useGardenData({ user }) {
 
   return {
     careLog, expenses, positions, growth, dbLoading,
-    logAction, updateGrowth, movePosition, addExpense,
+    logAction, deleteAction, updateGrowth, movePosition, addExpense,
   };
 }

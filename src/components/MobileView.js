@@ -458,7 +458,7 @@ function StageArc({ stages, currentStage, color }) {
   );
 }
 
-function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, onAddPhoto, photos = [], portraits, briefing, seasonOpen }) {
+function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded, onPortraitUpdate, onGrowthUpdate, onAddPhoto, photos = [], portraits, briefing, seasonOpen, onDeleteAction }) {
   const fileRef = useRef(null);
   const color = plantColor(plant.type);
   const CC = useCC();
@@ -469,6 +469,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
   const [photoFailed, setPhotoFailed] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
+  const [confirmDeleteDate, setConfirmDeleteDate] = useState(null);
   const { stages, currentStage } = portrait;
 
   async function handleFiles(e) {
@@ -824,15 +825,49 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
                 const d = new Date(e.date);
                 const days = Math.floor((Date.now() - d.getTime()) / 86400000);
                 const when = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`;
+                const isPendingDelete = confirmDeleteDate === e.date;
                 return (
                   <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 7,
                     padding: '4px 0',
                     borderBottom: i < entries.length - 1 ? '1px solid rgba(160,130,80,0.07)' : 'none',
                   }}>
-                    <span style={{ fontSize: 13, flexShrink: 0 }}>{e.emoji || '·'}</span>
-                    <span style={{ fontFamily: SERIF, fontSize: 12, color: '#5a3c18', flex: 1 }}>{e.label}</span>
-                    <span style={{ fontFamily: SERIF, fontSize: 11, color: CC.dim, flexShrink: 0 }}>{when}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <span style={{ fontSize: 13, flexShrink: 0 }}>{e.emoji || '·'}</span>
+                      <span style={{ fontFamily: SERIF, fontSize: 12, color: '#5a3c18', flex: 1 }}>{e.label}</span>
+                      <span style={{ fontFamily: SERIF, fontSize: 11, color: CC.dim, flexShrink: 0 }}>{when}</span>
+                      {onDeleteAction && (
+                        <button onClick={() => setConfirmDeleteDate(isPendingDelete ? null : e.date)}
+                          style={{ background: 'none', border: 'none', color: '#b09070', cursor: 'pointer',
+                            fontSize: 15, lineHeight: 1, padding: '0 2px', flexShrink: 0,
+                            WebkitTapHighlightColor: 'transparent' }}>
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    {isPendingDelete && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6,
+                        background: 'rgba(200,80,30,0.06)', borderRadius: 6, padding: '6px 10px' }}>
+                        <span style={{ fontFamily: SERIF, fontSize: 12, color: '#a05020', flex: 1, fontStyle: 'italic' }}>
+                          Delete this entry?
+                        </span>
+                        <button
+                          onClick={() => { onDeleteAction(plant.id, e.date); setConfirmDeleteDate(null); }}
+                          style={{ background: 'rgba(200,80,30,0.15)', border: '1px solid rgba(200,80,30,0.35)',
+                            borderRadius: 6, padding: '5px 12px', cursor: 'pointer',
+                            fontSize: 12, color: '#a05020', fontFamily: SERIF,
+                            WebkitTapHighlightColor: 'transparent' }}>
+                          Delete
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteDate(null)}
+                          style={{ background: 'none', border: '1px solid rgba(160,130,80,0.30)',
+                            borderRadius: 6, padding: '5px 12px', cursor: 'pointer',
+                            fontSize: 12, color: '#b09070', fontFamily: SERIF,
+                            WebkitTapHighlightColor: 'transparent' }}>
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -857,7 +892,7 @@ function PlantAccordionRow({
   plant, isExpanded, onToggle, needsAttention,
   portrait, photos, lastWateredDate,
   careLog, onAction, onStartAction, onPortraitUpdate, onGrowthUpdate, onAddPhoto,
-  briefing, seasonOpen, portraits,
+  briefing, seasonOpen, portraits, onDeleteAction,
 }) {
   const color = plantColor(plant.type);
   const CC = useCC();
@@ -954,7 +989,7 @@ function PlantAccordionRow({
             onStartAction={onStartAction} onPortraitUpdate={onPortraitUpdate}
             onGrowthUpdate={onGrowthUpdate} onAddPhoto={onAddPhoto}
             photos={photos} portraits={portraits} briefing={briefing}
-            seasonOpen={seasonOpen}
+            seasonOpen={seasonOpen} onDeleteAction={onDeleteAction}
           />
         </div>
       )}
@@ -965,7 +1000,7 @@ function PlantAccordionRow({
 function GardenAccordion({
   plants, frontPlants, careLog, onAction, onStartAction,
   onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos,
-  portraits, briefings, seasonOpen, frozenAgendaItems,
+  portraits, briefings, seasonOpen, frozenAgendaItems, onDeleteAction,
 }) {
   const attentionIds = useMemo(
     () => new Set((frozenAgendaItems || []).map(i => i.plantId)),
@@ -1154,6 +1189,7 @@ function GardenAccordion({
                       briefing={briefings[p.id]}
                       seasonOpen={seasonOpen}
                       portraits={portraits}
+                      onDeleteAction={onDeleteAction}
                     />
                   ))}
                 </div>
@@ -2037,6 +2073,7 @@ export function MobileView({
   portraits = {}, role, signIn, signOut, seasonOpen, oracle, onGoFront,
   briefings: externalBriefings = {},
   expenses = [], onAddExpense,
+  onDeleteAction,
 }) {
   const [tab, setTab] = useState('today');
   const [flash, setFlash] = useState(null);
@@ -2311,6 +2348,7 @@ export function MobileView({
             briefings={mergedBriefings}
             seasonOpen={seasonOpen}
             frozenAgendaItems={rawAgendaItems}
+            onDeleteAction={onDeleteAction}
           />
         )}
 
