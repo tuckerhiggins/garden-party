@@ -1098,15 +1098,54 @@ function PlantAccordionRow({
   );
 }
 
+const SORT_OPTIONS = [
+  { key: 'care',      label: 'Needs Care' },
+  { key: 'phenology', label: 'Most Active' },
+  { key: 'neglected', label: 'Most Neglected' },
+  { key: 'alpha',     label: 'A–Z' },
+];
+
+function plantPhenologyScore(plant, portraits) {
+  const p = portraits?.[plant.id] || {};
+  let score = 0;
+  if (p.stages?.length) score += p.stages.length;       // more tracked stages = richer lifecycle
+  if (p.currentStage) score += 2;                       // actively in a known stage
+  if (p.visualNote) score += 1;                         // portrait has AI observation
+  if (p.svg) score += 1;                                // AI portrait generated
+  // Phenologically rich plant types get a boost
+  const richTypes = new Set(['wisteria','climbing-rose','rose','tomato','fig','magnolia','pepper']);
+  if (richTypes.has(plant.type)) score += 2;
+  return score;
+}
+
+function plantLastCareMs(plantId, careLog) {
+  const skip = new Set(['visit', 'photo', 'note']);
+  const entries = (careLog[plantId] || []).filter(e => !skip.has(e.action));
+  if (!entries.length) return 0;
+  return Math.max(...entries.map(e => new Date(e.date).getTime()));
+}
+
 function GardenAccordion({
   plants, frontPlants, careLog, onAction, onStartAction,
   onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos,
   portraits, briefings, seasonOpen, frozenAgendaItems, onDeleteAction,
 }) {
+  const [sortBy, setSortBy] = useState('care');
   const attentionIds = useMemo(
     () => new Set((frozenAgendaItems || []).map(i => i.plantId)),
     [frozenAgendaItems]
   );
+  // Priority of the most urgent agenda item per plant
+  const plantUrgency = useMemo(() => {
+    const TIER = { urgent: 0, recommended: 1, routine: 2, optional: 3 };
+    const map = {};
+    for (const item of frozenAgendaItems || []) {
+      const cur = map[item.plantId] ?? 99;
+      const tier = TIER[item.priority] ?? 99;
+      if (tier < cur) map[item.plantId] = tier;
+    }
+    return map;
+  }, [frozenAgendaItems]);
 
   // Auto-open groups that have today's attention items
   const TREE_TYPES = new Set(['evergreen', 'maple', 'serviceberry']);
@@ -1160,42 +1199,78 @@ function GardenAccordion({
   }
 
   function groupSubtitle(groupPlants) {
-    // Stage: show if consistent, or first available
-    const stages = [...new Set(groupPlants.map(p => portraits?.[p.id]?.currentStage).filter(Boolean))];
-    // Attention actions for this group
     const activeItems = (frozenAgendaItems || []).filter(i => groupPlants.some(p => p.id === i.plantId));
     const actionEmojis = [...new Set(activeItems.map(i => ACTION_DEFS[i.actionKey]?.emoji).filter(Boolean))].join('');
-    // Visual note — only for single-plant groups with no stage
+
+    if (sortBy === 'neglected') {
+      // Show days since last care for the most neglected plant in group
+      const nowMs = Date.now();
+      const maxGap = Math.max(...groupPlants.map(p => {
+        const last = plantLastCareMs(p.id, careLog);
+        return last ? (nowMs - last) / 86400000 : 999;
+      }));
+      const gapStr = maxGap >= 999 ? 'never tended' : maxGap < 1 ? 'tended today' : `${Math.floor(maxGap)}d since care`;
+      return actionEmojis ? `${gapStr}  ·  ${actionEmojis} today` : gapStr;
+    }
+
+    if (sortBy === 'phenology') {
+      const stages = [...new Set(groupPlants.map(p => portraits?.[p.id]?.currentStage).filter(Boolean))];
+      const parts = [];
+      if (stages.length === 1) parts.push(stages[0]);
+      else if (stages.length === 2) parts.push(stages.join(' · '));
+      else if (stages.length > 2) parts.push(`${stages.length} stages`);
+      if (!parts.length) parts.push(healthLabel(groupPlants[0].health));
+      if (actionEmojis) parts.push(`${actionEmojis} today`);
+      return parts.join('  ·  ');
+    }
+
+    // Default (care + alpha): stage or visual note + action emojis
+    const stages = [...new Set(groupPlants.map(p => portraits?.[p.id]?.currentStage).filter(Boolean))];
     const visualNote = groupPlants.length === 1 && !stages.length
       ? portraits?.[groupPlants[0].id]?.visualNote
       : null;
-
     const parts = [];
     if (stages.length === 1) parts.push(stages[0]);
     else if (stages.length === 2) parts.push(stages.join(' · '));
     else if (stages.length > 2) parts.push(`${stages.length} stages`);
-
     if (!parts.length && visualNote) parts.push(visualNote);
     if (!parts.length) parts.push(healthLabel(groupPlants[0].health));
-
     if (actionEmojis) parts.push(`${actionEmojis} today`);
     return parts.join('  ·  ');
+  }
+
+  function plantSortKey(p) {
+    if (sortBy === 'care') {
+      const urgency = plantUrgency[p.id] ?? 99;
+      return [urgency, p.name];
+    }
+    if (sortBy === 'phenology') {
+      return [-plantPhenologyScore(p, portraits), p.name];
+    }
+    if (sortBy === 'neglected') {
+      return [-(Date.now() - plantLastCareMs(p.id, careLog)), p.name]; // most neglected = largest gap
+    }
+    return [p.name]; // alpha
   }
 
   function renderSection(list, title, titleColor) {
     if (!list.length) return null;
 
-    // Group by type, sort groups: attention first then alpha
-    // Trees (evergreen, maple, serviceberry) merge into a single 'tree' group
+    // Group by type, Trees merge into a single 'tree' group
     const groupMap = new Map();
     for (const p of list) {
       const key = toGroupType(p.type);
       if (!groupMap.has(key)) groupMap.set(key, []);
       groupMap.get(key).push(p);
     }
+
+    // Sort groups based on the best plant score in the group
     const sortedGroups = [...groupMap.entries()].sort(([tA, pA], [tB, pB]) => {
-      const diff = (pA.some(p => attentionIds.has(p.id)) ? 0 : 1) - (pB.some(p => attentionIds.has(p.id)) ? 0 : 1);
-      return diff !== 0 ? diff : tA.localeCompare(tB);
+      if (sortBy === 'alpha') return tA.localeCompare(tB);
+      // Use the best (lowest/highest) score among plants in each group
+      const bestA = pA.map(p => plantSortKey(p)[0]).reduce((a, b) => a < b ? a : b, Infinity);
+      const bestB = pB.map(p => plantSortKey(p)[0]).reduce((a, b) => a < b ? a : b, Infinity);
+      return bestA !== bestB ? bestA - bestB : tA.localeCompare(tB);
     });
 
     return (
@@ -1208,8 +1283,14 @@ function GardenAccordion({
           const anyAttention = groupPlants.some(p => attentionIds.has(p.id));
           const subtitle = groupSubtitle(groupPlants);
           const sortedGroupPlants = [...groupPlants].sort((a, b) => {
-            const d = (attentionIds.has(a.id) ? 0 : 1) - (attentionIds.has(b.id) ? 0 : 1);
-            return d !== 0 ? d : a.name.localeCompare(b.name);
+            const ka = plantSortKey(a), kb = plantSortKey(b);
+            for (let i = 0; i < Math.max(ka.length, kb.length); i++) {
+              if (ka[i] === undefined) return -1;
+              if (kb[i] === undefined) return 1;
+              if (ka[i] < kb[i]) return -1;
+              if (ka[i] > kb[i]) return 1;
+            }
+            return 0;
           });
 
           return (
@@ -1303,7 +1384,32 @@ function GardenAccordion({
   }
 
   return (
-    <div style={{ padding: '16px 16px 32px' }}>
+    <div style={{ padding: '12px 16px 32px' }}>
+      {/* Sort bar */}
+      <div style={{ display: 'flex', gap: 5, marginBottom: 14, overflowX: 'auto', paddingBottom: 2 }}>
+        {SORT_OPTIONS.map(opt => {
+          const active = sortBy === opt.key;
+          return (
+            <button
+              key={opt.key}
+              onClick={() => setSortBy(opt.key)}
+              style={{
+                flexShrink: 0,
+                padding: '5px 11px',
+                borderRadius: 20,
+                border: `1px solid ${active ? 'rgba(212,168,48,0.55)' : 'rgba(160,130,80,0.22)'}`,
+                background: active ? 'rgba(212,168,48,0.12)' : 'transparent',
+                fontFamily: MONO, fontSize: 6, letterSpacing: .3,
+                color: active ? C.uiGold : '#907050',
+                cursor: 'pointer',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
       {renderSection(plants, 'TERRACE', C.uiGold)}
       {frontPlants.length > 0 && renderSection(frontPlants, '🌹 EMMA\'S ROSE GARDEN', '#e84070')}
     </div>
