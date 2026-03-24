@@ -26,7 +26,7 @@ export const ACTION_DEFS = {
 // ── HOW-TO INSTRUCTIONS (shown before doing the action) ───────────────────
 export const ACTION_HOWTO = {
   prune: {
-    'hydrangea': `Pinnacle Lime hydrangeas bloom on new wood — prune in early spring before new growth starts.\n\n1. Cut all stems back to about 12–18 inches from the ground.\n2. Remove any dead or crossing branches.\n3. Leave the structure open so air can circulate.\n4. Don't worry about being too aggressive — they come back strong.`,
+    'hydrangea': `Limelight hydrangeas bloom on new wood — prune in early spring before new growth starts.\n\n1. Cut all stems back to about 12–18 inches from the ground.\n2. Remove any dead or crossing branches.\n3. Leave the structure open so air can circulate.\n4. Don't worry about being too aggressive — they come back strong.`,
     'climbing-rose': `For Zéphirine Drouhin in early spring:\n\n1. Remove any dead, damaged, or crossing canes.\n2. Shorten side shoots (laterals) to 2–3 buds.\n3. Don't cut main canes unless damaged — she needs them to climb.\n4. No thorns, so you can work barehanded.`,
     'default': `Remove dead, damaged, or crossing growth. Cut just above an outward-facing bud at a 45° angle. When in doubt, less is more.`,
   },
@@ -172,7 +172,7 @@ export const TERRACE_PLANTS = [
     special:'wedding',
   },
   {
-    id:'hydrangea-1', name:'Pinnacle Lime Hydrangea', subtitle:'First pot · north',
+    id:'hydrangea-1', name:'Limelight Hydrangea', subtitle:'First pot · north',
     species:"Hydrangea paniculata 'Limelight'",
     type:'hydrangea', wall:4,
     pos:{x:0.930, y:0.43},
@@ -184,7 +184,7 @@ export const TERRACE_PLANTS = [
     actions:['prune','water','fertilize','photo'],
   },
   {
-    id:'hydrangea-2', name:'Pinnacle Lime Hydrangea', subtitle:'Second pot',
+    id:'hydrangea-2', name:'Limelight Hydrangea', subtitle:'Second pot',
     species:"Hydrangea paniculata 'Limelight'",
     type:'hydrangea', wall:4,
     pos:{x:0.930, y:0.528},
@@ -196,7 +196,7 @@ export const TERRACE_PLANTS = [
     actions:['prune','water','fertilize','photo'],
   },
   {
-    id:'hydrangea-3', name:'Pinnacle Lime Hydrangea', subtitle:'Third pot',
+    id:'hydrangea-3', name:'Limelight Hydrangea', subtitle:'Third pot',
     species:"Hydrangea paniculata 'Limelight'",
     type:'hydrangea', wall:4,
     pos:{x:0.930, y:0.626},
@@ -208,7 +208,7 @@ export const TERRACE_PLANTS = [
     actions:['prune','water','fertilize','photo'],
   },
   {
-    id:'hydrangea-4', name:'Pinnacle Lime Hydrangea', subtitle:'Fourth pot · closest to the maple',
+    id:'hydrangea-4', name:'Limelight Hydrangea', subtitle:'Fourth pot · closest to the maple',
     species:"Hydrangea paniculata 'Limelight'",
     type:'hydrangea', wall:4,
     pos:{x:0.930, y:0.724},

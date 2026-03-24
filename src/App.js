@@ -1903,6 +1903,11 @@ export default function App() {
     return Object.values(careLog).flat().filter(e => e.date?.slice(0, 10) === today).length;
   }, [careLog]);
 
+  // Tracks total rain entries — used to bust briefing cache after auto-rain logging
+  const rainEntryCount = useMemo(() =>
+    Object.values(careLog).flat().filter(e => e.action === 'rain').length,
+  [careLog]);
+
   // Oracle — fetch on mount (after weather loads) and whenever care is logged today
   useEffect(() => {
     if (!weather) return;
@@ -1978,13 +1983,13 @@ export default function App() {
           .catch(() => setBriefings(prev => ({ ...prev, [plant.id]: null })));
       }, i * 600); // stagger 600ms per plant — avoids Anthropic rate limits
     });
-  }, [weather, seasonOpen]);
+  }, [weather, seasonOpen, rainEntryCount]);
 
   // Invalidate briefings when care is logged (so recommendations update immediately)
   useEffect(() => {
     if (!weather || !seasonOpen) return;
     setBriefings({});
-  }, [todayCareCount]);
+  }, [todayCareCount, rainEntryCount]);
 
   // One-time backfill: log yesterday's rain (March 23 2026) for all active plants.
   useEffect(() => {
