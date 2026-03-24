@@ -1699,6 +1699,7 @@ export default function App() {
   const [mode, setMode] = useState('garden'); // 'garden' | 'journal' | 'oracle'
   const [gardenView, setGardenView] = useState('cards'); // 'cards' | 'map'
   const [gardenSection, setGardenSection] = useState('all');
+  const [desktopSortBy, setDesktopSortBy] = useState('care');
   const [sel, setSel] = useState(null);
   const [hov, setHov] = useState(null);
   const { user, role, signIn, signOut, checking, authError } = useAuth();
@@ -1832,6 +1833,17 @@ export default function App() {
     () => computeAgenda({ plants: gardenPlants.terrace, frontPlants, careLog, briefings, weather, seasonOpen, allPhotos }),
     [gardenPlants.terrace, frontPlants, careLog, briefings, weather, seasonOpen, allPhotos]
   );
+
+  const desktopPlantUrgency = useMemo(() => {
+    const TIER = { urgent: 0, recommended: 1, routine: 2, optional: 3 };
+    const map = {};
+    for (const item of sharedAgendaItems) {
+      const cur = map[item.plantId] ?? 99;
+      const tier = TIER[item.priority] ?? 99;
+      if (tier < cur) map[item.plantId] = tier;
+    }
+    return map;
+  }, [sharedAgendaItems]);
 
   // Morning brief + daily brief — shared by desktop MapInfoPanel and mobile Today tab
   // Re-fetches when today's care count changes; cachedClaude handles deduplication
@@ -2239,20 +2251,56 @@ export default function App() {
             <div style={{flex:1,overflowY:'auto',padding:'0'}}>
               <div style={{padding:'14px 16px 24px',display:'flex',flexDirection:'column',gap:0}}>
                 {(()=>{
-                  // Urgency: lower = more urgent (struggling=0, thirsty=1, overlooked=2, else 9)
-                  const URGENCY = {struggling:0,thirsty:1,overlooked:2};
-                  const plantUrgency = p => URGENCY[p.health] ?? 9;
+                  const DESKTOP_SORT_OPTIONS = [
+                    { key:'care',      label:'Needs Care' },
+                    { key:'phenology', label:'Most Active' },
+                    { key:'neglected', label:'Most Neglected' },
+                    { key:'alpha',     label:'A–Z' },
+                  ];
+                  function deskLastCareMs(plantId) {
+                    const skip = new Set(['visit','photo','note']);
+                    const entries = (careLog[plantId] || []).filter(e => !skip.has(e.action));
+                    if (!entries.length) return 0;
+                    return Math.max(...entries.map(e => new Date(e.date).getTime()));
+                  }
+                  function deskPhenologyScore(p) {
+                    const port = portraits[p.id] || {};
+                    let score = 0;
+                    if (port.stages?.length) score += port.stages.length;
+                    if (port.currentStage) score += 2;
+                    if (port.visualNote) score += 1;
+                    if (port.svg) score += 1;
+                    const rich = new Set(['wisteria','climbing-rose','rose','tomato','fig','magnolia','pepper']);
+                    if (rich.has(p.type)) score += 2;
+                    return score;
+                  }
+                  function deskSortKey(p) {
+                    if (desktopSortBy === 'care') return [desktopPlantUrgency[p.id] ?? 99, p.name];
+                    if (desktopSortBy === 'phenology') return [-deskPhenologyScore(p), p.name];
+                    if (desktopSortBy === 'neglected') return [-(Date.now() - deskLastCareMs(p.id)), p.name];
+                    return [p.name]; // alpha
+                  }
                   const renderGroups = (plants, groups, sectionLabel) => {
                     const populated = groups.map(grp => ({
                       ...grp,
                       ps: [...plants.filter(p => grp.types.includes(p.type))]
-                        .sort((a,b) => plantUrgency(a) - plantUrgency(b) || a.name.localeCompare(b.name)),
+                        .sort((a,b) => {
+                          const ka = deskSortKey(a), kb = deskSortKey(b);
+                          for (let i = 0; i < Math.max(ka.length, kb.length); i++) {
+                            if (ka[i] === undefined) return -1;
+                            if (kb[i] === undefined) return 1;
+                            if (ka[i] < kb[i]) return -1;
+                            if (ka[i] > kb[i]) return 1;
+                          }
+                          return 0;
+                        }),
                     })).filter(grp => grp.ps.length > 0);
-                    // Sort groups so most-urgent group comes first
+                    // Sort groups by best plant score within group
                     populated.sort((a,b) => {
-                      const ua = Math.min(...a.ps.map(p => plantUrgency(p)));
-                      const ub = Math.min(...b.ps.map(p => plantUrgency(p)));
-                      return ua !== ub ? ua - ub : a.label.localeCompare(b.label);
+                      if (desktopSortBy === 'alpha') return a.label.localeCompare(b.label);
+                      const bestA = a.ps.map(p => deskSortKey(p)[0]).reduce((x,y) => x < y ? x : y, Infinity);
+                      const bestB = b.ps.map(p => deskSortKey(p)[0]).reduce((x,y) => x < y ? x : y, Infinity);
+                      return bestA !== bestB ? bestA - bestB : a.label.localeCompare(b.label);
                     });
                     return populated.map(grp => {
                       const hasUrgent = grp.ps.some(p => plantUrgency(p) < 9);
@@ -2279,6 +2327,22 @@ export default function App() {
                   };
                   return (
                     <>
+                      {/* Sort bar */}
+                      <div style={{display:'flex',gap:5,marginBottom:18,flexWrap:'wrap'}}>
+                        {DESKTOP_SORT_OPTIONS.map(opt => {
+                          const active = desktopSortBy === opt.key;
+                          return (
+                            <button key={opt.key} onClick={()=>setDesktopSortBy(opt.key)}
+                              style={{padding:'5px 12px',borderRadius:20,cursor:'pointer',
+                                border:`1px solid ${active?'rgba(90,60,24,0.55)':C.cardBorder}`,
+                                background:active?'rgba(90,60,24,0.08)':'transparent',
+                                fontFamily:MONO,fontSize:7,letterSpacing:.3,
+                                color:active?'#2a1808':'#907050',transition:'all .1s'}}>
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                       {gardenPlants.terrace.length>0&&renderGroups(gardenPlants.terrace, TERRACE_GROUPS, null)}
                       {frontPlants.length>0&&renderGroups(frontPlants, FRONT_GROUPS, "🌹 Emma's Rose Garden")}
                       {/* Available containers — empty pots that can receive a new plant */}
