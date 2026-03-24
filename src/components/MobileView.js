@@ -2144,17 +2144,18 @@ function MobileSignIn({ signIn }) {
         <button onClick={() => setWho('tucker')}
           style={{width:'100%',maxWidth:280,padding:'16px',background:'rgba(212,168,48,0.12)',
             border:'1px solid rgba(212,168,48,0.3)',borderRadius:10,color:C.uiText,
-            fontFamily:SERIF,fontSize:18,cursor:'pointer'}}>
+            fontFamily:SERIF,fontSize:18,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
           🌿 Tucker
         </button>
         <button onClick={() => setWho('emma')}
           style={{width:'100%',maxWidth:280,padding:'16px',background:'rgba(232,64,112,0.10)',
             border:'1px solid rgba(232,64,112,0.25)',borderRadius:10,color:C.uiText,
-            fontFamily:SERIF,fontSize:18,cursor:'pointer'}}>
+            fontFamily:SERIF,fontSize:18,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
           🌹 Emma
         </button>
         <button onClick={close}
-          style={{background:'none',border:'none',color:C.uiMuted,fontFamily:SERIF,fontSize:14,cursor:'pointer',marginTop:8}}>
+          style={{background:'none',border:'none',color:C.uiMuted,fontFamily:SERIF,fontSize:14,cursor:'pointer',marginTop:8,
+            WebkitTapHighlightColor:'transparent'}}>
           cancel
         </button>
       </div>

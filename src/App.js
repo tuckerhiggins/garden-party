@@ -354,6 +354,7 @@ function drawTerraceMap(ctx,W,H,T,f,plants,selId,hovId,cookiePos){
 
   // ── Wisteria cane traces (pre-plant layer — trained along fence) ───────
   plants.filter(p=>p.type==='wisteria').forEach(p=>{
+    if(!p.pos) return;
     const {px,py}=proj(p.pos.x,p.pos.y,W,H,0);
     // Cane lines spreading up and down from planter along fence
     ctx.strokeStyle='rgba(120,90,160,0.35)'; ctx.lineWidth=2; ctx.setLineDash([4,4]);
@@ -443,6 +444,7 @@ function drawTerraceMap(ctx,W,H,T,f,plants,selId,hovId,cookiePos){
 
   // ── Plants ────────────────────────────────────────────────────────────
   plants.forEach(p=>{
+    if(!p.pos) return;
     const {px,py}=proj(p.pos.x,p.pos.y,W,H,0);
     const isSel=p.id===selId, isHov=p.id===hovId;
     const sc=isSel?1.12:isHov?1.06:1;
@@ -1343,7 +1345,7 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
                   const isPendingDelete = confirmDeleteDate === e.date;
                   const isRain = e.action === 'rain';
                   return (
-                    <div key={i} style={{padding:'8px 0',
+                    <div key={`${e.date}_${e.action}_${i}`} style={{padding:'8px 0',
                       borderBottom:i<history.length-1?`1px solid rgba(160,130,80,0.12)`:'none',
                       ...(isRain ? {background:'rgba(80,140,200,0.07)',borderRadius:6,padding:'8px 8px',margin:'0 -8px'} : {})}}>
                       <div style={{display:'flex',alignItems:'flex-start',gap:8}}>
@@ -1620,6 +1622,7 @@ function buildJournalDayMap(allPlants, careLog, portraits, allPhotos) {
     const plant = allPlants.find(p => p.id === plantId);
     if (!plant) return;
     entries.forEach(e => {
+      if (!e.date) return;
       ensure(e.date.slice(0, 10)).careEntries.push({
         plantId, plantName: plant.name, label: e.label, action: e.action, withEmma: !!e.withEmma,
       });
@@ -1664,7 +1667,7 @@ function getPlantHistories(plantIds, allPlants, careLog, dateStr) {
     const plant = allPlants.find(p => p.id === pid);
     if (!plant) return null;
     const recentCare = (careLog[pid] || [])
-      .filter(e => e.date.slice(0, 10) < dateStr)
+      .filter(e => e.date && e.date.slice(0, 10) < dateStr)
       .slice(-8)
       .map(e => ({ label: e.label, date: e.date }));
     return { plantName: plant.name, recentCare };
@@ -1745,7 +1748,7 @@ function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPla
       {photos.length > 0 && (
         <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
           {photos.slice(0, 6).map((ph, i) => (
-            <img key={i} src={ph.url || ph.dataUrl} alt=""
+            <img key={ph.date || i} src={ph.url || ph.dataUrl} alt=""
               style={{ width: 68, height: 68, objectFit: 'cover', borderRadius: 6, border: '1px solid rgba(160,130,80,0.22)' }} />
           ))}
         </div>
@@ -1899,7 +1902,7 @@ export default function App() {
       activePlantCount: active.length,
       seasonBlocking: blocking,
     };
-  }, [terracePlants, weather, allPhotos]);
+  }, [terracePlants, allPhotos]);
 
   // Re-run oracle when today's care count changes so recommendations stay current
   const todayCareCount = useMemo(() => {
@@ -2085,7 +2088,7 @@ export default function App() {
     let pts = 0;
     Object.values(careLog).forEach(entries => {
       entries.forEach(e => {
-        if (new Date(e.date).getTime() < cutoff) return;
+        if (!e.date || new Date(e.date).getTime() < cutoff) return;
         const base = WARMTH_PTS[e.action] ?? 0;
         pts += e.withEmma ? base * 2 : base;
       });
