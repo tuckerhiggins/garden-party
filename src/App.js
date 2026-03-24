@@ -1991,18 +1991,22 @@ export default function App() {
     setBriefings({});
   }, [todayCareCount, rainEntryCount]);
 
-  // One-time backfill: log yesterday's rain (March 23 2026) for all active plants.
+  // One-time backfill: log March 23 2026 rain for all active plants.
+  // Guard is data-driven (checks careLog directly) so a failed previous
+  // attempt doesn't permanently block it via a stale localStorage flag.
   useEffect(() => {
-    const flagKey = 'gp_rain_backfill_2026_03_23';
-    if (localStorage.getItem(flagKey)) return;
-    const yesterday = new Date('2026-03-23T18:00:00');
-    const yISO = yesterday.toISOString();
+    const rainDate = '2026-03-23';
+    const firstTerracePlant = gardenPlants.terrace[0];
+    if (!firstTerracePlant) return;
+    const alreadyLogged = (careLog[firstTerracePlant.id] || [])
+      .some(e => e.action === 'rain' && e.date?.startsWith(rainDate));
+    if (alreadyLogged) return;
+    const yISO = new Date('2026-03-23T18:00:00').toISOString();
     const activePlants = [...gardenPlants.terrace, ...frontPlants]
       .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
     activePlants.forEach(plant => {
       logAction('rain', plant, false, 'Rained in Brooklyn', yISO);
     });
-    localStorage.setItem(flagKey, '1');
   }, [gardenPlants.terrace.length]);
 
   // Auto-log rain watering — fires once per rainy day for all active plants.
