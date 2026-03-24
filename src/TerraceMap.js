@@ -1870,38 +1870,41 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           <g style={{ pointerEvents: 'auto' }}
             onMouseEnter={() => { if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; } }}
             onMouseLeave={() => { leaveTimerRef.current = setTimeout(() => { setHovId(null); leaveTimerRef.current = null; }, 200); }}>
-            <rect x={bx+3} y={by+3} width={boxW} height={boxH} fill="rgba(0,0,0,0.28)" rx={9}/>
+            {/* No separate shadow rect — box-shadow on the div follows actual content height */}
             <foreignObject x={bx} y={by} width={boxW} height={boxH} style={{ overflow: 'visible' }}>
               <div style={{
                 width: boxW, fontFamily: '"Crimson Pro", Georgia, serif',
-                background: 'rgba(10,6,2,0.97)', borderRadius: 9,
-                border: `1px solid ${accentColor}44`,
+                background: 'rgba(12,7,3,0.97)', borderRadius: 8,
+                border: `1px solid ${accentColor}38`,
+                boxShadow: '0 3px 14px rgba(0,0,0,0.55)',
                 overflow: 'hidden',
               }}>
-                <div style={{ height: 2, background: accentColor, opacity: 0.8 }}/>
-                {/* Portrait + name row */}
-                <div style={{ display: 'flex', gap: 8, padding: '8px 10px 6px', alignItems: 'flex-start' }}>
+                <div style={{ height: 2, background: accentColor, opacity: 0.75 }}/>
+                {/* Portrait + name header */}
+                <div style={{ display: 'flex', gap: 9, padding: '9px 11px 8px', alignItems: 'flex-start' }}>
                   {portHistory.length > 0 && (
                     <div style={{ position: 'relative', flexShrink: 0 }}>
-                      <div style={{ width: 58, height: 58, borderRadius: 5, overflow: 'hidden', border: `1px solid ${accentColor}33` }}>
+                      <div style={{ width: 54, height: 54, borderRadius: 5, overflow: 'hidden', border: `1px solid ${accentColor}28` }}>
                         <PlantPortrait aiSvg={portHistory[0].svg}/>
                       </div>
                       {hasHistory && (
                         <div style={{ position: 'absolute', bottom: 2, left: 2,
                           fontFamily: '"Crimson Pro", Georgia, serif',
-                          fontSize: 9, color: 'rgba(240,228,200,0.55)',
-                          background: 'rgba(10,6,2,0.75)', padding: '1px 4px', borderRadius: 3 }}>
+                          fontSize: 9, color: 'rgba(240,228,200,0.52)',
+                          background: 'rgba(10,6,2,0.82)', padding: '1px 4px', borderRadius: 2 }}>
                           ‹ {portHistory.length - 1}
                         </div>
                       )}
                     </div>
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 6.5, color: accentColor, letterSpacing: 0.3, lineHeight: 1.7 }}>
-                      {hp.name.toUpperCase()}
+                    {/* Plant name — largest, most prominent element */}
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(240,228,200,0.96)', lineHeight: 1.2, marginBottom: 3 }}>
+                      {hp.name}
                     </div>
+                    {/* Stage — italic, accent color, clearly secondary */}
                     {portrait.currentStage && (
-                      <div style={{ fontSize: 12.5, color: accentColor, fontStyle: 'italic', opacity: 0.9, marginTop: 1 }}>
+                      <div style={{ fontSize: 12, color: accentColor, fontStyle: 'italic', lineHeight: 1.3, opacity: 0.88 }}>
                         {portrait.currentStage}
                         {portrait.stages?.length > 1 && (() => {
                           const nextIdx = portrait.stages.indexOf(portrait.currentStage) + 1;
@@ -1909,38 +1912,38 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                           const days = daysToNextStage(portrait);
                           if (!nextStage) return null;
                           return (
-                            <span style={{ fontSize: 9.5, color: 'rgba(240,228,200,0.42)', fontStyle: 'italic', marginLeft: 4 }}>
+                            <span style={{ fontSize: 10.5, color: 'rgba(240,228,200,0.36)', fontStyle: 'normal', marginLeft: 5 }}>
                               → {nextStage}{days !== null ? ` ~${days}d` : ''}
                             </span>
                           );
                         })()}
                       </div>
                     )}
-                    <div style={{ fontSize: 10, color: waterUrgent ? '#e8905a' : 'rgba(240,228,200,0.48)', marginTop: 4 }}>
+                    {/* Water status */}
+                    <div style={{ fontSize: 11.5, color: waterUrgent ? '#e8905a' : 'rgba(240,228,200,0.52)', marginTop: 5 }}>
                       {lastWater?.action === 'rain' ? '🌧' : '💧'} {daysSinceWater === null ? 'No water logged' : daysSinceWater === 0 ? (lastWater?.action === 'rain' ? 'Rained today' : 'Watered today') : `${daysSinceWater}d since ${lastWater?.action === 'rain' ? 'rain' : 'water'}`}
                     </div>
                   </div>
                 </div>
-                {/* Recent actions */}
+                {/* Recent actions — serif, readable size */}
                 {recentActions.length > 0 && (
-                  <div style={{ padding: '4px 10px 6px', borderTop: '1px solid rgba(160,130,80,0.12)', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  <div style={{ padding: '5px 11px 7px', borderTop: '1px solid rgba(160,130,80,0.10)', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                     {recentActions.map((e, i) => {
                       const def = ACTION_DEFS[e.action];
                       return (
-                        <span key={i} style={{ fontSize: 9, color: 'rgba(240,228,200,0.50)',
-                          background: 'rgba(160,130,80,0.10)', border: '1px solid rgba(160,130,80,0.18)',
-                          borderRadius: 3, padding: '1px 5px', whiteSpace: 'nowrap' }}>
+                        <span key={i} style={{ fontSize: 10.5, color: 'rgba(220,205,170,0.68)',
+                          background: 'rgba(160,130,80,0.08)', border: '1px solid rgba(160,130,80,0.14)',
+                          borderRadius: 3, padding: '2px 6px', whiteSpace: 'nowrap' }}>
                           {def?.emoji || '·'} {def?.label || e.action}
                         </span>
                       );
                     })}
                   </div>
                 )}
-                {/* Footer */}
-                <div style={{ padding: '4px 10px 5px', borderTop: '1px solid rgba(160,130,80,0.10)',
-                  fontFamily: '"Press Start 2P", monospace', fontSize: 5, color: 'rgba(160,130,80,0.38)',
-                  letterSpacing: 0.3, textAlign: 'right' }}>
-                  CLICK TO PIN
+                {/* Footer hint */}
+                <div style={{ padding: '4px 11px 5px', borderTop: '1px solid rgba(160,130,80,0.07)',
+                  fontSize: 9.5, color: 'rgba(160,130,80,0.42)', textAlign: 'right', fontStyle: 'italic' }}>
+                  click to pin
                 </div>
               </div>
             </foreignObject>
