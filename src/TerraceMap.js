@@ -2,6 +2,41 @@
 // The wisteria fence and rose trellises are the focal mechanics.
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { ACTION_DEFS } from './data/plants';
+import { PlantPortrait } from './PlantPortraits';
+
+// Build portrait history newest-first, deduping current from history
+function buildPortraitHistory(portrait) {
+  const current = portrait.svg ? { svg: portrait.svg, visualNote: portrait.visualNote, date: portrait.date } : null;
+  const hist = (portrait.history || []).filter(h => h.svg).reverse();
+  if (!current) return hist;
+  const deduped = hist.filter(h => h.svg !== current.svg);
+  return [current, ...deduped];
+}
+
+// Estimate days until next phenological stage based on history
+function daysToNextStage(portrait) {
+  const stages = portrait.stages || [];
+  const currentIdx = stages.indexOf(portrait.currentStage);
+  if (currentIdx < 0 || currentIdx >= stages.length - 1) return null;
+  const stageHistory = portrait.stageHistory || [];
+  const currentEntry = [...stageHistory].reverse().find(e => e.stage === portrait.currentStage);
+  if (!currentEntry) return null;
+  const daysInStage = (Date.now() - new Date(currentEntry.date).getTime()) / 86400000;
+  const durations = [];
+  for (let i = 1; i < stageHistory.length; i++) {
+    const dur = (new Date(stageHistory[i].date) - new Date(stageHistory[i - 1].date)) / 86400000;
+    if (dur >= 1 && dur <= 45) durations.push(dur);
+  }
+  const avgDur = durations.length > 0
+    ? durations.slice(-3).reduce((a, b) => a + b, 0) / Math.min(3, durations.length)
+    : 6;
+  return Math.max(1, Math.round(avgDur - daysInStage));
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 // ── COORDINATE SYSTEM ─────────────────────────────────────────────────────
 // viewBox: 870 × 694
@@ -1172,6 +1207,7 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
   const [hovId, setHovId] = useState(null);
   const [pinnedId, setPinnedId] = useState(null);
   const [cookiePetted, setCookiePetted] = useState(false);
+  const [portraitCarouselIdx, setPortraitCarouselIdx] = useState(0);
   const [actionFlash, setActionFlash] = useState(null); // {x, y, key}
   const leaveTimerRef = useRef(null);
   const cookieRef = useRef(null);
@@ -1187,6 +1223,8 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
     const p = hovId ? plants.find(pl => pl.id === hovId) : null;
     onHover?.(p ?? null);
   }, [hovId, plants, onHover]);
+
+  useEffect(() => { setPortraitCarouselIdx(0); }, [pinnedId]);
 
 
   const [dragId, setDragId] = useState(null);
@@ -1807,10 +1845,12 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         if (!hp || hp.type === 'empty-pot') return null;
         const portrait = portraits[hp.id] || {};
         const entries = careLog[hp.id] || [];
-        const lastWater = [...entries].reverse().find(e => e.action === 'water');
+        const lastWater = [...entries].reverse().find(e => e.action === 'water' || e.action === 'rain');
         const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
-        const stage = portrait.currentStage;
         const waterUrgent = daysSinceWater === null || daysSinceWater > 3;
+        const recentActions = [...entries].reverse().slice(0, 3);
+        const portHistory = buildPortraitHistory(portrait);
+        const hasHistory = portHistory.length > 1;
         let px, py;
         if (hp.wall === 3) {
           const roses = plants.filter(p => p.type === 'climbing-rose').sort((a,b) => a.pos.x - b.pos.x);
@@ -1818,37 +1858,92 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           px = (isRight ? W3_R_BOX_X : W3_L_BOX_X) + W3_PLANTER_W / 2;
           py = DT + W3_PLANTER_H + 10;
         } else { const pt = pxy(hp.pos); px = pt.x; py = pt.y; }
-        const PAD = 11, boxW = 172, ROW = 15;
-        const boxH = PAD + ROW + 5 + ROW + PAD;
+        const boxW = 192;
+        const boxH = portHistory.length > 0 ? 192 : 110;
         let bx = px + 20, by = py - boxH - 14;
         if (bx + boxW > VW - 10) bx = px - boxW - 20;
         if (by < DT + 4) by = py + 18;
         if (by + boxH > DB - 4) by = DB - boxH - 8;
         if (bx < DL + 4) bx = DL + 6;
         const accentColor = hp.color || '#d4a830';
-        let cy = by + PAD;
         return (
           <g style={{ pointerEvents: 'auto' }}
             onMouseEnter={() => { if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; } }}
             onMouseLeave={() => { leaveTimerRef.current = setTimeout(() => { setHovId(null); leaveTimerRef.current = null; }, 200); }}>
-            <rect x={bx+3} y={by+3} width={boxW} height={boxH} fill="rgba(0,0,0,0.24)" rx={7}/>
-            <rect x={bx} y={by} width={boxW} height={boxH} fill="rgba(10,6,2,0.96)" rx={7}
-              stroke={accentColor} strokeWidth={0.6} strokeOpacity={0.3}/>
-            <rect x={bx} y={by+7} width={3} height={boxH-14} fill={accentColor} rx={1.5} opacity={0.85}/>
-            <text x={bx+PAD} y={cy+10} fontFamily="'Press Start 2P', monospace" fontSize={7.5}
-              fill={accentColor} letterSpacing={0.4}>{hp.name.toUpperCase()}</text>
-            {stage && <text x={bx+boxW-PAD} y={cy+10} textAnchor="end"
-              fontFamily="'Crimson Pro', Georgia, serif" fontSize={12} fontStyle="italic"
-              fill={accentColor} opacity={0.88}>{stage}</text>}
-            {(() => { cy += ROW + 5; return null; })()}
-            <line x1={bx+PAD} y1={cy} x2={bx+boxW-PAD} y2={cy} stroke="rgba(160,130,80,0.16)" strokeWidth={0.7}/>
-            {(() => { cy += 8; return null; })()}
-            <text x={bx+PAD} y={cy+8} fontFamily="'Crimson Pro', Georgia, serif" fontSize={10.5}
-              fill={waterUrgent ? '#e8905a' : 'rgba(240,228,200,0.58)'}>
-              {daysSinceWater === null ? '💧 No water logged' : daysSinceWater === 0 ? '💧 Watered today' : `💧 ${daysSinceWater}d since water`}
-            </text>
-            <text x={bx+boxW-PAD} y={cy+8} textAnchor="end" fontFamily="'Press Start 2P', monospace"
-              fontSize={5.5} fill="rgba(160,130,80,0.45)" letterSpacing={0.3}>CLICK TO PIN</text>
+            <rect x={bx+3} y={by+3} width={boxW} height={boxH} fill="rgba(0,0,0,0.28)" rx={9}/>
+            <foreignObject x={bx} y={by} width={boxW} height={boxH} style={{ overflow: 'visible' }}>
+              <div style={{
+                width: boxW, fontFamily: '"Crimson Pro", Georgia, serif',
+                background: 'rgba(10,6,2,0.97)', borderRadius: 9,
+                border: `1px solid ${accentColor}44`,
+                overflow: 'hidden',
+              }}>
+                <div style={{ height: 2, background: accentColor, opacity: 0.8 }}/>
+                {/* Portrait + name row */}
+                <div style={{ display: 'flex', gap: 8, padding: '8px 10px 6px', alignItems: 'flex-start' }}>
+                  {portHistory.length > 0 && (
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <div style={{ width: 58, height: 58, borderRadius: 5, overflow: 'hidden', border: `1px solid ${accentColor}33` }}>
+                        <PlantPortrait portrait={{ svg: portHistory[0].svg }} size={58}/>
+                      </div>
+                      {hasHistory && (
+                        <div style={{ position: 'absolute', bottom: 2, left: 2,
+                          fontFamily: '"Crimson Pro", Georgia, serif',
+                          fontSize: 9, color: 'rgba(240,228,200,0.55)',
+                          background: 'rgba(10,6,2,0.75)', padding: '1px 4px', borderRadius: 3 }}>
+                          ‹ {portHistory.length - 1}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 6.5, color: accentColor, letterSpacing: 0.3, lineHeight: 1.7 }}>
+                      {hp.name.toUpperCase()}
+                    </div>
+                    {portrait.currentStage && (
+                      <div style={{ fontSize: 12.5, color: accentColor, fontStyle: 'italic', opacity: 0.9, marginTop: 1 }}>
+                        {portrait.currentStage}
+                        {portrait.stages?.length > 1 && (() => {
+                          const nextIdx = portrait.stages.indexOf(portrait.currentStage) + 1;
+                          const nextStage = portrait.stages[nextIdx];
+                          const days = daysToNextStage(portrait);
+                          if (!nextStage) return null;
+                          return (
+                            <span style={{ fontSize: 9.5, color: 'rgba(240,228,200,0.42)', fontStyle: 'italic', marginLeft: 4 }}>
+                              → {nextStage}{days !== null ? ` ~${days}d` : ''}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10, color: waterUrgent ? '#e8905a' : 'rgba(240,228,200,0.48)', marginTop: 4 }}>
+                      {lastWater?.action === 'rain' ? '🌧' : '💧'} {daysSinceWater === null ? 'No water logged' : daysSinceWater === 0 ? (lastWater?.action === 'rain' ? 'Rained today' : 'Watered today') : `${daysSinceWater}d since ${lastWater?.action === 'rain' ? 'rain' : 'water'}`}
+                    </div>
+                  </div>
+                </div>
+                {/* Recent actions */}
+                {recentActions.length > 0 && (
+                  <div style={{ padding: '4px 10px 6px', borderTop: '1px solid rgba(160,130,80,0.12)', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {recentActions.map((e, i) => {
+                      const def = ACTION_DEFS[e.action];
+                      return (
+                        <span key={i} style={{ fontSize: 9, color: 'rgba(240,228,200,0.50)',
+                          background: 'rgba(160,130,80,0.10)', border: '1px solid rgba(160,130,80,0.18)',
+                          borderRadius: 3, padding: '1px 5px', whiteSpace: 'nowrap' }}>
+                          {def?.emoji || '·'} {def?.label || e.action}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Footer */}
+                <div style={{ padding: '4px 10px 5px', borderTop: '1px solid rgba(160,130,80,0.10)',
+                  fontFamily: '"Press Start 2P", monospace', fontSize: 5, color: 'rgba(160,130,80,0.38)',
+                  letterSpacing: 0.3, textAlign: 'right' }}>
+                  CLICK TO PIN
+                </div>
+              </div>
+            </foreignObject>
           </g>
         );
       })()}
@@ -1859,9 +1954,11 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         if (!pp || pp.type === 'empty-pot') return null;
         const portrait = portraits[pp.id] || {};
         const entries = careLog[pp.id] || [];
-        const lastWater = [...entries].reverse().find(e => e.action === 'water');
+        const lastWater = [...entries].reverse().find(e => e.action === 'water' || e.action === 'rain');
         const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
         const waterUrgent = daysSinceWater === null || daysSinceWater > 3;
+        const recentActions = [...entries].reverse().slice(0, 4);
+        const portHistory = buildPortraitHistory(portrait);
         const briefing = externalBriefings[pinnedId];
         const isLoading = briefing === 'loading' || briefing === undefined;
         const aiTasks = (briefing && briefing !== 'loading') ? (briefing.tasks || []) : [];
@@ -1875,7 +1972,7 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           px = (isRight ? W3_R_BOX_X : W3_L_BOX_X) + W3_PLANTER_W / 2;
           py = DT + W3_PLANTER_H + 10;
         } else { const pt = pxy(pp.pos); px = pt.x; py = pt.y; }
-        const cardW = 252, cardH = 370;
+        const cardW = 252, cardH = 460;
         let bx = px + 26, by = py - cardH / 2;
         if (bx + cardW > VW - 8) bx = px - cardW - 26;
         if (by < DT + 4) by = DT + 4;
@@ -1896,6 +1993,41 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                 {/* top accent bar */}
                 <div style={{ height: 3, background: accentColor, opacity: 0.85 }}/>
 
+                {/* Portrait carousel */}
+                {portHistory.length > 0 && (
+                  <div style={{ position: 'relative', width: cardW, background: 'rgba(0,0,0,0.30)' }}>
+                    <div style={{ width: cardW, height: 120, overflow: 'hidden' }}>
+                      <PlantPortrait portrait={{ svg: portHistory[portraitCarouselIdx]?.svg }} size={cardW}/>
+                    </div>
+                    {/* Date overlay */}
+                    {portHistory[portraitCarouselIdx]?.date && (
+                      <div style={{ position: 'absolute', bottom: 6, left: 9,
+                        fontFamily: '"Crimson Pro", Georgia, serif',
+                        fontSize: 10, color: 'rgba(240,228,200,0.70)',
+                        background: 'rgba(10,6,2,0.72)', padding: '2px 6px', borderRadius: 4 }}>
+                        {fmtDate(portHistory[portraitCarouselIdx].date)}
+                      </div>
+                    )}
+                    {/* Carousel nav */}
+                    {portHistory.length > 1 && (
+                      <div style={{ position: 'absolute', bottom: 6, right: 9, display: 'flex', gap: 5, alignItems: 'center' }}>
+                        <button onClick={e => { e.stopPropagation(); setPortraitCarouselIdx(i => Math.min(portHistory.length - 1, i + 1)); }}
+                          disabled={portraitCarouselIdx >= portHistory.length - 1}
+                          style={{ background: 'rgba(10,6,2,0.72)', border: '1px solid rgba(160,130,80,0.30)',
+                            borderRadius: 3, color: portraitCarouselIdx >= portHistory.length - 1 ? 'rgba(160,130,80,0.25)' : 'rgba(240,228,200,0.75)',
+                            cursor: portraitCarouselIdx >= portHistory.length - 1 ? 'default' : 'pointer',
+                            fontSize: 11, padding: '1px 6px', lineHeight: 1.4 }}>‹</button>
+                        <button onClick={e => { e.stopPropagation(); setPortraitCarouselIdx(i => Math.max(0, i - 1)); }}
+                          disabled={portraitCarouselIdx === 0}
+                          style={{ background: 'rgba(10,6,2,0.72)', border: '1px solid rgba(160,130,80,0.30)',
+                            borderRadius: 3, color: portraitCarouselIdx === 0 ? 'rgba(160,130,80,0.25)' : 'rgba(240,228,200,0.75)',
+                            cursor: portraitCarouselIdx === 0 ? 'default' : 'pointer',
+                            fontSize: 11, padding: '1px 6px', lineHeight: 1.4 }}>›</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* header */}
                 <div style={{ padding: '10px 13px 9px', borderBottom: '1px solid rgba(160,130,80,0.14)', position: 'relative' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1903,10 +2035,30 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                       <div style={{ fontFamily: '"Press Start 2P", monospace', fontSize: 7, color: accentColor, letterSpacing: 0.4, lineHeight: 1.7 }}>
                         {pp.name.toUpperCase()}
                       </div>
+                      {/* Current stage + next stage only */}
                       {portrait.currentStage && (
-                        <div style={{ fontSize: 13, color: accentColor, fontStyle: 'italic',
-                          marginTop: 2, fontFamily: '"Crimson Pro", Georgia, serif', opacity: 0.92 }}>
-                          {portrait.currentStage}
+                        <div style={{ marginTop: 3 }}>
+                          <span style={{ fontSize: 14, color: accentColor, fontStyle: 'italic',
+                            fontFamily: '"Crimson Pro", Georgia, serif', fontWeight: 600, opacity: 0.95 }}>
+                            {portrait.currentStage}
+                          </span>
+                          {portrait.stages?.length > 1 && (() => {
+                            const nextIdx = portrait.stages.indexOf(portrait.currentStage) + 1;
+                            const nextStage = portrait.stages[nextIdx];
+                            const days = daysToNextStage(portrait);
+                            if (!nextStage) return null;
+                            return (
+                              <span style={{ fontFamily: '"Crimson Pro", Georgia, serif',
+                                fontSize: 11, color: 'rgba(240,228,200,0.40)', fontStyle: 'italic', marginLeft: 6 }}>
+                                → {nextStage}
+                                {days !== null && (
+                                  <span style={{ fontSize: 10, marginLeft: 4, color: 'rgba(240,228,200,0.35)' }}>
+                                    (next up ~{days}d)
+                                  </span>
+                                )}
+                              </span>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>
@@ -1921,39 +2073,26 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                           padding: '1px 4px', lineHeight: 1 }}>✕</div>
                     </div>
                   </div>
-                  {daysSinceWater !== null && (
-                    <div style={{ fontSize: 11, color: waterUrgent ? '#e8905a' : 'rgba(240,228,200,0.45)', marginTop: 5 }}>
-                      💧 {daysSinceWater === 0 ? 'Watered today' : `${daysSinceWater}d since water`}
+                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ fontSize: 11, color: waterUrgent ? '#e8905a' : 'rgba(240,228,200,0.45)' }}>
+                      {lastWater?.action === 'rain' ? '🌧' : '💧'} {daysSinceWater === null ? 'No water logged' : daysSinceWater === 0 ? (lastWater?.action === 'rain' ? 'Rained today' : 'Watered today') : `${daysSinceWater}d since ${lastWater?.action === 'rain' ? 'rain' : 'water'}`}
                     </div>
-                  )}
-                  {/* Stage arc — full progression */}
-                  {portrait.stages?.length > 1 && portrait.currentStage && (() => {
-                    const stages = portrait.stages;
-                    const currentIdx = stages.indexOf(portrait.currentStage);
-                    return (
-                      <div style={{ marginTop: 9, paddingTop: 8, borderTop: '1px solid rgba(160,130,80,0.10)',
-                        display: 'flex', alignItems: 'center', gap: 0, flexWrap: 'wrap', rowGap: 4 }}>
-                        {stages.map((s, i) => {
-                          const isCurrent = i === currentIdx;
-                          const isPast = currentIdx >= 0 && i < currentIdx;
+                    {/* Recent action tags */}
+                    {recentActions.length > 0 && (
+                      <div style={{ display: 'flex', gap: 3, flexWrap: 'nowrap' }}>
+                        {recentActions.slice(0, 3).map((e, i) => {
+                          const def = ACTION_DEFS[e.action];
                           return (
-                            <React.Fragment key={s}>
-                              {i > 0 && <div style={{ width: 8, height: 1, flexShrink: 0,
-                                background: isPast ? `${accentColor}55` : 'rgba(160,130,80,0.18)' }}/>}
-                              <span style={{
-                                fontFamily: '"Crimson Pro", Georgia, serif',
-                                fontSize: isCurrent ? 11 : 9.5, fontStyle: 'italic',
-                                color: isCurrent ? accentColor : isPast ? `${accentColor}60` : 'rgba(160,130,80,0.32)',
-                                fontWeight: isCurrent ? 600 : 400,
-                                textDecoration: isPast ? 'line-through' : 'none',
-                                whiteSpace: 'nowrap',
-                              }}>{s}</span>
-                            </React.Fragment>
+                            <span key={i} style={{ fontSize: 8.5, color: 'rgba(240,228,200,0.45)',
+                              background: 'rgba(160,130,80,0.08)', border: '1px solid rgba(160,130,80,0.15)',
+                              borderRadius: 3, padding: '1px 4px', whiteSpace: 'nowrap' }}>
+                              {def?.emoji || '·'}
+                            </span>
                           );
                         })}
                       </div>
-                    );
-                  })()}
+                    )}
+                  </div>
                 </div>
 
                 {/* Claude note */}
