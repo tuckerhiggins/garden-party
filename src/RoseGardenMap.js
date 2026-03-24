@@ -97,7 +97,7 @@ function RoseToken({ plant, isSelected, isHovered, isGlowing, mapCondition }) {
             <line x1={0} y1={0} x2={ex} y2={ey}
               stroke="#7a4c28" strokeWidth={1.5} strokeLinecap="round" opacity={0.85}/>
             {/* Reddish bud nub at tip */}
-            <circle cx={ex} cy={ey} r={1.8} fill="#8a1828" opacity={0.80}/>
+            <circle cx={ex} cy={ey} r={2.6} fill="#a0182a" opacity={0.85}/>
           </g>
         );
       })}
@@ -113,7 +113,7 @@ function RoseToken({ plant, isSelected, isHovered, isGlowing, mapCondition }) {
       {/* Label on hover / select */}
       {(isHovered || isSelected) && (
         <text x={0} y={r + 14} textAnchor="middle"
-          fontFamily={SERIF} fontSize={9.5} fontStyle="italic"
+          fontFamily={SERIF} fontSize={10} fontStyle="italic"
           fill="rgba(240,228,200,0.92)"
           style={{ pointerEvents: 'none',
             filter: 'drop-shadow(0 1px 4px rgba(0,0,0,1))' }}>
@@ -138,9 +138,10 @@ function MagnoliaToken({ plant, isSelected, isHovered, isGlowing, mapCondition }
   const trunk   = '#3a2010';
   const branch  = '#4e3018';
   const branch2 = '#5a3820';
-  const budPink = '#c8607a';
-  const budPale = '#e8c0cc';
-  const budCream= '#f0dce4';
+  const budPink  = '#c8607a';
+  const budPale  = '#e8c0cc';
+  const budCream = '#f0dce4';
+  const budTaupe = '#d0a8b8';
 
   return (
     <g transform={`translate(${x},${y}) scale(${sc})`} opacity={op}
@@ -172,9 +173,9 @@ function MagnoliaToken({ plant, isSelected, isHovered, isGlowing, mapCondition }
 
       {/* ── Main trunk structure — multi-stemmed, spreading ── */}
       {/* Three main trunks from a shared base */}
-      <line x1={0} y1={10} x2={-7} y2={-4}   stroke={trunk} strokeWidth={5.5} strokeLinecap="round"/>
-      <line x1={0} y1={10} x2={6}  y2={-3}   stroke={trunk} strokeWidth={5}   strokeLinecap="round"/>
-      <line x1={0} y1={10} x2={1}  y2={-12}  stroke={trunk} strokeWidth={4.5} strokeLinecap="round"/>
+      <line x1={0} y1={10} x2={-7} y2={-4}   stroke={trunk} strokeWidth={4.8} strokeLinecap="round"/>
+      <line x1={0} y1={10} x2={6}  y2={-3}   stroke={trunk} strokeWidth={4.2} strokeLinecap="round"/>
+      <line x1={0} y1={10} x2={1}  y2={-12}  stroke={trunk} strokeWidth={3.8} strokeLinecap="round"/>
 
       {/* ── Left branch system ── */}
       <line x1={-7} y1={-4} x2={-34} y2={-24} stroke={branch} strokeWidth={3.2} strokeLinecap="round"/>
@@ -213,9 +214,9 @@ function MagnoliaToken({ plant, isSelected, isHovered, isGlowing, mapCondition }
       {/* ── Bud clusters — goblet-shaped, tight, not yet open ── */}
       {/* Left outer cluster */}
       <ellipse cx={-47} cy={-17} rx={5.5} ry={4}   fill={budPink}  opacity={0.90} transform="rotate(-20,-47,-17)"/>
-      <ellipse cx={-41} cy={-36} rx={5}   ry={3.8} fill={budPale}  opacity={0.82} transform="rotate(10,-41,-36)"/>
+      <ellipse cx={-41} cy={-36} rx={5}   ry={3.8} fill={budTaupe} opacity={0.78} transform="rotate(10,-41,-36)"/>
       <ellipse cx={-45} cy={8}   rx={5}   ry={4}   fill={budCream} opacity={0.78} transform="rotate(5,-45,8)"/>
-      <ellipse cx={-38} cy={-8}  rx={4}   ry={3.2} fill={budPink}  opacity={0.72}/>
+      <ellipse cx={-38} cy={-8}  rx={4}   ry={3.2} fill={budTaupe} opacity={0.72}/>
       <ellipse cx={-31} cy={-50} rx={5}   ry={3.8} fill={budPale}  opacity={0.80}/>
       <ellipse cx={-15} cy={-52} rx={4.5} ry={3.5} fill={budPink}  opacity={0.85}/>
 
@@ -228,10 +229,10 @@ function MagnoliaToken({ plant, isSelected, isHovered, isGlowing, mapCondition }
       <ellipse cx={17}  cy={-54} rx={4.5} ry={3.5} fill={budPink}  opacity={0.85}/>
 
       {/* Center top cluster */}
-      <ellipse cx={-18} cy={-52} rx={4.5} ry={3.5} fill={budPale}  opacity={0.80}/>
+      <ellipse cx={-18} cy={-52} rx={4.5} ry={3.5} fill={budTaupe} opacity={0.76}/>
       <ellipse cx={-5}  cy={-55} rx={5}   ry={3.8} fill={budPink}  opacity={0.90}/>
       <ellipse cx={5}   cy={-57} rx={4.5} ry={3.5} fill={budCream} opacity={0.82}/>
-      <ellipse cx={17}  cy={-55} rx={4.5} ry={3.5} fill={budPink}  opacity={0.85}/>
+      <ellipse cx={17}  cy={-55} rx={4.5} ry={3.5} fill={budTaupe} opacity={0.78}/>
 
       {/* Scattered accent buds — give organic density */}
       <circle cx={-16} cy={-28} r={2.5} fill={budPink}  opacity={0.60}/>
@@ -242,7 +243,7 @@ function MagnoliaToken({ plant, isSelected, isHovered, isGlowing, mapCondition }
       <circle cx={26}  cy={-42} r={2.2} fill={budPink}  opacity={0.55}/>
 
       {/* Health dot */}
-      <circle cx={44} cy={-28} r={4.2}
+      <circle cx={48} cy={-42} r={4.2}
         fill={healthColor(plant.health)} stroke="rgba(0,0,0,0.45)" strokeWidth={0.9}/>
 
       {/* Label — magnolia always labeled (it's the only one) */}
@@ -296,11 +297,11 @@ function GardenScene() {
   return (
     <g>
       {/* ── Urban exterior background (sidewalk / street context) ── */}
-      <rect width={VW} height={VH} fill="#161210"/>
+      <rect width={VW} height={VH} fill="#1a140c"/>
       {/* Concrete sidewalk texture — subtle variation */}
       {[0,1,2,3,4,5].map(i => (
         <rect key={i} x={0} y={i * 142} width={VW} height={141}
-          fill={i % 2 === 0 ? 'rgba(255,255,255,0.018)' : 'rgba(0,0,0,0.025)'}/>
+          fill={i % 2 === 0 ? 'rgba(220,180,120,0.015)' : 'rgba(0,0,0,0.025)'}/>
       ))}
       {/* Expansion joint lines on sidewalk */}
       {[200,400,600].map(y => (
@@ -364,7 +365,7 @@ function GardenScene() {
       {/* ── Map title label ── */}
       <text x={SX + 14} y={SY + 22}
         fontFamily={MONO} fontSize={7} letterSpacing={0.8}
-        fill="rgba(212,168,48,0.55)"
+        fill="rgba(212,168,48,0.68)"
         style={{ pointerEvents: 'none' }}>
         EMMA'S ROSE GARDEN
       </text>
@@ -383,6 +384,8 @@ export function RoseGardenMap({
   briefings = {},
   mapConditions = {},
   glowPlantId = null,
+  seasonOpen = false,
+  weather = null,
 }) {
   const [hovId, setHovId] = useState(null);
   const svgRef = useRef(null);

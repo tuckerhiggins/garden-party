@@ -2541,6 +2541,8 @@ export default function App() {
                           briefings={briefings}
                           mapConditions={mapConditions}
                           glowPlantId={glowPlantId}
+                          seasonOpen={seasonOpen}
+                          weather={weather}
                         />
                       )}
                     </div>
@@ -2580,7 +2582,7 @@ export default function App() {
                     <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                       onAction={doAction} seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}
                       photos={allPhotos[sel.id] || []} onAddPhoto={addPhoto} onGrowthUpdate={updateGrowth}
-                      briefings={briefings} onDeleteAction={deleteAction}/>
+                      briefings={briefings} onDeleteAction={deleteAction} weather={weather}/>
                   </div>
                 )}
               </div>
