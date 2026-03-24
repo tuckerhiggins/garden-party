@@ -1801,7 +1801,7 @@ export default function App() {
   const [sel, setSel] = useState(null);
   const [hov, setHov] = useState(null);
   const { user, role, signIn, signOut, checking, authError } = useAuth();
-  const { careLog, expenses, positions, growth, logAction, deleteAction, updateGrowth, movePosition, addExpense: addExpenseDb } = useGardenData({ user });
+  const { careLog, expenses, positions, growth, dbLoading, logAction, deleteAction, updateGrowth, movePosition, addExpense: addExpenseDb } = useGardenData({ user });
   useMigration({ user });
   const isMobile = useIsMobile();
   const [flash, setFlash] = useState(null);
