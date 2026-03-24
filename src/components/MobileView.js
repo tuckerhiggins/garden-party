@@ -6,6 +6,7 @@ import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
 import { fetchPlantBriefing, fetchDailyAgenda, fetchJournalEntry, streamGardenChat } from '../claude';
 import { compressChatImage } from '../utils/compressChatImage';
+import { actionStatus, extractFutureActionDate, computeAgenda } from '../utils/agenda';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO = '"Press Start 2P", monospace';
@@ -91,21 +92,6 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function actionStatus(plant, key, careLog, seasonOpen) {
-  if (!seasonOpen) return { available: false, reason: 'Not yet open' };
-  const def = ACTION_DEFS[key]; if (!def) return { available: false, reason: '?' };
-  if (def.alwaysAvailable) return { available: true };
-  const entries = (careLog[plant.id] || []).filter(e => e.action === key);
-  if (def.seasonMax !== null && entries.length >= def.seasonMax)
-    return { available: false, reason: 'Done for season' };
-  if (def.cooldownDays > 0 && entries.length > 0) {
-    const last = new Date(entries[entries.length - 1].date);
-    const days = (Date.now() - last.getTime()) / 86400000;
-    if (days < def.cooldownDays)
-      return { available: false, reason: `${Math.ceil(def.cooldownDays - days)}d` };
-  }
-  return { available: true };
-}
 
 // ── PHOTO helpers ──────────────────────────────────────────────────────────
 async function compressImage(file, maxPx = 800, quality = 0.72) {
@@ -137,20 +123,6 @@ const MOBILE_AFFIRMATIONS = {
   repot:     ['Logged. Keep water consistent.', 'New roots incoming.'],
   worms:     ['Soil biology logged.', 'Good long-term investment.'],
 };
-// ── FUTURE ACTION DATE DETECTOR ────────────────────────────────────────────
-// Detects "On the morning of [Month Day]" in task instructions and returns
-// the date string if it's in the future — used to keep frost-check / post-event
-// tasks out of the TODAY tier until they're actually actionable.
-function extractFutureActionDate(instructions) {
-  if (!instructions) return null;
-  const m = instructions.match(/\bOn the morning of ([A-Za-z]+ \d{1,2})\b/i);
-  if (!m) return null;
-  const parsed = new Date(m[1] + ', ' + new Date().getFullYear());
-  if (isNaN(parsed.getTime())) return null;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  return parsed > today ? m[1] : null;
-}
-
 // ── NATURAL LANGUAGE DATE PARSER ──────────────────────────────────────────
 function parsePastDate(text) {
   const t = (text || '').toLowerCase().trim();
@@ -1430,141 +1402,6 @@ function GardenAccordion({
   );
 }
 
-// ── AGENDA ─────────────────────────────────────────────────────────────────
-const AGENDA_SKIP_ACTIONS = new Set(['photo', 'visit', 'note', 'plant']);
-const AGENDA_URGENT_HEALTH = new Set(['struggling', 'thirsty', 'overlooked']);
-const AGENDA_TIER = { urgent: 0, recommended: 1, routine: 2, optional: 3 };
-const AGENDA_HEALTH_SEV = { struggling: 0, thirsty: 1, overlooked: 2 };
-
-function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen, allPhotos = {} }) {
-  if (!seasonOpen) return { items: [], isWeekend: false };
-  const isWeekend = [0, 6].includes(new Date().getDay());
-  const emmaPlantsSet = new Set(frontPlants.map(p => p.id));
-  // Suppress watering if it rained today (actual precip > 1mm), or high precip chance today/tomorrow
-  const rainedToday = (weather?.forecast?.[0]?.precip > 1) || (weather?.forecast?.[0]?.precipChance >= 70);
-  const hasRainSoon = rainedToday || weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60);
-  const hasFrostSoon = weather?.forecast?.slice(0, 2).some(d => d.low <= 35);
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const nowMs = Date.now();
-  const items = [];
-
-  for (const plant of [...plants, ...frontPlants]) {
-    if (plant.type === 'empty-pot' || plant.health === 'memorial') continue;
-    const brief = briefings[plant.id];
-    const briefTasks = Array.isArray(brief?.tasks) ? brief.tasks : [];
-    const briefTaskKeys = new Set(briefTasks.map(t => t.key));
-    const isUrgent = AGENDA_URGENT_HEALTH.has(plant.health);
-    const section = emmaPlantsSet.has(plant.id) ? 'emma' : 'terrace';
-
-    // AI-recommended tasks (may include novel/custom tasks not in plant.actions)
-    for (const task of briefTasks) {
-      if (AGENDA_SKIP_ACTIONS.has(task.key)) continue;
-      if (task.key !== 'tend' && !actionStatus(plant, task.key, careLog, seasonOpen).available) continue;
-      if (task.key === 'water' && hasRainSoon && !isUrgent) continue;
-      if (task.key === 'neem' && hasRainSoon) continue;
-
-      const isTaskOptional = task.optional === true;
-      const priority = isTaskOptional ? 'optional' : isUrgent ? 'urgent' : hasFrostSoon ? 'urgent' : 'recommended';
-      if (!isWeekend && priority === 'routine') continue;
-
-      items.push({
-        key: task.key === 'tend' ? `${plant.id}:tend:${task.label || ''}` : `${plant.id}:${task.key}`,
-        plant, plantId: plant.id, plantName: plant.name,
-        plantType: plant.type, plantHealth: plant.health,
-        actionKey: task.key, task,
-        priority,
-        reason: task.reason || brief?.note || null,
-        section,
-      });
-    }
-
-    // Urgency-driven items from plant.actions not already covered by AI tasks
-    if (isUrgent) {
-      for (const actionKey of (plant.actions || [])) {
-        if (AGENDA_SKIP_ACTIONS.has(actionKey)) continue;
-        if (briefTaskKeys.has(actionKey)) continue;
-        if (!actionStatus(plant, actionKey, careLog, seasonOpen).available) continue;
-        if (actionKey === 'water' && hasRainSoon) continue;
-        if (actionKey === 'neem' && hasRainSoon) continue;
-
-        items.push({
-          key: `${plant.id}:${actionKey}`,
-          plant, plantId: plant.id, plantName: plant.name,
-          plantType: plant.type, plantHealth: plant.health,
-          actionKey, task: null,
-          priority: 'urgent',
-          reason: brief?.note || null,
-          section,
-        });
-      }
-    }
-
-    // When briefing hasn't loaded yet, fall back to plant.actions for routine items
-    if (!brief) {
-      for (const actionKey of (plant.actions || [])) {
-        if (AGENDA_SKIP_ACTIONS.has(actionKey)) continue;
-        if (!actionStatus(plant, actionKey, careLog, seasonOpen).available) continue;
-        if (actionKey === 'water' && hasRainSoon && !isUrgent) continue;
-        if (actionKey === 'neem' && hasRainSoon) continue;
-
-        const priority = isUrgent ? 'urgent' : hasFrostSoon ? 'recommended' : 'routine';
-        if (!isWeekend && priority === 'routine') continue;
-
-        items.push({
-          key: `${plant.id}:${actionKey}`,
-          plant, plantId: plant.id, plantName: plant.name,
-          plantType: plant.type, plantHealth: plant.health,
-          actionKey, task: null,
-          priority,
-          reason: null,
-          section,
-        });
-      }
-    }
-
-    // Photo-due check: 7+ days without a photo → prompt as care action
-    // (skipped if they already logged a photo today)
-    const alreadyPhotoedToday = (careLog[plant.id] || []).some(
-      e => e.action === 'photo' && e.date?.slice(0, 10) === todayStr
-    );
-    if (!alreadyPhotoedToday) {
-      const plantPhotos = allPhotos[plant.id] || [];
-      const lastPhotoMs = plantPhotos.length
-        ? Math.max(...plantPhotos.map(ph => new Date(ph.date).getTime()))
-        : 0;
-      const daysSincePhoto = lastPhotoMs ? (nowMs - lastPhotoMs) / 86400000 : Infinity;
-      if (daysSincePhoto >= 7) {
-        const photoKey = `${plant.id}:photo`;
-        if (!items.some(i => i.key === photoKey)) {
-          items.push({
-            key: photoKey,
-            plant, plantId: plant.id, plantName: plant.name,
-            plantType: plant.type, plantHealth: plant.health,
-            actionKey: 'photo',
-            task: {
-              key: 'photo', label: 'Document', emoji: '📷',
-              instructions: 'Photograph the plant to track its progress.',
-            },
-            priority: 'recommended',
-            reason: daysSincePhoto === Infinity
-              ? 'No photos yet — document how it looks now.'
-              : `${Math.floor(daysSincePhoto)} days since last photo.`,
-            section,
-          });
-        }
-      }
-    }
-  }
-
-  items.sort((a, b) => {
-    const td = AGENDA_TIER[a.priority] - AGENDA_TIER[b.priority];
-    if (td !== 0) return td;
-    return (AGENDA_HEALTH_SEV[a.plantHealth] ?? 3) - (AGENDA_HEALTH_SEV[b.plantHealth] ?? 3);
-  });
-
-  return { items, isWeekend };
-}
-
 function computeStreak(plantId, careLog) {
   const entries = careLog[plantId] || [];
   const days = new Set(
@@ -2153,13 +1990,16 @@ function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, 
         // Group by plant — one row per plant, all their actions for the day
         const byPlant = {};
         careEntries.forEach(e => {
+          if (e.action === 'visit') return; // visits are low-signal, skip in journal tags
           if (!byPlant[e.plantId]) byPlant[e.plantId] = { plantName: e.plantName, labels: [], withEmma: false };
           byPlant[e.plantId].labels.push(e.label);
           if (e.withEmma) byPlant[e.plantId].withEmma = true;
         });
+        const groups = Object.values(byPlant).filter(g => g.labels.length > 0);
+        if (!groups.length) return null;
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: narrative ? 10 : 4 }}>
-            {Object.values(byPlant).map(g => (
+            {groups.map(g => (
               <span key={g.plantName} style={{
                 fontSize: 9, fontFamily: MONO,
                 background: g.withEmma ? 'rgba(232,64,112,0.06)' : 'rgba(160,130,80,0.07)',
@@ -2526,6 +2366,8 @@ export function MobileView({
   onTaskDone,
   morningBrief: externalMorningBrief = null,
   dailyBrief: externalDailyBrief = null,
+  agendaItems: externalAgendaItems = null,
+  agendaIsWeekend: externalAgendaIsWeekend = false,
 }) {
   const [tab, setTab] = useState('today');
   const [flash, setFlash] = useState(null);
@@ -2605,11 +2447,16 @@ export function MobileView({
     return merged;
   }, [briefings, externalBriefings]);
 
-  // Compute today's agenda deterministically (instant, no API needed)
-  const { items: rawAgendaItems, isWeekend: agendaIsWeekend } = useMemo(
-    () => computeAgenda({ plants, frontPlants, careLog, briefings: mergedBriefings, weather, seasonOpen, allPhotos }),
-    [plants, frontPlants, careLog, mergedBriefings, weather, seasonOpen, allPhotos]
+  // Compute today's agenda deterministically — use App.js shared items if provided
+  // (single source of truth), otherwise compute locally as fallback.
+  const { items: localAgendaItems, isWeekend: localAgendaIsWeekend } = useMemo(
+    () => externalAgendaItems
+      ? { items: externalAgendaItems, isWeekend: externalAgendaIsWeekend }
+      : computeAgenda({ plants, frontPlants, careLog, briefings: mergedBriefings, weather, seasonOpen, allPhotos }),
+    [externalAgendaItems, externalAgendaIsWeekend, plants, frontPlants, careLog, mergedBriefings, weather, seasonOpen, allPhotos]
   );
+  const rawAgendaItems = localAgendaItems;
+  const agendaIsWeekend = localAgendaIsWeekend;
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const allPlantsFlat = useMemo(() => [...plants, ...frontPlants], [plants, frontPlants]);

@@ -19,6 +19,7 @@ import { compressChatImage } from './utils/compressChatImage';
 import { PlantShopModal } from './components/PlantShopModal';
 import { MapInfoPanel, MapContextPanel, MapCarePanel } from './components/MapInfoPanel';
 import { getPhenologicalStage } from './utils/phenology';
+import { computeAgenda } from './utils/agenda';
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 640);
@@ -276,22 +277,7 @@ const LS = { care:'gp_care_v4',
 const load = (k,d) => { try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch{return d;} };
 const save = (k,v) => { try{ localStorage.setItem(k,JSON.stringify(v)); }catch{} };
 
-// ── CARE LOGIC ────────────────────────────────────────────────────────────
-function actionStatus(plant, key, careLog, seasonOpen) {
-  if (!seasonOpen) return { available:false, reason:'Not yet open' };
-  const def = ACTION_DEFS[key]; if (!def) return { available:false, reason:'?' };
-  if (def.alwaysAvailable) return { available:true };
-  const entries = (careLog[plant.id]||[]).filter(e=>e.action===key);
-  if (def.seasonMax !== null && entries.length >= def.seasonMax)
-    return { available:false, reason:'Done for season' };
-  if (def.cooldownDays > 0 && entries.length > 0) {
-    const last = new Date(entries[entries.length-1].date);
-    const days = (Date.now()-last.getTime())/86400000;
-    if (days < def.cooldownDays)
-      return { available:false, reason:`${Math.ceil(def.cooldownDays-days)}d` };
-  }
-  return { available:true };
-}
+
 
 // ── MAP RENDERER (terrace + front) ────────────────────────────────────────
 // Kept compact — the Garden View is the hero, Map View is atmospheric
@@ -1731,14 +1717,7 @@ export default function App() {
   // Centralized briefings: { [plantId]: { note, tasks, actions } | 'loading' | null }
   // Fetched for all active plants in the background; shared across map, cards, mobile
   const [briefings, setBriefings] = useState({});
-  // Frozen daily agenda — computed once per calendar day, never grows during the day
   const _todayStr = new Date().toISOString().slice(0, 10);
-  const [frozenAgendaRaw, setFrozenAgendaRaw] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('gp_frozen_agenda') || 'null');
-      return stored?.date === _todayStr ? stored.items : null;
-    } catch { return null; }
-  });
   const { portraits, updatePortrait } = usePortraits({ user });
   const { allPhotos, addPhoto } = usePhotos({ user });
   const [mapConditions, setMapConditions] = useState({});
@@ -1848,91 +1827,21 @@ export default function App() {
   }),[terracePlants, customPlantsWithState]);
 
   // Live attention items — computed from briefings, used as fallback before agenda freezes
-  const liveAttentionItems = useMemo(() => {
-    const rainedToday = (weather?.forecast?.[0]?.precip > 1) || (weather?.forecast?.[0]?.precipChance >= 70);
-    const rainSoon = rainedToday || (weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60) ?? false);
-    const SKIP = new Set(['photo', 'visit', 'note', 'plant']);
-    const required = [], optional = [];
-
-    for (const p of [...gardenPlants.terrace, ...frontPlants]) {
-      if (p.health === 'memorial' || p.type === 'empty-pot' || p.noTasks) continue;
-      const briefing = briefings[p.id];
-
-      if (briefing && briefing !== 'loading' && Array.isArray(briefing.tasks) && briefing.tasks.length > 0) {
-        for (const task of briefing.tasks) {
-          if (task.key === 'neem' && rainSoon) continue;
-          if (task.key === 'water' && rainSoon) continue;
-          (task.optional ? optional : required).push({ plant: p, action: task.key, def: ACTION_DEFS[task.key] || null, task });
-        }
-      } else {
-        for (const a of (p.actions || [])) {
-          if (SKIP.has(a)) continue;
-          const def = ACTION_DEFS[a];
-          if (!def) continue;
-          if (a === 'neem' && rainSoon) continue;
-          if (a === 'water') {
-            const entries = (careLog[p.id] || []).filter(e => e.action === 'water');
-            if (entries.length) {
-              const last = new Date(entries[entries.length - 1].date);
-              if ((Date.now() - last.getTime()) / 86400000 <= 1) continue;
-            }
-          } else if (def.alwaysAvailable || !actionStatus(p, a, careLog, seasonOpen).available) {
-            continue;
-          }
-          required.push({ plant: p, action: a, def, task: null });
-        }
-      }
-    }
-    return [...required.slice(0, 4), ...optional.slice(0, 2)];
-  }, [gardenPlants.terrace, frontPlants, careLog, seasonOpen, weather, briefings]);
-
-  // Re-hydrate frozen agenda with live plant objects
-  const frozenAgenda = useMemo(() => {
-    if (!frozenAgendaRaw) return null;
-    const allPlants = [...gardenPlants.terrace, ...frontPlants];
-    return frozenAgendaRaw.map(item => {
-      const plant = allPlants.find(p => p.id === item.plantId);
-      return plant ? { plant, action: item.action, def: ACTION_DEFS[item.action] || null, task: item.task } : null;
-    }).filter(Boolean);
-  }, [frozenAgendaRaw, gardenPlants.terrace, frontPlants]);
-
-  // Freeze agenda once per calendar day — never grows throughout the day
-  useEffect(() => {
-    if (frozenAgendaRaw !== null) return; // already frozen today
-    if (!weather || !seasonOpen) return;
-    const active = [...gardenPlants.terrace, ...frontPlants]
-      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && !p.noTasks);
-    const loadedCount = active.filter(p => briefings[p.id] && briefings[p.id] !== 'loading').length;
-    if (loadedCount < Math.max(1, Math.ceil(active.length * 0.7))) return; // wait for 70%
-
-    const rainSoon = weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60) ?? false;
-    const required = [], optional = [];
-    for (const p of active) {
-      const briefing = briefings[p.id];
-      if (!briefing || briefing === 'loading' || !Array.isArray(briefing.tasks)) continue;
-      for (const task of briefing.tasks) {
-        if (task.key === 'neem' && rainSoon) continue;
-        if (task.key === 'water' && rainSoon && weather?.forecast?.[0]?.precipChance >= 80) continue;
-        (task.optional ? optional : required).push({ plantId: p.id, action: task.key, task });
-      }
-    }
-    const raw = [...required.slice(0, 4), ...optional.slice(0, 2)]
-      .map(({ plantId, action, task }) => ({ plantId, action, task }));
-    localStorage.setItem('gp_frozen_agenda', JSON.stringify({ date: _todayStr, items: raw }));
-    setFrozenAgendaRaw(raw);
-  }, [briefings, weather, seasonOpen, frozenAgendaRaw]);
-
-  // Attention items — frozen once per day; falls back to live items while loading
-  const attentionItemsForBrief = frozenAgenda ?? liveAttentionItems;
+  // Shared agenda — single source of truth for both Maps page and Mobile Today tab.
+  // Both views receive agendaItems from here so they always show identical tasks.
+  const { items: sharedAgendaItems, isWeekend: agendaIsWeekend } = useMemo(
+    () => computeAgenda({ plants: gardenPlants.terrace, frontPlants, careLog, briefings, weather, seasonOpen, allPhotos }),
+    [gardenPlants.terrace, frontPlants, careLog, briefings, weather, seasonOpen, allPhotos]
+  );
 
   // Morning brief + daily brief — shared by desktop MapInfoPanel and mobile Today tab
   // Re-fetches when today's care count changes; cachedClaude handles deduplication
   useEffect(() => {
     if (!weather) return;
     const allPlants = [...gardenPlants.terrace, ...frontPlants];
-    const agendaTasks = attentionItemsForBrief.map(item => ({
+    const agendaTasks = sharedAgendaItems.map(item => ({
       plantName: item.plant.name,
-      actionKey: item.action,
+      actionKey: item.actionKey,
       label: item.task?.label || null,
       reason: item.task?.reason || null,
       optional: item.task?.optional || false,
@@ -1943,7 +1852,7 @@ export default function App() {
     fetchDailyBrief({ plants: allPlants, careLog, weather, portraits, agendaTasks })
       .then(brief => { if (brief) setDailyBrief(brief); })
       .catch(() => {});
-  }, [weather, todayCareCount, attentionItemsForBrief.length]);
+  }, [weather, todayCareCount, sharedAgendaItems.length]);
 
   // Fetch plant briefings for all active plants in the background.
   // Staggered to avoid hammering the API simultaneously; cachedClaude handles dedup.
@@ -2075,17 +1984,26 @@ export default function App() {
   const URGENT_SET = new Set(['thirsty','overlooked','struggling']);
   const needsCareCount = gardenPlants.terrace.filter(p=> seasonOpen && URGENT_SET.has(p.health)).length;
 
-  // Map info panel data — frozen agenda minus tasks already completed today
+  // Map info panel data — shared agenda minus tasks already completed today
+  // Converted to { plant, action, def, task } format for MapCarePanel compatibility
   const attentionItems = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
-    return attentionItemsForBrief.filter(item => {
-      const entries = careLog[item.plant.id] || [];
-      if (item.action === 'tend') {
-        return !entries.some(e => e.action === 'tend' && e.label === (item.task?.label || '') && e.date?.startsWith(todayStr));
-      }
-      return !entries.some(e => e.action === item.action && e.date?.startsWith(todayStr));
-    }).slice(0, 6);
-  }, [attentionItemsForBrief, careLog]);
+    return sharedAgendaItems
+      .filter(item => {
+        const entries = careLog[item.plantId] || [];
+        if (item.actionKey === 'tend') {
+          return !entries.some(e => e.action === 'tend' && e.label === (item.task?.label || '') && e.date?.startsWith(todayStr));
+        }
+        return !entries.some(e => e.action === item.actionKey && e.date?.startsWith(todayStr));
+      })
+      .slice(0, 8)
+      .map(item => ({
+        plant: item.plant,
+        action: item.actionKey,
+        def: ACTION_DEFS[item.actionKey] || null,
+        task: item.task,
+      }));
+  }, [sharedAgendaItems, careLog]);
 
   const recentCare = useMemo(() => {
     const all = gardenPlants.terrace.flatMap(p =>
@@ -2130,6 +2048,8 @@ export default function App() {
         }}
         morningBrief={morningBrief}
         dailyBrief={dailyBrief}
+        agendaItems={sharedAgendaItems}
+        agendaIsWeekend={agendaIsWeekend}
       />
     );
   }
@@ -2425,10 +2345,7 @@ export default function App() {
                       onHover={setHov}
                       onDescend={()=>setScene('front')}
                       onAction={(k,p)=>doAction(k,p)}
-                      onPetCookie={() => {
-                        const wisteria = mapPlants.find(p => p.type === 'wisteria');
-                        if (wisteria) doAction('visit', wisteria);
-                      }}
+                      onPetCookie={() => {}}
                       seasonOpen={seasonOpen}
                       portraits={portraits}
                       careLog={careLog}
