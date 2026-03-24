@@ -2008,6 +2008,20 @@ export default function App() {
     });
   }, [gardenPlants.terrace.length]);
 
+  // Auto-log rain watering — fires when weather shows actual precip > 1mm today.
+  // DEDUP_KEYS prevents double-logging on reload.
+  useEffect(() => {
+    if (!weather || !seasonOpen) return;
+    const today = weather.forecast?.[0];
+    if (!today || today.precip <= 1) return;
+    const inchesRaw = today.precip / 25.4;
+    const inches = inchesRaw < 0.1 ? inchesRaw.toFixed(2) : inchesRaw.toFixed(1);
+    const label = `Rained ${inches}" in Brooklyn`;
+    const activePlants = [...gardenPlants.terrace, ...frontPlants]
+      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
+    activePlants.forEach(plant => { doAction('rain', plant, label); });
+  }, [weather?.forecast?.[0]?.precip, seasonOpen]);
+
   // Map condition synthesis — runs when photos change, only for plants with ≥3 photos
   // and only when ≥2 new photos have accumulated since the last synthesis.
   useEffect(() => {
