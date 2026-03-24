@@ -172,10 +172,11 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
   const portrait = portraits?.[plant.id] || {};
   const currentStage = portrait.currentStage || null;
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
-  const cacheKey = `plantbrief10_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
+  const cacheKey = `plantbrief11_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
 
-  const lastWater = [...entries].reverse().find(e => e.action === 'water');
+  const lastWater = [...entries].reverse().find(e => e.action === 'water' || e.action === 'rain');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
+  const lastWaterWasRain = lastWater?.action === 'rain';
   const recentActions = entries.slice(-8).map(e =>
     `${e.label || e.action} on ${new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
   ).join(', ');
@@ -221,7 +222,7 @@ Add "optional": true to any task that is educational or optional — something T
 Health: ${plant.health}. Today: ${today}. Zone 7b, early spring — day ${Math.max(0, Math.floor((Date.now() - new Date('2026-03-20').getTime()) / 86400000))} of season 2.
 ${plant.container ? `Growing situation: ${plant.container}.` : ''}
 Current stage: ${currentStage || getPhenologicalStage(plant.type)}.
-${daysSinceWater !== null ? `Last watered ${daysSinceWater} day${daysSinceWater !== 1 ? 's' : ''} ago.` : 'Never watered this season.'}
+${daysSinceWater !== null ? `Last watered ${daysSinceWater} day${daysSinceWater !== 1 ? 's' : ''} ago${lastWaterWasRain ? ' (by rain)' : ''}.` : 'Never watered this season.'}
 ${recentActions ? `Recent care: ${recentActions}.` : 'No care logged this season.'}
 ${visualNote ? `Last photo observation: "${visualNote}"` : ''}
 ${next3 ? `3-day forecast: ${next3}` : ''}
