@@ -20,7 +20,7 @@ function normalizeLegacyKeys(log) {
 }
 
 // Actions where only one log per day is meaningful — keep the last entry per (plant, action, day)
-const DEDUP_KEYS = new Set(['water','fertilize','prune','neem','train','repot','worms']);
+const DEDUP_KEYS = new Set(['water','rain','fertilize','prune','neem','train','repot','worms']);
 
 function dedupeLog(log) {
   const result = {};

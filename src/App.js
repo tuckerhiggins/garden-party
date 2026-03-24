@@ -1339,13 +1339,15 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
               <div style={{display:'flex',flexDirection:'column',gap:0}}>
                 {[...history].reverse().map((e,i)=>{
                   const isPendingDelete = confirmDeleteDate === e.date;
+                  const isRain = e.action === 'rain';
                   return (
                     <div key={i} style={{padding:'8px 0',
-                      borderBottom:i<history.length-1?`1px solid rgba(160,130,80,0.12)`:'none'}}>
+                      borderBottom:i<history.length-1?`1px solid rgba(160,130,80,0.12)`:'none',
+                      ...(isRain ? {background:'rgba(80,140,200,0.07)',borderRadius:6,padding:'8px 8px',margin:'0 -8px'} : {})}}>
                       <div style={{display:'flex',alignItems:'flex-start',gap:8}}>
                         <span style={{fontSize:14,flexShrink:0}}>{e.emoji}</span>
                         <div style={{flex:1}}>
-                          <div style={{fontSize:13,color:'#2a1808',fontFamily:SERIF}}>{e.label}</div>
+                          <div style={{fontSize:13,color: isRain ? '#2a5080' : '#2a1808',fontFamily:SERIF}}>{e.label}</div>
                           {e.withEmma&&<div style={{fontSize:11,color:'#a07030',fontFamily:SERIF}}>with Emma ♥</div>}
                         </div>
                         <div style={{textAlign:'right',flexShrink:0}}>
@@ -1983,6 +1985,36 @@ export default function App() {
     if (!weather || !seasonOpen) return;
     setBriefings({});
   }, [todayCareCount]);
+
+  // One-time backfill: log yesterday's rain (March 23 2026) for all active plants.
+  useEffect(() => {
+    const flagKey = 'gp_rain_backfill_2026_03_23';
+    if (localStorage.getItem(flagKey)) return;
+    const yesterday = new Date('2026-03-23T18:00:00');
+    const yISO = yesterday.toISOString();
+    const activePlants = [...gardenPlants.terrace, ...frontPlants]
+      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
+    activePlants.forEach(plant => {
+      logAction('rain', plant, false, 'Rained in Brooklyn', yISO);
+    });
+    localStorage.setItem(flagKey, '1');
+  }, [gardenPlants.terrace.length]);
+
+  // Auto-log rain watering — fires once per rainy day for all active plants.
+  // DEDUP_KEYS prevents double-logging if app is reloaded or weather polling fires again.
+  useEffect(() => {
+    if (!weather || !seasonOpen) return;
+    const today = weather.forecast?.[0];
+    if (!today || today.precip <= 1) return; // < 1mm — not meaningful rain
+    const inchesRaw = today.precip / 25.4;
+    const inches = inchesRaw < 0.1 ? inchesRaw.toFixed(2) : inchesRaw.toFixed(1);
+    const label = `Rained ${inches}" in Brooklyn`;
+    const activePlants = [...gardenPlants.terrace, ...frontPlants]
+      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
+    activePlants.forEach(plant => {
+      doAction('rain', plant, label);
+    });
+  }, [weather?.forecast?.[0]?.precip, seasonOpen]);
 
   // Map condition synthesis — runs when photos change, only for plants with ≥3 photos
   // and only when ≥2 new photos have accumulated since the last synthesis.

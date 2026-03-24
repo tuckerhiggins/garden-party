@@ -10,6 +10,7 @@ export const SEASON_START = new Date('2026-03-20'); // used for photo-date filte
 // requiresAlert: only available if plant has this alert
 export const ACTION_DEFS = {
   water:     { label:'Water',       emoji:'💧', cooldownDays:1,  seasonMax:null,  alwaysAvailable:true },
+  rain:      { label:'Rain watered',emoji:'🌧',  cooldownDays:1,  seasonMax:null,  alwaysAvailable:true },
   neem:      { label:'Neem Oil',    emoji:'🛡️', cooldownDays:10, seasonMax:null,  requiresType:['climbing-rose','rose'] },
   prune:     { label:'Prune',       emoji:'✂️', cooldownDays:30, seasonMax:3 },
   train:     { label:'Train/Tie',   emoji:'🪢', cooldownDays:7,  seasonMax:null },

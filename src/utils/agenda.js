@@ -13,8 +13,10 @@ export function actionStatus(plant, key, careLog, seasonOpen) {
   if (!seasonOpen) return { available: false, reason: 'Not yet open' };
   const def = ACTION_DEFS[key]; if (!def) return { available: false, reason: '?' };
   if (def.alwaysAvailable) return { available: true };
-  const entries = (careLog[plant.id] || []).filter(e => e.action === key);
-  if (def.seasonMax !== null && entries.length >= def.seasonMax)
+  // For water: also consider rain entries as equivalent watering events
+  const equivalentKeys = key === 'water' ? ['water', 'rain'] : [key];
+  const entries = (careLog[plant.id] || []).filter(e => equivalentKeys.includes(e.action));
+  if (def.seasonMax !== null && entries.filter(e => e.action === key).length >= def.seasonMax)
     return { available: false, reason: 'Done for season' };
   if (def.cooldownDays > 0 && entries.length > 0) {
     const last = new Date(entries[entries.length - 1].date);

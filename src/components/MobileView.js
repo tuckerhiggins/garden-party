@@ -913,14 +913,16 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
                 const days = Math.floor((Date.now() - d.getTime()) / 86400000);
                 const when = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`;
                 const isPendingDelete = confirmDeleteDate === e.date;
+                const isRain = e.action === 'rain';
                 return (
                   <div key={i} style={{
                     padding: '4px 0',
                     borderBottom: i < entries.length - 1 ? '1px solid rgba(160,130,80,0.07)' : 'none',
+                    ...(isRain ? { background: 'rgba(80,140,200,0.08)', borderRadius: 6, padding: '4px 7px', margin: '0 -7px' } : {}),
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                       <span style={{ fontSize: 13, flexShrink: 0 }}>{e.emoji || '·'}</span>
-                      <span style={{ fontFamily: SERIF, fontSize: 12, color: '#5a3c18', flex: 1 }}>{e.label}</span>
+                      <span style={{ fontFamily: SERIF, fontSize: 12, color: isRain ? '#2a5080' : '#5a3c18', flex: 1 }}>{e.label}</span>
                       <span style={{ fontFamily: SERIF, fontSize: 11, color: CC.dim, flexShrink: 0 }}>{when}</span>
                       {onDeleteAction && (
                         <button onClick={() => setConfirmDeleteDate(isPendingDelete ? null : e.date)}
