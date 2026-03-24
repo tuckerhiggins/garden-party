@@ -1975,7 +1975,7 @@ export default function App() {
       .then(brief => { if (isMounted && brief) setDailyBrief(brief); })
       .catch(() => {});
     return () => { isMounted = false; };
-  }, [weather, briefingRefreshToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [weather, briefingRefreshToken]); 
 
   // Fetch plant briefings for all active plants in the background.
   // Staggered to avoid hammering the API simultaneously; cachedClaude handles dedup.
@@ -2001,7 +2001,7 @@ export default function App() {
       cancelled = true;
       timeoutIds.forEach(clearTimeout);
     };
-  }, [weather, seasonOpen, briefingRefreshToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [weather, seasonOpen, briefingRefreshToken]); 
 
   // Manual refresh — clears today's cached AI responses and re-fetches everything
   const refreshBriefings = useCallback(() => {
@@ -2037,7 +2037,7 @@ export default function App() {
         logAction('rain', plant, false, 'Rained in Brooklyn', yISO);
       }
     });
-  }, [dbLoading, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dbLoading, user?.id]); 
 
   // Auto-log rain watering — fires when weather shows actual precip > 1mm today.
   // DEDUP_KEYS prevents double-logging on reload.
