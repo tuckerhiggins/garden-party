@@ -9,7 +9,14 @@ function lsGet(key) {
   try { return JSON.parse(localStorage.getItem(LS_PREFIX + key) || 'null'); } catch { return null; }
 }
 function lsSet(key, val) {
-  try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(val)); } catch {}
+  try {
+    localStorage.setItem(LS_PREFIX + key, JSON.stringify(val));
+  } catch (e) {
+    if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+      console.warn('[claude] localStorage quota exceeded — AI briefing cache skipped for key:', key);
+    }
+    // Cache miss is safe — next call will just re-fetch from the API
+  }
 }
 
 // Low-level call — throws on network/API error
@@ -91,7 +98,7 @@ export async function fetchOracle({ weather, plants, careLog, seasonOpen, season
   });
 
   const weatherDesc = weather
-    ? `${Math.round(weather.temp)}°F, ${weather.poem}`
+    ? `${Math.round(weather.temp)}°F${weather.poem ? `, ${weather.poem}` : ''}`
     : 'weather unknown';
 
   // Build visual notes from portrait analyses (what the oracle has actually seen)
@@ -281,7 +288,7 @@ export async function fetchDailyAgenda({ candidateTasks, weather, careLog, portr
       ? Math.floor((Date.now() - new Date(lastActionEntry.date).getTime()) / 86400000)
       : null;
     const recentCare = entries.slice(-3).map(e =>
-      `${e.label} ${new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+      `${e.label || e.action} ${new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
     ).join(', ') || null;
     const portrait = portraits?.[t.plantId] || {};
     return {
@@ -458,7 +465,7 @@ Respond as JSON only — no other text:
 }`;
 
   const userPrompt = `Date: ${todayFull}. Brooklyn Zone 7b.
-Current conditions: ${weather ? `${Math.round(weather.temp)}°F, ${weather.poem}` : 'unknown'}.
+Current conditions: ${weather ? `${Math.round(weather.temp)}°F${weather.poem ? `, ${weather.poem}` : ''}` : 'unknown'}.
 5-day forecast: ${forecast}
 ${rainSoon ? 'RAIN COMING: Do not recommend neem oil or watering.' : ''}
 ${todayCare.length ? `ALREADY DONE TODAY: ${todayCare.join(', ')}.` : 'Nothing logged yet today.'}
@@ -569,7 +576,9 @@ Write the journal entry.`;
 // ── MISSED CARE VOICE ─────────────────────────────────────────────────────
 // Shame-free accountability — one sentence from the garden about an overdue plant
 export async function fetchMissedCareVoice(plant, daysSinceWater) {
-  const cacheKey = `missed_${plant.id}_${plant.health}`;
+  // Include daysSinceWater in key so the voice updates as the plant gets more overdue
+  const daysToken = daysSinceWater != null ? Math.floor(daysSinceWater) : 'unknown';
+  const cacheKey = `missed_${plant.id}_${plant.health}_${daysToken}`;
 
   const systemPrompt = `You are the garden speaking directly to Tucker — gently, without judgment.
 One plant has gone without care longer than it should have.
@@ -577,8 +586,8 @@ You are not scolding. You are reporting, the way a friend might say "hey, just s
 One sentence. Maximum ten words. No punctuation at the end.
 Never use the words "overdue," "missed," "failed," or "neglected."`;
 
-  const userPrompt = `Plant: ${plant.name} (${plant.type}).
-Last watered: ${daysSinceWater} days ago.
+  const userPrompt = `Plant: ${plant.name}${plant.type ? ` (${plant.type})` : ''}.
+Last watered: ${daysSinceWater != null ? `${daysSinceWater} days ago` : 'unknown'}.
 Current health: ${plant.health}.
 One sentence from the garden.`;
 
@@ -618,7 +627,7 @@ Speak the season-opening message.`;
 // Returns [{ key, label }] — only actions the user says they actually completed.
 export async function parseNoteActions(noteText, plantName) {
   const systemPrompt = `Parse a garden care note to find explicit completed actions. Return a JSON array. Each item: {"key": one of water/fertilize/neem/prune/train/repot/worms/tend, "label": short specific description of what was done}. Return [] for pure observations, questions, or future plans — only include things the user says they did.`;
-  const userPrompt = `Plant: ${plantName}\nNote: "${noteText}"`;
+  const userPrompt = `Plant: ${plantName || 'unknown'}\nNote: "${noteText || ''}"`;
   try {
     const raw = await callClaude(systemPrompt, userPrompt, 150);
     const start = raw.indexOf('[');

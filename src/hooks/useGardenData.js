@@ -8,7 +8,16 @@ const LS = {
   expenses: 'gp_expenses_v4', positions: 'gp_pos_v4', growth: 'gp_growth_v4',
 };
 const lsLoad = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
-const lsSave = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const lsSave = (k, v) => {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch (e) {
+    if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+      console.warn('[useGardenData] localStorage quota exceeded — local save skipped for key:', k);
+    }
+    // Supabase is the real source of truth; local save failing is non-fatal
+  }
+};
 
 // Normalize legacy 'custom' key → 'tend' on load
 function normalizeLegacyKeys(log) {

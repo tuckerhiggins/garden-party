@@ -1842,7 +1842,7 @@ export default function App() {
 
   const [seasonOpener, setSeasonOpener] = useState(null); // null | 'loading' | string
   const [seasonOpenerDismissed, setSeasonOpenerDismissed] = useState(
-    () => !!localStorage.getItem('gp_season_opener_dismissed_2026')
+    () => { try { return !!localStorage.getItem('gp_season_opener_dismissed_2026'); } catch { return false; } }
   );
   const weather = useWeather();
   const frontPlants = useMemo(() => FRONT_PLANTS, []);
@@ -2249,7 +2249,7 @@ export default function App() {
           onSelect={isOpener ? () => {} : (p) => setSel(p?.id ?? null)}
           onEnter={isGuest ? null : isOpener
             ? () => {
-                localStorage.setItem('gp_season_opener_dismissed_2026', '1');
+                try { localStorage.setItem('gp_season_opener_dismissed_2026', '1'); } catch {}
                 setSeasonOpenerDismissed(true);
                 setScene('game');
                 setMode('garden');
