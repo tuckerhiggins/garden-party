@@ -2006,10 +2006,13 @@ export default function App() {
   }, [todayCareCount, rainEntryCount]);
 
   // One-time backfill: log March 23 2026 rain for all active plants.
-  // Waits for dbLoading=false so user is authenticated and careLog reflects
-  // Supabase data — otherwise logAction saves locally only and gets wiped by the merge.
+  // Must guard on BOTH dbLoading=false AND user being non-null.
+  // Root cause of prior failures: Supabase loads once unauthenticated on mount
+  // (user=null), sets dbLoading=false, backfill fires but logAction saves
+  // locally only. Auth then resolves but dbLoading never changes again, so
+  // backfill never re-runs. Depending on user?.id ensures it fires once auth completes.
   useEffect(() => {
-    if (dbLoading) return;
+    if (dbLoading || !user) return;
     if (!gardenPlants.terrace.length) return;
     const rainDate = '2026-03-23';
     const yISO = new Date('2026-03-23T18:00:00').toISOString();
@@ -2022,7 +2025,7 @@ export default function App() {
         logAction('rain', plant, false, 'Rained in Brooklyn', yISO);
       }
     });
-  }, [dbLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dbLoading, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-log rain watering — fires when weather shows actual precip > 1mm today.
   // DEDUP_KEYS prevents double-logging on reload.
