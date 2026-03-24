@@ -1992,8 +1992,10 @@ export default function App() {
   }, [todayCareCount, rainEntryCount]);
 
   // One-time backfill: log March 23 2026 rain for all active plants.
-  // Per-plant guard so plants that were missed on a previous run still get logged.
+  // Waits for dbLoading=false so user is authenticated and careLog reflects
+  // Supabase data — otherwise logAction saves locally only and gets wiped by the merge.
   useEffect(() => {
+    if (dbLoading) return;
     if (!gardenPlants.terrace.length) return;
     const rainDate = '2026-03-23';
     const yISO = new Date('2026-03-23T18:00:00').toISOString();
@@ -2006,7 +2008,7 @@ export default function App() {
         logAction('rain', plant, false, 'Rained in Brooklyn', yISO);
       }
     });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dbLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-log rain watering — fires when weather shows actual precip > 1mm today.
   // DEDUP_KEYS prevents double-logging on reload.
