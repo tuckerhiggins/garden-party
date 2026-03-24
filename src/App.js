@@ -2234,7 +2234,7 @@ export default function App() {
     const isOpener = seasonOpen && !seasonOpenerDismissed && seasonOpener && seasonOpener !== 'loading';
     const isGuest = role === 'guest';
     return (
-      <div style={{width:'100vw',height:'100vh',overflow:'hidden'}}>
+      <div style={{width:'100vw',height:'100dvh',overflow:'hidden'}}>
         <FrontMap
           plants={frontPlants}
           growth={growth}
