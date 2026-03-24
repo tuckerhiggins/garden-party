@@ -1212,10 +1212,42 @@ function StageArc({ stages, currentStage, color }) {
 }
 
 // ── DETAIL PANEL ──────────────────────────────────────────────────────────
+function parsePastDate(text) {
+  const t = (text || '').toLowerCase().trim();
+  if (!t) return null;
+  const now = new Date();
+  if (t === 'today') return now.toISOString();
+  if (t === 'yesterday') { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString(); }
+  const daysAgoM = t.match(/^(\d+)\s+days?\s+ago$/);
+  if (daysAgoM) { const d = new Date(); d.setDate(d.getDate() - parseInt(daysAgoM[1])); return d.toISOString(); }
+  const weeksAgoM = t.match(/^(\d+)\s+weeks?\s+ago$/);
+  if (weeksAgoM) { const d = new Date(); d.setDate(d.getDate() - parseInt(weeksAgoM[1]) * 7); return d.toISOString(); }
+  const DAYS = { monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6, sunday:0 };
+  const weekdayM = t.match(/^(?:last\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/);
+  if (weekdayM) {
+    const target = DAYS[weekdayM[1]];
+    const d = new Date(); let back = (d.getDay() - target + 7) % 7; if (back === 0) back = 7;
+    d.setDate(d.getDate() - back); return d.toISOString();
+  }
+  const MONTHS = { january:0, february:1, march:2, april:3, may:4, june:5, july:6, august:7, september:8, october:9, november:10, december:11 };
+  const monthDayM = t.match(/^(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?$/);
+  if (monthDayM) {
+    const d = new Date(now.getFullYear(), MONTHS[monthDayM[1]], parseInt(monthDayM[2]));
+    if (d > now) d.setFullYear(d.getFullYear() - 1);
+    return d.toISOString();
+  }
+  const native = new Date(text);
+  if (!isNaN(native.getTime())) return native.toISOString();
+  return null;
+}
+
 function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze, portraits, photos, onAddPhoto, onGrowthUpdate, weather, briefings = {}, onDeleteAction }) {
   const [tab, setTab] = useState('care');
   const [actionModal, setActionModal] = useState(null); // { key, task } or null
   const [confirmDeleteDate, setConfirmDeleteDate] = useState(null); // ISO date string of entry pending deletion
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [noteDate, setNoteDate] = useState('');
   const briefing = briefings[plant.id] && briefings[plant.id] !== 'loading' ? briefings[plant.id] : null;
   const history = careLog[plant.id] || [];
   const color = plantColor(plant.type);
@@ -1223,6 +1255,14 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
   const handleAction = (key, task = null) => {
     if (key === 'water') { onAction(key, plant); return; }
     setActionModal({ key, task });
+  };
+
+  const submitNote = () => {
+    const text = noteText.trim();
+    if (!text) { setNoteOpen(false); return; }
+    const customDate = parsePastDate(noteDate) || null;
+    onAction('note', plant, text, customDate);
+    setNoteText(''); setNoteDate(''); setNoteOpen(false);
   };
 
   return (
@@ -1487,6 +1527,60 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
                       <span style={{flex:1,fontSize:13,color:'#2a1808',fontFamily:SERIF}}>Water</span>
                     </button>
                   ) : null}
+                </div>
+
+                {/* Add note */}
+                <div style={{marginTop:12,borderTop:`1px solid ${color}14`,paddingTop:12}}>
+                  <button onClick={() => setNoteOpen(o => !o)}
+                    style={{display:'flex',alignItems:'center',gap:8,width:'100%',
+                      background:noteOpen?'rgba(212,168,48,0.07)':'transparent',
+                      border:`1px solid ${noteOpen?'rgba(212,168,48,0.35)':C.cardBorder}`,
+                      borderRadius:8,padding:'8px 12px',cursor:'pointer',transition:'all .1s',textAlign:'left'}}>
+                    <span style={{fontSize:14}}>📝</span>
+                    <span style={{flex:1,fontSize:12,color:'#907050',fontFamily:SERIF,fontStyle:'italic'}}>
+                      Add a note…
+                    </span>
+                  </button>
+                  {noteOpen && (
+                    <div style={{marginTop:8,display:'flex',flexDirection:'column',gap:6}}>
+                      <div style={{display:'flex',gap:6}}>
+                        <input autoFocus type="text" value={noteText}
+                          onChange={e => setNoteText(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') submitNote(); if (e.key === 'Escape') setNoteOpen(false); }}
+                          placeholder="What did you do or notice?"
+                          style={{flex:1,padding:'8px 11px',background:'rgba(255,255,255,0.8)',
+                            border:'1px solid rgba(160,130,80,0.3)',borderRadius:7,
+                            fontFamily:SERIF,fontSize:13,color:'#2a1808',outline:'none'}}/>
+                        <button onClick={submitNote}
+                          style={{padding:'8px 12px',background:'rgba(212,168,48,0.12)',
+                            border:'1px solid rgba(212,168,48,0.35)',borderRadius:7,cursor:'pointer',
+                            fontFamily:MONO,fontSize:7,color:C.uiGold,letterSpacing:.3}}>
+                          LOG
+                        </button>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:7}}>
+                        <span style={{fontFamily:MONO,fontSize:6,color:C.uiDim,letterSpacing:.5,flexShrink:0}}>WHEN?</span>
+                        <input type="text" value={noteDate}
+                          onChange={e => setNoteDate(e.target.value)}
+                          placeholder="today · yesterday · last Thursday · March 20"
+                          style={{flex:1,padding:'5px 9px',background:'rgba(255,255,255,0.5)',
+                            border:'1px solid rgba(160,130,80,0.2)',borderRadius:6,
+                            fontFamily:SERIF,fontSize:12,color:'#5a3c18',outline:'none',fontStyle:'italic'}}/>
+                      </div>
+                      {noteDate.trim() && (() => {
+                        const parsed = parsePastDate(noteDate);
+                        return parsed ? (
+                          <div style={{fontFamily:SERIF,fontSize:11,color:'#6a9a40',fontStyle:'italic',paddingLeft:2}}>
+                            → {new Date(parsed).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}
+                          </div>
+                        ) : (
+                          <div style={{fontFamily:SERIF,fontSize:11,color:'#b07040',fontStyle:'italic',paddingLeft:2}}>
+                            couldn't parse date — will log as today
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               </>
             )}
