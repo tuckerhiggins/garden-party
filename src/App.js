@@ -1277,6 +1277,14 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
               {plant.special==='xmas'&&<div style={{fontSize:11,color:'#806020',marginBottom:4,fontFamily:SERIF}}>🎄 Was the Christmas tree</div>}
               {plant.special==='zephirine'&&<div style={{fontSize:11,color:'#c03058',marginBottom:4,fontFamily:SERIF}}>🌹 Thornless · Deep pink · Fragrant</div>}
             </div>
+            {/* Last photo observation */}
+            {portraits?.[plant.id]?.visualNote && !portraits?.[plant.id]?.analyzing && (
+              <div style={{fontSize:11.5, color:'#907050', fontStyle:'italic', fontFamily:SERIF,
+                lineHeight:1.6, marginBottom:12, paddingBottom:12,
+                borderBottom:`1px solid ${color}18`}}>
+                {portraits[plant.id].visualNote}
+              </div>
+            )}
             {/* History log */}
             <div style={{fontFamily:MONO,fontSize:7,color:'#a08060',marginBottom:8,letterSpacing:.5}}>
               SEASON 2 LOG
@@ -1381,15 +1389,6 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
                   marginBottom:12, border:`1px solid ${color}20`}}>
                   <PlantPortrait plant={plant} aiSvg={portraits?.[plant.id]?.svg}/>
                 </div>
-
-                {/* Visual note from last analysis */}
-                {portraits?.[plant.id]?.visualNote && !portraits?.[plant.id]?.analyzing && (
-                  <div style={{fontSize:11.5, color:'#907050', fontStyle:'italic', fontFamily:SERIF,
-                    lineHeight:1.6, marginBottom:12, paddingBottom:12,
-                    borderBottom:`1px solid ${color}18`}}>
-                    {portraits[plant.id].visualNote}
-                  </div>
-                )}
 
                 {/* Oracle briefing */}
                 {briefing?.note ? (
