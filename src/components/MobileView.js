@@ -1703,37 +1703,56 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
     <div style={{ padding: '14px 14px 24px' }}>
 
       {/* Progress header */}
-      {totalCount > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-            <span style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, letterSpacing: .5 }}>
-              {isWeekend ? 'WEEKEND SESSION' : 'TODAY\'S ROUNDS'}
-              {agendaData?.sessionMinutes ? ` · ~${agendaData.sessionMinutes} MIN` : ''}
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      {(() => {
+        const essentialDone = completedItems.filter(i => i.priority === 'urgent' || i.priority === 'recommended').length;
+        const essentialTotal = todayItems.length + essentialDone;
+        const optRemaining = optItems.length;
+        if (essentialTotal === 0 && optRemaining === 0) return null;
+        const pct = essentialTotal > 0 ? (essentialDone / essentialTotal) * 100 : 0;
+        return (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                  <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 700, color: '#2a1808', lineHeight: 1 }}>
+                    {essentialDone}/{essentialTotal}
+                  </span>
+                  <span style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, letterSpacing: .4, lineHeight: 1 }}>
+                    ESSENTIAL
+                  </span>
+                </div>
+                <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: MONO, fontSize: 6.5, color: '#a08050', letterSpacing: .4 }}>
+                    {isWeekend ? 'WEEKEND SESSION' : 'TODAY\'S ROUNDS'}
+                    {agendaData?.sessionMinutes ? ` · ~${agendaData.sessionMinutes} MIN` : ''}
+                  </span>
+                  {optRemaining > 0 && (
+                    <span style={{ fontFamily: SERIF, fontSize: 12, color: '#907050', fontStyle: 'italic' }}>
+                      {optRemaining} optional
+                    </span>
+                  )}
+                </div>
+              </div>
               {onRefreshAgenda && (
                 <button onClick={onRefreshAgenda} title="Refresh agenda"
-                  style={{ background: 'none', border: 'none', padding: '2px 4px', cursor: 'pointer',
-                    color: '#a08050', fontSize: 14, opacity: 0.6, lineHeight: 1,
-                    WebkitTapHighlightColor: 'transparent', minHeight: 28 }}>
+                  style={{ background: 'none', border: 'none', padding: '4px 6px', cursor: 'pointer',
+                    color: '#a08050', fontSize: 16, opacity: 0.55, lineHeight: 1,
+                    WebkitTapHighlightColor: 'transparent', minHeight: 36 }}>
                   ↻
                 </button>
               )}
-              <span style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 700, color: '#2a1808' }}>
-                {doneCount} <span style={{ fontSize: 14, fontWeight: 400, color: '#907050' }}>of {totalCount + doneCount}</span>
-              </span>
+            </div>
+            <div style={{ height: 4, background: 'rgba(160,130,80,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 2,
+                background: essentialDone === 0 ? 'transparent' : 'linear-gradient(90deg, #d4a830, #a07828)',
+                width: `${pct}%`,
+                transition: 'width .4s ease',
+              }}/>
             </div>
           </div>
-          <div style={{ height: 4, background: 'rgba(160,130,80,0.15)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', borderRadius: 2,
-              background: doneCount === 0 ? 'transparent' : 'linear-gradient(90deg, #d4a830, #a07828)',
-              width: `${totalCount > 0 ? (doneCount / totalCount) * 100 : 0}%`,
-              transition: 'width .4s ease',
-            }}/>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Morning brief — tap to expand to full daily briefing */}
       {morningBrief && (

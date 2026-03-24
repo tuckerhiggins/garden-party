@@ -71,17 +71,35 @@ function dayAbbr(dateStr) {
 // Garden-day condition scoring for the week-ahead grid
 function gardenCondition(day) {
   const low = day.low ?? 99;
+  const high = day.high ?? 65;
+  const precip = day.precip ?? 0;
+  const chance = day.precipChance ?? 0;
+
+  if (low <= 32)
+    return { tag: 'HARD FROST', note: `${low}°F low — cover roses`, color: '#50a8e0', bg: 'rgba(60,140,210,0.16)', icon: '🧊' };
   if (low <= 35)
-    return { tag: 'FROST', note: 'protect tender plants', color: '#70b8e0', bg: 'rgba(80,160,210,0.13)', icon: '🧊' };
-  if ((day.precip > 2) || day.precipChance >= 65)
-    return { tag: 'RAIN', note: 'skip watering', color: '#5080c8', bg: 'rgba(60,100,190,0.12)', icon: '🌧' };
-  if (day.high >= 88)
-    return { tag: 'HOT', note: 'water deeply', color: '#d05828', bg: 'rgba(200,80,32,0.12)', icon: '☀️' };
-  if (day.precipChance < 30 && day.high >= 55 && day.high <= 84 && low > 38)
-    return { tag: 'IDEAL', note: 'get outside', color: '#4a9a30', bg: 'rgba(60,140,40,0.14)', icon: '🌱' };
-  if (day.high < 50)
-    return { tag: 'COLD', note: 'wait it out', color: '#7090a8', bg: 'rgba(80,110,140,0.10)', icon: '🌥' };
-  return { tag: 'MILD', note: null, color: '#807860', bg: 'rgba(100,90,60,0.06)', icon: null };
+    return { tag: 'FROST', note: `low ${low}°F tonight`, color: '#70b8e0', bg: 'rgba(80,160,210,0.13)', icon: '🧊' };
+  if (precip >= 1.0)
+    return { tag: 'HEAVY RAIN', note: `~${precip.toFixed(1)}" — skip watering`, color: '#4070c8', bg: 'rgba(50,90,190,0.14)', icon: '🌧' };
+  if (precip > 0.2 || chance >= 65)
+    return { tag: 'RAIN', note: precip > 0.2 ? `~${precip.toFixed(1)}" expected` : `${chance}% chance`, color: '#5080c8', bg: 'rgba(60,100,190,0.12)', icon: '🌦' };
+  if (high >= 92)
+    return { tag: 'HEAT', note: `${high}°F — water AM only`, color: '#c04020', bg: 'rgba(190,60,30,0.14)', icon: '🔥' };
+  if (high >= 88)
+    return { tag: 'HOT', note: `${high}°F high`, color: '#d05828', bg: 'rgba(200,80,32,0.12)', icon: '☀️' };
+  if (chance < 30 && high >= 62 && high <= 80 && low > 40) {
+    const dow = new Date(day.date).getDay();
+    const notes = ['prune window', 'fertilize window', 'good to train', 'check ties', 'inspect roots', 'neem if needed', 'general rounds'];
+    return { tag: 'IDEAL', note: notes[dow], color: '#4a9a30', bg: 'rgba(60,140,40,0.14)', icon: '🌱' };
+  }
+  if (chance < 30 && high >= 55 && low > 38)
+    return { tag: 'CLEAR', note: `${high}°F`, color: '#6a8a50', bg: 'rgba(80,120,60,0.10)', icon: '🌤' };
+  if (high < 45)
+    return { tag: 'COLD', note: `${high}°F max — hold off`, color: '#6080a0', bg: 'rgba(70,100,140,0.12)', icon: '🌥' };
+  if (high < 55)
+    return { tag: 'COOL', note: `${high}°F — no fertilizing`, color: '#7090a8', bg: 'rgba(80,110,140,0.10)', icon: '🌥' };
+  const mildNote = chance >= 40 ? `${chance}% rain` : `${high}°F`;
+  return { tag: 'MILD', note: mildNote, color: '#807860', bg: 'rgba(100,90,60,0.06)', icon: null };
 }
 
 function fmtRelative(iso) {
@@ -306,6 +324,24 @@ export function MapInfoPanel({
       {/* ── Needs Care — leads when urgent ── */}
       {seasonOpen && attentionItems.length > 0 && (
         <Section label={`NEEDS CARE · ${attentionItems.length}`} accent="#c87020">
+          {/* Task count summary */}
+          {(() => {
+            const essential = attentionItems.filter(({ task }) => !task?.optional).length;
+            const optional = attentionItems.filter(({ task }) => task?.optional).length;
+            return (
+              <div style={{ marginBottom: 12 }}>
+                <span style={{ fontFamily: SERIF, fontSize: 22, fontWeight: 700, color: TEXT, lineHeight: 1 }}>
+                  {essential}
+                </span>
+                <span style={{ fontFamily: SERIF, fontSize: 13, color: MUTED }}> essential</span>
+                {optional > 0 && (
+                  <span style={{ fontFamily: SERIF, fontSize: 12, color: DIM, fontStyle: 'italic' }}>
+                    {' '}· {optional} optional
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {attentionItems.map(({ plant, action, def, task }) => {
               const pc = plantColor(plant.type);
@@ -545,6 +581,7 @@ export function MapContextPanel({
   weather = null,
   portraits = {},
   allPhotos = {},
+  noticeToday = null,
 }) {
   const forecast = weather?.forecast?.slice(0, 7) ?? [];
 
@@ -607,6 +644,18 @@ export function MapContextPanel({
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── One Thing to Notice ── */}
+      {noticeToday && (
+        <div style={{ borderTop: `1px solid ${RULE}`, padding: '14px 16px 12px' }}>
+          <div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: .6, marginBottom: 9, color: GOLD, opacity: .90 }}>
+            ONE THING TO NOTICE
+          </div>
+          <div style={{ fontFamily: SERIF, fontSize: 14, color: TEXT, lineHeight: 1.6, fontStyle: 'italic' }}>
+            {noticeToday}
+          </div>
         </div>
       )}
 

@@ -702,3 +702,56 @@ export async function streamGardenChat({ messages, plantContext, action, onChunk
     }
   }
 }
+
+// ── ONE THING TO NOTICE ───────────────────────────────────────────────────
+// A single pointed observation about something in the garden worth attending
+// to today. Specific and concrete, not decorative. Cached daily.
+export async function fetchNoticeToday({ plants = [], portraits = {}, weather = null }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const dateLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  // Cache token: changes if a new portrait arrives
+  const lastPortrait = Object.values(portraits)
+    .filter(p => p?.date && !p.analyzing)
+    .map(p => p.date).sort().pop() ?? '';
+  const portraitToken = lastPortrait ? lastPortrait.slice(0, 10).replace(/-/g, '') : '0';
+
+  const weatherToken = weather
+    ? `${Math.round(weather.temp ?? 0)}_${weather.forecast?.[0]?.precipChance ?? 0}`
+    : 'noweather';
+
+  const cacheKey = `noticetoday1_${today}_${weatherToken}_${portraitToken}`;
+
+  // Build plant context from portrait observations
+  const observations = Object.entries(portraits)
+    .filter(([, p]) => p?.visualNote && p.date && !p.analyzing)
+    .sort((a, b) => new Date(b[1].date) - new Date(a[1].date))
+    .slice(0, 6)
+    .map(([id, p]) => {
+      const plant = plants.find(pl => pl.id === id);
+      return plant ? `${plant.name}: ${p.visualNote}` : null;
+    })
+    .filter(Boolean);
+
+  const weatherLine = weather
+    ? `${Math.round(weather.temp ?? 0)}°F${weather.poem ? `, ${weather.poem}` : ''}. ${
+        weather.forecast?.[0]?.precipChance >= 60
+          ? `Rain likely today (${weather.forecast[0].precipChance}%).`
+          : weather.forecast?.[0]?.low <= 36
+          ? `Frost risk tonight (low ${weather.forecast[0].low}°F).`
+          : ''
+      }`
+    : '';
+
+  const systemPrompt = `You are a very close observer of a specific Brooklyn garden — a brownstone rooftop terrace with potted plants plus a small front garden with climbing roses and a magnolia.
+
+Give one sentence (20–40 words) naming one thing in this garden right now that is worth quietly noticing — something actually happening, not advice. Specific and true. Think like Mary Oliver but without decoration — just exact, plain observation. Do not use the words "beautiful," "wonder," "magic," or "delight." No greeting, no preamble.`;
+
+  const userPrompt = `${dateLabel}. Zone 7b Brooklyn, early spring — soil temps climbing, late dormancy breaking.
+${weatherLine}
+${observations.length > 0 ? `Recent observations:\n${observations.join('\n')}` : 'No recent photo observations available.'}
+
+One thing to notice today:`;
+
+  return cachedClaude(cacheKey, systemPrompt, userPrompt, 80);
+}

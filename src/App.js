@@ -8,7 +8,7 @@ import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
 import { RoseGardenMap } from './RoseGardenMap';
-import { fetchOracle, fetchSeasonOpener, fetchPlantBriefing, streamGardenChat, fetchMorningBrief, fetchDailyBrief, fetchJournalEntry, parseNoteActions, fetchMapCondition } from './claude';
+import { fetchOracle, fetchSeasonOpener, fetchPlantBriefing, streamGardenChat, fetchMorningBrief, fetchDailyBrief, fetchJournalEntry, parseNoteActions, fetchMapCondition, fetchNoticeToday } from './claude';
 import { usePortraits } from './hooks/usePortraits';
 import { usePhotos } from './hooks/usePhotos';
 import { useAuth } from './hooks/useAuth';
@@ -1805,6 +1805,7 @@ export default function App() {
   const [gardenSection, setGardenSection] = useState('all');
   const [desktopSortBy, setDesktopSortBy] = useState('care');
   const [mapLayer, setMapLayer] = useState('terrace'); // 'terrace' | 'front'
+  const [mapSwitchHovered, setMapSwitchHovered] = useState(false);
   const [sel, setSel] = useState(null);
   const [hov, setHov] = useState(null);
   const { user, role, signIn, signOut, checking, authError } = useAuth();
@@ -1819,6 +1820,7 @@ export default function App() {
   const [oracle, setOracle] = useState(null);
   const [morningBrief, setMorningBrief] = useState(null);
   const [dailyBrief, setDailyBrief] = useState(null);
+  const [noticeToday, setNoticeToday] = useState(null);
   // Centralized briefings: { [plantId]: { note, tasks, actions } | 'loading' | null }
   // Fetched for all active plants in the background; shared across map, cards, mobile
   const [briefings, setBriefings] = useState({});
@@ -1975,7 +1977,18 @@ export default function App() {
       .then(brief => { if (isMounted && brief) setDailyBrief(brief); })
       .catch(() => {});
     return () => { isMounted = false; };
-  }, [weather, briefingRefreshToken]); 
+  }, [weather, briefingRefreshToken]);
+
+  // Fetch "one thing to notice" — daily AI observation for the map left panel
+  useEffect(() => {
+    if (!weather || !seasonOpen) return;
+    let isMounted = true;
+    const allPlants = [...gardenPlants.terrace, ...frontPlants];
+    fetchNoticeToday({ plants: allPlants, portraits, weather })
+      .then(text => { if (isMounted && text) setNoticeToday(text); })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, [weather, seasonOpen, briefingRefreshToken]);
 
   // Fetch plant briefings for all active plants in the background.
   // Staggered to avoid hammering the API simultaneously; cachedClaude handles dedup.
@@ -2286,7 +2299,10 @@ export default function App() {
       {/* ── TOP CHROME ── */}
       <div style={{height:46,background:C.uiPane,borderBottom:`2px solid ${C.uiBorder}`,
         display:'flex',alignItems:'center',padding:'0 16px',gap:12,flexShrink:0}}>
-        <span style={{fontFamily:MONO,fontSize:10,color:C.uiGold,letterSpacing:.5}}>GARDEN PARTY</span>
+        <button onClick={()=>{ setMode('garden'); setGardenView('cards'); }}
+          style={{background:'none',border:'none',padding:0,cursor:'pointer'}}>
+          <span style={{fontFamily:MONO,fontSize:10,color:C.uiGold,letterSpacing:.5}}>GARDEN PARTY</span>
+        </button>
         <div style={{background:C.uiLight,border:`1px solid ${C.uiBorder}`,borderRadius:3,
           padding:'2px 8px',fontFamily:MONO,fontSize:7,color:seasonOpen?C.uiGold:'#6090a0'}}>
           {seasonOpen?'S2 · OPEN':`${photoCount}/${activePlantCount} seen`}
@@ -2579,31 +2595,44 @@ export default function App() {
                           weather={weather}
                         />
                       )}
-                      {/* Elegant garden switcher pill — floats inside the map frame */}
-                      <button
-                        onClick={()=>{ setMapLayer(mapLayer==='terrace'?'front':'terrace'); setSel(null); }}
-                        style={{
-                          position:'absolute',
-                          bottom: mapLayer==='terrace' ? 18 : 'auto',
-                          top: mapLayer==='front' ? 18 : 'auto',
-                          right: 16,
-                          zIndex: 10,
-                          background:'rgba(12,7,3,0.78)',
-                          border:'1px solid rgba(212,168,48,0.28)',
-                          borderRadius:20,
-                          padding:'7px 14px 7px 11px',
-                          backdropFilter:'blur(12px)',
-                          WebkitBackdropFilter:'blur(12px)',
-                          display:'flex',alignItems:'center',gap:6,
-                          cursor:'pointer',
-                          fontFamily:MONO,fontSize:7,letterSpacing:.4,
-                          color:'rgba(240,228,200,0.72)',
-                          transition:'opacity .15s, border-color .15s',
-                        }}
-                        onMouseEnter={e=>{ e.currentTarget.style.borderColor='rgba(212,168,48,0.55)'; e.currentTarget.style.color='rgba(240,228,200,1)'; }}
-                        onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(212,168,48,0.28)'; e.currentTarget.style.color='rgba(240,228,200,0.72)'; }}>
-                        {mapLayer==='terrace' ? '🌹 Emma\'s Garden' : '🌿 Terrace'}
-                      </button>
+                      {/* Garden switcher — full right edge glow, expands on hover */}
+                      {(() => {
+                        const isT = mapLayer === 'terrace';
+                        const glowRgb = isT ? '220,50,100' : '60,180,70';
+                        const labelColor = isT ? 'rgba(240,130,160,0.95)' : 'rgba(100,220,90,0.95)';
+                        const label = isT ? '🌹 EMMA\'S GARDEN' : '🌿 TERRACE';
+                        return (
+                          <button
+                            onClick={()=>{ setMapLayer(isT?'front':'terrace'); setSel(null); setMapSwitchHovered(false); }}
+                            onMouseEnter={()=>setMapSwitchHovered(true)}
+                            onMouseLeave={()=>setMapSwitchHovered(false)}
+                            style={{
+                              position:'absolute',
+                              top:0, bottom:0, right:0,
+                              width: mapSwitchHovered ? 120 : 28,
+                              background: `linear-gradient(to left, rgba(${glowRgb},${mapSwitchHovered?0.28:0.10}) 0%, transparent 100%)`,
+                              border:'none', cursor:'pointer', padding:0,
+                              zIndex:10,
+                              transition:'width .3s ease, background .3s ease',
+                              display:'flex', alignItems:'center', justifyContent:'flex-end',
+                            }}>
+                            <span style={{
+                              fontFamily:MONO, fontSize:7, letterSpacing:.5,
+                              color: labelColor,
+                              opacity: mapSwitchHovered ? 1 : 0,
+                              transform: mapSwitchHovered ? 'translateX(0)' : 'translateX(8px)',
+                              transition:'opacity .2s ease, transform .25s ease',
+                              paddingRight: 14,
+                              whiteSpace:'nowrap',
+                              writingMode:'vertical-rl',
+                              textOrientation:'mixed',
+                              transform: mapSwitchHovered ? 'rotate(180deg) translateY(0)' : 'rotate(180deg) translateY(6px)',
+                            }}>
+                              {label}
+                            </span>
+                          </button>
+                        );
+                      })()}
                     </div>
                 </div>
                 {/* Right panels: context (left) + care (right) by default, detail panel when plant selected */}
@@ -2615,6 +2644,7 @@ export default function App() {
                       weather={weather}
                       portraits={portraits}
                       allPhotos={allPhotos}
+                      noticeToday={noticeToday}
                     />
                     <MapCarePanel
                       plants={[...gardenPlants.terrace, ...frontPlants]}
