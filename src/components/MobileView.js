@@ -1654,7 +1654,8 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
   const totalCount = todayItems.length + weekItems.length + optItems.length;
   const allDone = (todayItems.length + weekItems.length) === 0 && doneCount > 0;
   // Latch essentials-done banner
-  const essentialsDoneNow = todayItems.length === 0 && doneCount > 0 && (weekItems.length > 0 || optItems.length > 0);
+  // rawItems.length > 0 guards against latching before briefings have loaded
+  const essentialsDoneNow = rawItems.length > 0 && todayItems.length === 0 && doneCount > 0 && (weekItems.length > 0 || optItems.length > 0);
   if (essentialsDoneNow) essentialsDoneLatchRef.current = true;
   const urgentRecAllDone = essentialsDoneLatchRef.current && !allDone;
 
