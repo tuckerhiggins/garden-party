@@ -1614,6 +1614,70 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
 
 // ── JOURNAL VIEW ──────────────────────────────────────────────────────────
 
+function JournalPortraitCarousel({ plantIds, portraits, allPlants }) {
+  const [idx, setIdx] = React.useState(0);
+  const safeIdx = Math.min(idx, plantIds.length - 1);
+  const plantId = plantIds[safeIdx];
+  const plant = allPlants.find(p => p.id === plantId);
+  const portrait = portraits[plantId];
+  if (!plant || !portrait?.svg) return null;
+  const accentColor = plant.color || plantColor(plant.type);
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{
+        position: 'relative', width: '100%', maxWidth: 420,
+        aspectRatio: '1', borderRadius: 10, overflow: 'hidden',
+        border: `2px solid ${accentColor}55`,
+        boxShadow: `0 0 0 4px ${accentColor}18, 0 4px 18px rgba(0,0,0,0.10)`,
+        background: '#faf6ee',
+      }}>
+        <PlantPortrait plant={plant} aiSvg={portrait.svg}/>
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          background: 'linear-gradient(transparent, rgba(30,18,8,0.52))',
+          padding: '24px 12px 10px',
+        }}>
+          <span style={{ fontFamily: MONO, fontSize: 6.5, color: 'rgba(240,228,200,0.90)', letterSpacing: 0.4 }}>
+            {plant.name.toUpperCase()}
+          </span>
+        </div>
+        {plantIds.length > 1 && (
+          <>
+            <button onClick={() => setIdx(i => (i - 1 + plantIds.length) % plantIds.length)}
+              style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 40,
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'rgba(240,228,200,0.65)', fontSize: 18,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                WebkitTapHighlightColor: 'transparent' }}>‹</button>
+            <button onClick={() => setIdx(i => (i + 1) % plantIds.length)}
+              style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 40,
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'rgba(240,228,200,0.65)', fontSize: 18,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                WebkitTapHighlightColor: 'transparent' }}>›</button>
+          </>
+        )}
+      </div>
+      {plantIds.length > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 7 }}>
+          {plantIds.map((_, i) => (
+            <button key={i} onClick={() => setIdx(i)}
+              style={{ width: 5, height: 5, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer',
+                background: i === safeIdx ? accentColor : `${accentColor}44`,
+                WebkitTapHighlightColor: 'transparent' }}/>
+          ))}
+        </div>
+      )}
+      {portrait.visualNote && (
+        <div style={{ fontFamily: SERIF, fontSize: 13, color: '#907050', fontStyle: 'italic',
+          lineHeight: 1.6, marginTop: 8, maxWidth: 420 }}>
+          {portrait.visualNote}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function buildJournalDayMap(allPlants, careLog, portraits, allPhotos) {
   const days = {};
   const ensure = d => { if (!days[d]) days[d] = { careEntries: [], portraitObservations: [], photos: [] }; return days[d]; };
@@ -1696,6 +1760,9 @@ function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPla
   const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const hasEmma = careEntries.some(e => e.withEmma);
 
+  const dayPlantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
+  const withSvg = dayPlantIds.filter(id => portraits[id]?.svg);
+
   return (
     <div style={{ marginBottom: 40, paddingBottom: 40, borderBottom: `1px solid ${C.cardBorder}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
@@ -1710,6 +1777,11 @@ function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPla
         {hasEmma && <span style={{ fontSize: 12, color: '#e84070' }}>♥</span>}
       </div>
 
+      {/* Portrait carousel — at the top like an article header */}
+      {withSvg.length > 0 && (
+        <JournalPortraitCarousel plantIds={withSvg} portraits={portraits} allPlants={allPlants}/>
+      )}
+
       {loading ? (
         <div style={{ fontFamily: SERIF, fontSize: 14, color: 'rgba(160,130,80,0.3)', fontStyle: 'italic', lineHeight: 1.75 }}>…</div>
       ) : narrative ? (
@@ -1717,33 +1789,6 @@ function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPla
           {narrative}
         </p>
       ) : null}
-
-      {/* SVG portrait strip — plants active this day */}
-      {(() => {
-        const dayPlantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
-        const withSvg = dayPlantIds.filter(id => portraits[id]?.svg);
-        if (!withSvg.length) return null;
-        return (
-          <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-            {withSvg.slice(0, 6).map(plantId => {
-              const plant = allPlants.find(p => p.id === plantId);
-              if (!plant) return null;
-              return (
-                <div key={plantId} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                  <div style={{ width: 52, height: 52, borderRadius: 8, overflow: 'hidden',
-                    border: '1px solid rgba(160,130,80,0.22)', background: '#faf6ee' }}>
-                    <PlantPortrait plant={plant} aiSvg={portraits[plantId].svg} />
-                  </div>
-                  <span style={{ fontSize: 8, fontFamily: '"Press Start 2P", monospace', color: '#b09070',
-                    letterSpacing: 0.2, maxWidth: 52, textAlign: 'center', lineHeight: 1.3 }}>
-                    {plant.name.split(' ')[0]}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })()}
 
       {photos.length > 0 && (
         <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>

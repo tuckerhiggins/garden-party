@@ -1884,7 +1884,7 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                   {portHistory.length > 0 && (
                     <div style={{ position: 'relative', flexShrink: 0 }}>
                       <div style={{ width: 58, height: 58, borderRadius: 5, overflow: 'hidden', border: `1px solid ${accentColor}33` }}>
-                        <PlantPortrait portrait={{ svg: portHistory[0].svg }} size={58}/>
+                        <PlantPortrait aiSvg={portHistory[0].svg}/>
                       </div>
                       {hasHistory && (
                         <div style={{ position: 'absolute', bottom: 2, left: 2,
@@ -1997,7 +1997,7 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                 {portHistory.length > 0 && (
                   <div style={{ position: 'relative', width: cardW, background: 'rgba(0,0,0,0.30)' }}>
                     <div style={{ width: cardW, height: 120, overflow: 'hidden' }}>
-                      <PlantPortrait portrait={{ svg: portHistory[portraitCarouselIdx]?.svg }} size={cardW}/>
+                      <PlantPortrait aiSvg={portHistory[portraitCarouselIdx]?.svg}/>
                     </div>
                     {/* Date overlay */}
                     {portHistory[portraitCarouselIdx]?.date && (

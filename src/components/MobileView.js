@@ -1988,73 +1988,57 @@ function PortraitCarousel({ plantIds, portraits, allPlants }) {
   const plant = allPlants.find(p => p.id === plantId);
   const portrait = portraits[plantId];
   if (!plant || !portrait?.svg) return null;
-
-  const visualNote = portrait.visualNote || null;
-
+  const accentColor = plant.color || plantColor(plant.type);
   return (
     <div style={{ marginBottom: 14 }}>
-      {/* Large portrait */}
       <div style={{
-        position: 'relative',
-        width: '100%', maxWidth: 220,
-        aspectRatio: '1',
-        margin: '0 auto',
-        borderRadius: 12,
-        overflow: 'hidden',
+        position: 'relative', width: '100%', maxWidth: 260,
+        aspectRatio: '1', borderRadius: 12, overflow: 'hidden',
+        border: `2px solid ${accentColor}55`,
+        boxShadow: `0 0 0 3px ${accentColor}18, 0 3px 14px rgba(0,0,0,0.09)`,
         background: '#faf6ee',
-        border: '1px solid rgba(160,130,80,0.22)',
       }}>
-        <PlantPortrait plant={plant} aiSvg={portrait.svg} />
-        {/* Plant name overlay */}
+        <PlantPortrait plant={plant} aiSvg={portrait.svg}/>
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
           background: 'linear-gradient(transparent, rgba(30,18,8,0.55))',
           padding: '18px 10px 8px',
         }}>
-          <span style={{ fontFamily: MONO, fontSize: 6.5, color: 'rgba(240,228,200,0.88)', letterSpacing: .4 }}>
+          <span style={{ fontFamily: MONO, fontSize: 6.5, color: 'rgba(240,228,200,0.88)', letterSpacing: 0.4 }}>
             {plant.name.toUpperCase()}
           </span>
         </div>
-        {/* Prev/next arrows if multiple */}
         {plantIds.length > 1 && (
           <>
-            <button
-              onClick={() => setIdx(i => (i - 1 + plantIds.length) % plantIds.length)}
+            <button onClick={() => setIdx(i => (i - 1 + plantIds.length) % plantIds.length)}
               style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 36,
                 background: 'none', border: 'none', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'rgba(240,228,200,0.6)', fontSize: 16,
-                WebkitTapHighlightColor: 'transparent' }}>
-              ‹
-            </button>
-            <button
-              onClick={() => setIdx(i => (i + 1) % plantIds.length)}
+                color: 'rgba(240,228,200,0.65)', fontSize: 18,
+                WebkitTapHighlightColor: 'transparent' }}>‹</button>
+            <button onClick={() => setIdx(i => (i + 1) % plantIds.length)}
               style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 36,
                 background: 'none', border: 'none', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'rgba(240,228,200,0.6)', fontSize: 16,
-                WebkitTapHighlightColor: 'transparent' }}>
-              ›
-            </button>
+                color: 'rgba(240,228,200,0.65)', fontSize: 18,
+                WebkitTapHighlightColor: 'transparent' }}>›</button>
           </>
         )}
       </div>
-      {/* Dot indicators */}
       {plantIds.length > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 7 }}>
           {plantIds.map((_, i) => (
             <button key={i} onClick={() => setIdx(i)}
               style={{ width: 5, height: 5, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer',
-                background: i === safeIdx ? '#a08050' : 'rgba(160,130,80,0.3)',
-                WebkitTapHighlightColor: 'transparent' }} />
+                background: i === safeIdx ? accentColor : `${accentColor}44`,
+                WebkitTapHighlightColor: 'transparent' }}/>
           ))}
         </div>
       )}
-      {/* Visual note from portrait analysis */}
-      {visualNote && (
+      {portrait.visualNote && (
         <div style={{ fontFamily: SERIF, fontSize: 12, color: '#907050', fontStyle: 'italic',
-          lineHeight: 1.55, marginTop: 7, textAlign: 'center', paddingHorizontal: 4 }}>
-          {visualNote}
+          lineHeight: 1.55, marginTop: 7, paddingLeft: 2 }}>
+          {portrait.visualNote}
         </div>
       )}
     </div>
@@ -2106,6 +2090,14 @@ function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, 
         {hasEmma && <span style={{ fontSize: 11, color: '#e84070' }}>♥</span>}
       </div>
 
+      {/* SVG portrait carousel — top of entry, like an article header */}
+      {(() => {
+        const dayPlantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
+        const withSvg = dayPlantIds.filter(id => portraits[id]?.svg);
+        if (!withSvg.length) return null;
+        return <PortraitCarousel plantIds={withSvg} portraits={portraits} allPlants={allPlants}/>;
+      })()}
+
       {loading ? (
         <div style={{ fontFamily: SERIF, fontSize: 13, color: 'rgba(160,130,80,0.3)', fontStyle: 'italic', lineHeight: 1.7 }}>…</div>
       ) : narrative ? (
@@ -2113,43 +2105,6 @@ function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, 
           {narrative}
         </p>
       ) : null}
-
-      {/* SVG portrait carousel — one plant at a time, large */}
-      {(() => {
-        const dayPlantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
-        const withSvg = dayPlantIds.filter(id => portraits[id]?.svg);
-        if (!withSvg.length) return null;
-        return <PortraitCarousel plantIds={withSvg} portraits={portraits} allPlants={allPlants} />;
-      })()}
-
-      {careEntries.length > 0 && (() => {
-        // Group by plant — one row per plant, all their actions for the day
-        const byPlant = {};
-        careEntries.forEach(e => {
-          if (e.action === 'visit') return; // visits are low-signal, skip in journal tags
-          if (!byPlant[e.plantId]) byPlant[e.plantId] = { plantName: e.plantName, labels: [], withEmma: false };
-          byPlant[e.plantId].labels.push(e.label);
-          if (e.withEmma) byPlant[e.plantId].withEmma = true;
-        });
-        const groups = Object.values(byPlant).filter(g => g.labels.length > 0);
-        if (!groups.length) return null;
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: narrative ? 10 : 4 }}>
-            {groups.map(g => (
-              <span key={g.plantName} style={{
-                fontSize: 9, fontFamily: MONO,
-                background: g.withEmma ? 'rgba(232,64,112,0.06)' : 'rgba(160,130,80,0.07)',
-                border: `1px solid ${g.withEmma ? 'rgba(232,64,112,0.18)' : 'rgba(160,130,80,0.15)'}`,
-                borderRadius: 10, padding: '3px 8px',
-                color: g.withEmma ? '#c04060' : '#907050',
-                display: 'inline-flex', alignSelf: 'flex-start',
-              }}>
-                {g.plantName} · {g.labels.join(' · ')}
-              </span>
-            ))}
-          </div>
-        );
-      })()}
 
       {photos.length > 0 && (
         <div style={{ display: 'flex', gap: 5, marginTop: 10, flexWrap: 'wrap' }}>
