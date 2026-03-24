@@ -134,7 +134,7 @@ export function usePortraits({ user }) {
       let history = existing.history || [];
       if (!data.analyzing && data.visualNote && data.date) {
         const newEntry = { visualNote: data.visualNote, growth: data.growth, date: data.date, svg: data.svg || existing.svg || null };
-        history = [...history, newEntry].slice(-20);
+        history = [...history, newEntry];
       }
 
       // Build stage vocabulary — keep existing unless bootstrap provides new ones
