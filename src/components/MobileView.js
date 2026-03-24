@@ -183,7 +183,7 @@ function parseOracleMsg(raw) {
   return { text: text.trim(), diagram, photoRequest };
 }
 
-function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, weather, onLog, onClose }) {
+function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, weather, onLog, onClose, onGoToPlant }) {
   const def = ACTION_DEFS[actionKey];
   const color = plantColor(plant.type);
   const [mode, setMode] = React.useState(null); // null | 'explain'
@@ -263,7 +263,23 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
           <div style={{ width:36, height:4, borderRadius:2, background:'rgba(160,130,80,0.25)' }}/>
         </div>
         <div style={{ padding:'12px 20px 20px' }}>
-          <div style={{ fontSize:28, marginBottom:4 }}>{actionEmoji}</div>
+          {/* Plant portrait — tappable to open plant in Garden tab */}
+          {portraits?.[plant.id]?.svg ? (
+            <button
+              onClick={() => { onGoToPlant?.(plant.id); onClose(); }}
+              style={{ display:'block', width:'100%', height:160, borderRadius:12, overflow:'hidden',
+                border:`1.5px solid ${color}28`, background:`${color}08`, marginBottom:12,
+                cursor:'pointer', padding:0, WebkitTapHighlightColor:'transparent', position:'relative' }}>
+              <PlantPortrait plant={plant} aiSvg={portraits[plant.id].svg}/>
+              <div style={{ position:'absolute', bottom:8, right:10,
+                fontFamily:SERIF, fontSize:11, color:`${color}cc`, fontStyle:'italic',
+                textShadow:'0 1px 3px rgba(0,0,0,0.18)' }}>
+                {plant.name} →
+              </div>
+            </button>
+          ) : (
+            <div style={{ fontSize:28, marginBottom:4 }}>{actionEmoji}</div>
+          )}
           <div style={{ fontSize:20, color:'#2a1808', fontWeight:600, fontFamily:SERIF, marginBottom:2 }}>{actionLabel}</div>
           <div style={{ fontSize:13, color:'#907050', fontFamily:SERIF, marginBottom:16 }}>{plant.name}</div>
 
@@ -1117,6 +1133,7 @@ function GardenAccordion({
   plants, frontPlants, careLog, onAction, onStartAction,
   onPortraitUpdate, onGrowthUpdate, onAddPhoto, allPhotos,
   portraits, briefings, seasonOpen, frozenAgendaItems, onDeleteAction,
+  openPlantId = null, onOpenPlantHandled,
 }) {
   const [sortBy, setSortBy] = useState('care');
   const attentionIds = useMemo(
@@ -1149,6 +1166,18 @@ function GardenAccordion({
     return open;
   });
   const [expandedId, setExpandedId] = useState(null);
+
+  // Auto-expand plant when navigating from Today tab portrait tap
+  React.useEffect(() => {
+    if (!openPlantId) return;
+    const all = [...plants, ...frontPlants];
+    const plant = all.find(p => p.id === openPlantId);
+    if (plant) {
+      setExpandedGroups(prev => { const next = new Set(prev); next.add(toGroupType(plant.type)); return next; });
+      setExpandedId(openPlantId);
+    }
+    onOpenPlantHandled?.();
+  }, [openPlantId]);
 
   function toggleGroup(type) {
     setExpandedGroups(prev => {
@@ -2396,6 +2425,7 @@ export function MobileView({
   const prevAnalyzingRef = useRef({});
   const completedKeysRef = useRef(new Set());
   const [completedCount, setCompletedCount] = useState(0); // triggers re-render when item is marked done
+  const [openPlantId, setOpenPlantId] = useState(null); // plant to auto-expand on Garden tab
 
   function handleMarkDone(item) {
     completedKeysRef.current.add(item.key);
@@ -2756,6 +2786,8 @@ export function MobileView({
             seasonOpen={seasonOpen}
             frozenAgendaItems={rawAgendaItems}
             onDeleteAction={onDeleteAction}
+            openPlantId={openPlantId}
+            onOpenPlantHandled={() => setOpenPlantId(null)}
           />
         )}
 
@@ -2788,6 +2820,7 @@ export function MobileView({
           weather={weather}
           onLog={() => handleAction(actionSession.key, actionSession.plant, actionSession.task?.label)}
           onClose={() => setActionSession(null)}
+          onGoToPlant={id => { setOpenPlantId(id); setTab('garden'); }}
         />
       )}
 
