@@ -1822,6 +1822,7 @@ export default function App() {
   // Centralized briefings: { [plantId]: { note, tasks, actions } | 'loading' | null }
   // Fetched for all active plants in the background; shared across map, cards, mobile
   const [briefings, setBriefings] = useState({});
+  const [briefingRefreshToken, setBriefingRefreshToken] = useState(0);
   const _todayStr = new Date().toISOString().slice(0, 10);
   const { portraits, updatePortrait } = usePortraits({ user });
   const { allPhotos, addPhoto } = usePhotos({ user });
@@ -1955,8 +1956,7 @@ export default function App() {
     return map;
   }, [sharedAgendaItems]);
 
-  // Morning brief + daily brief — shared by desktop MapInfoPanel and mobile Today tab
-  // Re-fetches when today's care count changes; cachedClaude handles deduplication
+  // Morning brief + daily brief — frozen daily; only re-fetches on manual refresh
   useEffect(() => {
     if (!weather) return;
     let isMounted = true;
@@ -1975,10 +1975,11 @@ export default function App() {
       .then(brief => { if (isMounted && brief) setDailyBrief(brief); })
       .catch(() => {});
     return () => { isMounted = false; };
-  }, [weather, todayCareCount, sharedAgendaItems.length]);
+  }, [weather, briefingRefreshToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch plant briefings for all active plants in the background.
   // Staggered to avoid hammering the API simultaneously; cachedClaude handles dedup.
+  // Frozen daily — only re-fetches on manual refresh (briefingRefreshToken).
   useEffect(() => {
     if (!weather || !seasonOpen) return;
     const active = [...gardenPlants.terrace, ...frontPlants]
@@ -1993,20 +1994,28 @@ export default function App() {
         fetchPlantBriefing(plant, careLog, weather, portraits)
           .then(b => { if (!cancelled) setBriefings(prev => ({ ...prev, [plant.id]: b })); })
           .catch(() => { if (!cancelled) setBriefings(prev => ({ ...prev, [plant.id]: null })); });
-      }, i * 600); // stagger 600ms per plant — avoids Anthropic rate limits
+      }, i * 600);
       timeoutIds.push(tid);
     });
     return () => {
       cancelled = true;
       timeoutIds.forEach(clearTimeout);
     };
-  }, [weather, seasonOpen, rainEntryCount]);
+  }, [weather, seasonOpen, briefingRefreshToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Invalidate briefings when care is logged (so recommendations update immediately)
-  useEffect(() => {
-    if (!weather || !seasonOpen) return;
+  // Manual refresh — clears today's cached AI responses and re-fetches everything
+  const refreshBriefings = useCallback(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('gp_claude_') && k.includes(today))
+        .forEach(k => localStorage.removeItem(k));
+    } catch (e) { console.warn('refreshBriefings localStorage clear failed', e); }
     setBriefings({});
-  }, [todayCareCount, rainEntryCount]);
+    setMorningBrief(null);
+    setDailyBrief(null);
+    setBriefingRefreshToken(t => t + 1);
+  }, []);
 
   // One-time backfill: log March 23 2026 rain for all active plants.
   // Must guard on BOTH dbLoading=false AND user being non-null.
@@ -2217,6 +2226,7 @@ export default function App() {
         dailyBrief={dailyBrief}
         agendaItems={sharedAgendaItems}
         agendaIsWeekend={agendaIsWeekend}
+        onRefreshAgenda={refreshBriefings}
       />
     );
   }

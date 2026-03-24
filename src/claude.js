@@ -179,7 +179,8 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
   const portrait = portraits?.[plant.id] || {};
   const currentStage = portrait.currentStage || null;
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
-  const cacheKey = `plantbrief11_${plant.id}_${plant.health}_${today}_${lastActionDate}_${currentStage || 'ns'}_${rainToken}`;
+  // v12: removed lastActionDate — briefings are now frozen daily (refresh manually if needed)
+  const cacheKey = `plantbrief12_${plant.id}_${plant.health}_${today}_${currentStage || 'ns'}_${rainToken}`;
 
   const lastWater = [...entries].reverse().find(e => e.action === 'water' || e.action === 'rain');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
@@ -331,7 +332,8 @@ export async function fetchMorningBrief({ plants, careLog, weather, portraits, a
   const todayCareToken = Object.values(careLog).flat()
     .filter(e => e.date?.startsWith(today)).length;
   const taskToken = agendaTasks.filter(t => !t.optional).map(t => t.label || t.actionKey).join(',').slice(0, 60);
-  const cacheKey = `morningbrief6_${today}_${rainToken}_${todayCareToken}_${taskToken}`;
+  // v7: removed todayCareToken — morning brief is frozen daily
+  const cacheKey = `morningbrief7_${today}_${rainToken}_${taskToken}`;
 
   const needsWater = plants
     .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && p.actions?.includes('water'))
@@ -396,7 +398,8 @@ export async function fetchDailyBrief({ plants, careLog, weather, portraits, age
   // Invalidate when today's care changes (same pattern as fetchMorningBrief)
   const todayCareToken = Object.values(careLog).flat().filter(e => e.date?.startsWith(today)).length;
   const taskToken = agendaTasks.map(t => t.label || t.actionKey).join(',').slice(0, 80);
-  const cacheKey = `dailybrief5_${today}_${rainToken}_${todayCareToken}_${taskToken}`;
+  // v6: removed todayCareToken — daily brief is frozen daily
+  const cacheKey = `dailybrief6_${today}_${rainToken}_${taskToken}`;
 
   const cached = lsGet(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.data;

@@ -1591,7 +1591,7 @@ function AgendaRow({ item, completed, justDone, justDoneStreak, onTap, onDone, p
 
 function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seasonOpen,
   totalActivePlants = 0, morningBrief, fullBrief, onStartAction, portraits, completedThisSession = new Set(),
-  doneTodayItems = [], onMarkDone, onOpenAsk, careLog = {} }) {
+  doneTodayItems = [], onMarkDone, onOpenAsk, careLog = {}, onRefreshAgenda }) {
   const [briefExpanded, setBriefExpanded] = React.useState(false);
   const essentialsDoneLatchRef = React.useRef(false);
   const [justDoneKey, setJustDoneKey] = React.useState(null);
@@ -1709,9 +1709,19 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
               {isWeekend ? 'WEEKEND SESSION' : 'TODAY\'S ROUNDS'}
               {agendaData?.sessionMinutes ? ` · ~${agendaData.sessionMinutes} MIN` : ''}
             </span>
-            <span style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 700, color: '#2a1808' }}>
-              {doneCount} <span style={{ fontSize: 14, fontWeight: 400, color: '#907050' }}>of {totalCount + doneCount}</span>
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {onRefreshAgenda && (
+                <button onClick={onRefreshAgenda} title="Refresh agenda"
+                  style={{ background: 'none', border: 'none', padding: '2px 4px', cursor: 'pointer',
+                    color: '#a08050', fontSize: 14, opacity: 0.6, lineHeight: 1,
+                    WebkitTapHighlightColor: 'transparent', minHeight: 28 }}>
+                  ↻
+                </button>
+              )}
+              <span style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 700, color: '#2a1808' }}>
+                {doneCount} <span style={{ fontSize: 14, fontWeight: 400, color: '#907050' }}>of {totalCount + doneCount}</span>
+              </span>
+            </div>
           </div>
           <div style={{ height: 4, background: 'rgba(160,130,80,0.15)', borderRadius: 2, overflow: 'hidden' }}>
             <div style={{
@@ -2413,6 +2423,7 @@ export function MobileView({
   dailyBrief: externalDailyBrief = null,
   agendaItems: externalAgendaItems = null,
   agendaIsWeekend: externalAgendaIsWeekend = false,
+  onRefreshAgenda,
 }) {
   const [tab, setTab] = useState('today');
   const [flash, setFlash] = useState(null);
@@ -2791,6 +2802,7 @@ export function MobileView({
             onMarkDone={handleMarkDone}
             onOpenAsk={() => setTab('ask')}
             careLog={careLog}
+            onRefreshAgenda={onRefreshAgenda}
           />
         )}
 
