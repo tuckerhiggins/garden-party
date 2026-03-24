@@ -1052,7 +1052,13 @@ function PlantAccordionRow({
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {plant.name}
           </div>
-          <div style={{ fontFamily: SERIF, fontSize: 11, color: '#907050', marginTop: 2 }}>
+          {plant.subtitle && (
+            <div style={{ fontFamily: SERIF, fontSize: 11, color: '#b09070', marginTop: 1,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {plant.subtitle}
+            </div>
+          )}
+          <div style={{ fontFamily: SERIF, fontSize: 11, color: '#907050', marginTop: 1 }}>
             {currentStage
               ? <span style={{ color, fontStyle: 'italic' }}>{currentStage}</span>
               : <span style={{ color: healthColor(plant.health) }}>{healthLabel(plant.health)}</span>
@@ -1189,7 +1195,7 @@ function GardenAccordion({
   function togglePlant(id) { setExpandedId(prev => prev === id ? null : id); }
 
   function lastWatered(plantId) {
-    const entries = (careLog[plantId] || []).filter(e => e.action === 'water');
+    const entries = (careLog[plantId] || []).filter(e => e.action === 'water' || e.action === 'rain');
     return entries.length ? entries[entries.length - 1].date : null;
   }
 
