@@ -649,12 +649,17 @@ export function MapContextPanel({
 
       {/* ── One Thing to Notice ── */}
       {noticeToday && (
-        <div style={{ borderTop: `1px solid ${RULE}`, padding: '14px 16px 12px' }}>
-          <div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: .6, marginBottom: 9, color: GOLD, opacity: .90 }}>
+        <div style={{ borderTop: `1px solid ${RULE}`, padding: '14px 16px 14px' }}>
+          <div style={{ fontFamily: MONO, fontSize: 7, letterSpacing: .6, marginBottom: 10, color: GOLD, opacity: .90 }}>
             ONE THING TO NOTICE
           </div>
-          <div style={{ fontFamily: SERIF, fontSize: 14, color: TEXT, lineHeight: 1.6, fontStyle: 'italic' }}>
-            {noticeToday}
+          {noticeToday.subject && (
+            <div style={{ fontFamily: SERIF, fontSize: 19, fontWeight: 600, color: TEXT, lineHeight: 1.15, marginBottom: 8 }}>
+              {noticeToday.subject}.
+            </div>
+          )}
+          <div style={{ fontFamily: SERIF, fontSize: 12.5, color: MUTED, lineHeight: 1.65, fontStyle: 'italic' }}>
+            {noticeToday.observation || noticeToday}
           </div>
         </div>
       )}

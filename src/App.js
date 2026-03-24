@@ -2595,38 +2595,47 @@ export default function App() {
                           weather={weather}
                         />
                       )}
-                      {/* Garden switcher — full right edge glow, expands on hover */}
+                      {/* Garden switcher — dog-eared map corner, bottom-left */}
                       {(() => {
                         const isT = mapLayer === 'terrace';
-                        const glowRgb = isT ? '220,50,100' : '60,180,70';
-                        const labelColor = isT ? 'rgba(240,130,160,0.95)' : 'rgba(100,220,90,0.95)';
-                        const label = isT ? '🌹 EMMA\'S GARDEN' : '🌿 TERRACE';
+                        // rose for terrace→emma transition; green for emma→terrace
+                        const foldColor = isT ? 'rgba(200,48,88,0.82)' : 'rgba(52,160,60,0.82)';
+                        const foldColorHover = isT ? 'rgba(220,60,100,0.95)' : 'rgba(64,185,72,0.95)';
+                        const label = isT ? "EMMA'S" : 'TERRACE';
+                        const sz = mapSwitchHovered ? 80 : 52;
                         return (
                           <button
                             onClick={()=>{ setMapLayer(isT?'front':'terrace'); setSel(null); setMapSwitchHovered(false); }}
                             onMouseEnter={()=>setMapSwitchHovered(true)}
                             onMouseLeave={()=>setMapSwitchHovered(false)}
                             style={{
-                              position:'absolute',
-                              top:0, bottom:0, right:0,
-                              width: mapSwitchHovered ? 120 : 28,
-                              background: `linear-gradient(to left, rgba(${glowRgb},${mapSwitchHovered?0.28:0.10}) 0%, transparent 100%)`,
-                              border:'none', cursor:'pointer', padding:0,
-                              zIndex:10,
-                              transition:'width .3s ease, background .3s ease',
-                              display:'flex', alignItems:'center', justifyContent:'flex-end',
+                              position:'absolute', bottom:0, left:0,
+                              width:sz, height:sz,
+                              background:'none', border:'none', padding:0, cursor:'pointer',
+                              zIndex:10, overflow:'hidden',
+                              transition:'width .2s ease, height .2s ease',
                             }}>
+                            {/* The fold triangle */}
+                            <div style={{
+                              position:'absolute', bottom:0, left:0,
+                              width:'100%', height:'100%',
+                              background: mapSwitchHovered ? foldColorHover : foldColor,
+                              clipPath:'polygon(0 0, 0 100%, 100% 100%)',
+                              boxShadow: mapSwitchHovered ? '3px -3px 12px rgba(0,0,0,0.5)' : '2px -2px 6px rgba(0,0,0,0.3)',
+                              transition:'background .2s ease, box-shadow .2s ease',
+                            }}/>
+                            {/* Label rotated along the hypotenuse */}
                             <span style={{
-                              fontFamily:MONO, fontSize:7, letterSpacing:.5,
-                              color: labelColor,
-                              opacity: mapSwitchHovered ? 1 : 0,
-                              transform: mapSwitchHovered ? 'translateX(0)' : 'translateX(8px)',
-                              transition:'opacity .2s ease, transform .25s ease',
-                              paddingRight: 14,
+                              position:'absolute',
+                              bottom: mapSwitchHovered ? 18 : 11,
+                              left: mapSwitchHovered ? 7 : 4,
+                              fontFamily:MONO, fontSize: mapSwitchHovered ? 6.5 : 5.5,
+                              letterSpacing:.5, color:'rgba(255,255,255,0.92)',
+                              transform:'rotate(-45deg)',
+                              transformOrigin:'bottom left',
                               whiteSpace:'nowrap',
-                              writingMode:'vertical-rl',
-                              textOrientation:'mixed',
-                              transform: mapSwitchHovered ? 'rotate(180deg) translateY(0)' : 'rotate(180deg) translateY(6px)',
+                              transition:'font-size .2s ease, bottom .2s ease, left .2s ease',
+                              pointerEvents:'none',
                             }}>
                               {label}
                             </span>

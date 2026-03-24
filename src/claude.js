@@ -704,25 +704,22 @@ export async function streamGardenChat({ messages, plantContext, action, onChunk
 }
 
 // ── ONE THING TO NOTICE ───────────────────────────────────────────────────
-// A single pointed observation about something in the garden worth attending
-// to today. Specific and concrete, not decorative. Cached daily.
+// A two-part structured observation: a short subject (the thing itself) +
+// a pointed 1–2 sentence description. Cached daily.
+// Returns: { subject: string, observation: string } or null on failure.
 export async function fetchNoticeToday({ plants = [], portraits = {}, weather = null }) {
   const today = new Date().toISOString().slice(0, 10);
   const dateLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-  // Cache token: changes if a new portrait arrives
   const lastPortrait = Object.values(portraits)
     .filter(p => p?.date && !p.analyzing)
     .map(p => p.date).sort().pop() ?? '';
   const portraitToken = lastPortrait ? lastPortrait.slice(0, 10).replace(/-/g, '') : '0';
-
   const weatherToken = weather
-    ? `${Math.round(weather.temp ?? 0)}_${weather.forecast?.[0]?.precipChance ?? 0}`
+    ? `${Math.round(weather.temp ?? 0)}_${weather.forecast?.[0]?.precipChance ?? 0}_${weather.forecast?.[0]?.low ?? 0}`
     : 'noweather';
+  const cacheKey = `noticetoday2_${today}_${weatherToken}_${portraitToken}`;
 
-  const cacheKey = `noticetoday1_${today}_${weatherToken}_${portraitToken}`;
-
-  // Build plant context from portrait observations
   const observations = Object.entries(portraits)
     .filter(([, p]) => p?.visualNote && p.date && !p.analyzing)
     .sort((a, b) => new Date(b[1].date) - new Date(a[1].date))
@@ -733,25 +730,31 @@ export async function fetchNoticeToday({ plants = [], portraits = {}, weather = 
     })
     .filter(Boolean);
 
+  const frost = weather?.forecast?.[0]?.low <= 36;
+  const frostTemp = weather?.forecast?.[0]?.low;
   const weatherLine = weather
-    ? `${Math.round(weather.temp ?? 0)}°F${weather.poem ? `, ${weather.poem}` : ''}. ${
-        weather.forecast?.[0]?.precipChance >= 60
-          ? `Rain likely today (${weather.forecast[0].precipChance}%).`
-          : weather.forecast?.[0]?.low <= 36
-          ? `Frost risk tonight (low ${weather.forecast[0].low}°F).`
-          : ''
-      }`
+    ? `${Math.round(weather.temp ?? 0)}°F now${weather.poem ? `, ${weather.poem}` : ''}.${frost ? ` Tonight's low: ${frostTemp}°F.` : ''}`
     : '';
 
-  const systemPrompt = `You are a very close observer of a specific Brooklyn garden — a brownstone rooftop terrace with potted plants plus a small front garden with climbing roses and a magnolia.
+  const systemPrompt = `You are observing a specific Brooklyn brownstone garden — a rooftop terrace with potted plants plus a small front garden with climbing roses and a magnolia. Zone 7b, early spring.
 
-Give one sentence (20–40 words) naming one thing in this garden right now that is worth quietly noticing — something actually happening, not advice. Specific and true. Think like Mary Oliver but without decoration — just exact, plain observation. Do not use the words "beautiful," "wonder," "magic," or "delight." No greeting, no preamble.`;
+Respond with exactly two lines:
+Line 1: The subject — 2 to 5 words, naming the specific thing to notice. No verb. Start with "The." Example: "The wisteria nodes." or "The magnolia bark."
+Line 2: One or two sentences of exact, plain observation. Name specific sizes, colors, textures, or comparisons. No metaphors unless they're surprising and true. No words: beautiful, wonder, magic, delight, dance, whisper, breathe. If frost is coming tonight, mention what it will do to what you're describing — the plant mid-process, interrupted.
 
-  const userPrompt = `${dateLabel}. Zone 7b Brooklyn, early spring — soil temps climbing, late dormancy breaking.
-${weatherLine}
-${observations.length > 0 ? `Recent observations:\n${observations.join('\n')}` : 'No recent photo observations available.'}
+Do not explain. Do not advise. Just describe what is there.`;
 
-One thing to notice today:`;
+  const userPrompt = `${dateLabel}. ${weatherLine}
+${observations.length > 0 ? `Recent portrait observations:\n${observations.join('\n')}` : 'No recent photo observations — use seasonal knowledge of early spring in Brooklyn.'}
 
-  return cachedClaude(cacheKey, systemPrompt, userPrompt, 80);
+Two lines:`;
+
+  const raw = await cachedClaude(cacheKey, systemPrompt, userPrompt, 120);
+  if (!raw) return null;
+  const lines = raw.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length >= 2) {
+    return { subject: lines[0].replace(/\.$/, ''), observation: lines.slice(1).join(' ') };
+  }
+  // Fallback: treat whole response as observation with no subject
+  return { subject: null, observation: raw.trim() };
 }

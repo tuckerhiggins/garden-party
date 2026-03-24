@@ -1593,7 +1593,6 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
   totalActivePlants = 0, morningBrief, fullBrief, onStartAction, portraits, completedThisSession = new Set(),
   doneTodayItems = [], onMarkDone, onOpenAsk, careLog = {}, onRefreshAgenda }) {
   const [briefExpanded, setBriefExpanded] = React.useState(false);
-  const essentialsDoneLatchRef = React.useRef(false);
   const [justDoneKey, setJustDoneKey] = React.useState(null);
   const [justDoneStreak, setJustDoneStreak] = React.useState(0);
 
@@ -1653,11 +1652,11 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
   const doneCount = completedItems.length;
   const totalCount = todayItems.length + weekItems.length + optItems.length;
   const allDone = (todayItems.length + weekItems.length) === 0 && doneCount > 0;
-  // Latch essentials-done banner
-  // rawItems.length > 0 guards against latching before briefings have loaded
-  const essentialsDoneNow = rawItems.length > 0 && todayItems.length === 0 && doneCount > 0 && (weekItems.length > 0 || optItems.length > 0);
-  if (essentialsDoneNow) essentialsDoneLatchRef.current = true;
-  const urgentRecAllDone = essentialsDoneLatchRef.current && !allDone;
+  // "Essentials done" banner: show only when there were essential tasks AND all are complete
+  // Computed directly (no latch) so it can't fire before briefings load
+  const essentialDoneCount = completedItems.filter(i => i.priority === 'urgent' || i.priority === 'recommended').length;
+  const essentialTotalCount = todayItems.length + essentialDoneCount;
+  const urgentRecAllDone = rawItems.length > 0 && essentialTotalCount > 0 && todayItems.length === 0 && (weekItems.length > 0 || optItems.length > 0);
 
   if (!seasonOpen) {
     return (
