@@ -80,7 +80,7 @@ export function useGardenData({ user }) {
             const latestSb = sbEntries.length
               ? Math.max(...sbEntries.map(e => new Date(e.date).getTime()))
               : 0;
-            const pending = localEntries.filter(e => new Date(e.date).getTime() > latestSb + 1000);
+            const pending = localEntries.filter(e => new Date(e.date).getTime() > latestSb + 5000);
             if (pending.length) merged[plantId] = [...sbEntries, ...pending];
           });
           const deduped = dedupeLog(normalizeLegacyKeys(merged));
@@ -112,7 +112,7 @@ export function useGardenData({ user }) {
     }
 
     loadFromSupabase().catch(() => setDbLoading(false));
-  }, [user]);
+  }, [user?.id]);
 
   // Realtime: care log + plant state
   useEffect(() => {

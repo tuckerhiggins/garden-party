@@ -12,14 +12,16 @@ export const AGENDA_HEALTH_SEV = { struggling: 0, thirsty: 1, overlooked: 2 };
 export function actionStatus(plant, key, careLog, seasonOpen) {
   if (!seasonOpen) return { available: false, reason: 'Not yet open' };
   const def = ACTION_DEFS[key]; if (!def) return { available: false, reason: '?' };
-  // Water is suppressed for 1 day after any watering OR rain event.
+  // Water is suppressed after any watering OR rain event.
+  // Rain suppresses for 2 days (ground stays wet longer); manual water suppresses for 1 day.
   // Must check BEFORE alwaysAvailable since water has alwaysAvailable:true.
   if (key === 'water') {
     const recentLog = (careLog[plant.id] || []).filter(e => e.action === 'water' || e.action === 'rain');
     if (recentLog.length > 0) {
-      const last = new Date(recentLog[recentLog.length - 1].date);
-      const days = (Date.now() - last.getTime()) / 86400000;
-      if (days < 1) return { available: false, reason: 'Recently watered' };
+      const lastEntry = recentLog[recentLog.length - 1];
+      const cooldown = lastEntry.action === 'rain' ? 2 : 1;
+      const days = (Date.now() - new Date(lastEntry.date).getTime()) / 86400000;
+      if (days < cooldown) return { available: false, reason: 'Recently watered' };
     }
   }
   if (def.alwaysAvailable) return { available: true };
