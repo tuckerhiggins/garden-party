@@ -2668,10 +2668,7 @@ export function MobileView({
           marginBottom: 6, textAlign: 'center' }}>
           GARDEN<br/>PARTY
         </div>
-        <div style={{ fontFamily: SERIF, fontSize: 14, fontStyle: 'italic',
-          color: 'rgba(200,180,140,0.55)', marginBottom: 40, letterSpacing: 0.3 }}>
-          Emma's Rose Garden · Park Slope
-        </div>
+        <div style={{ marginBottom: 40 }}/>
 
         {/* Who-picker or password step */}
         {!guestWho ? (
