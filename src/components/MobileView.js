@@ -771,7 +771,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
             onClick={() => waterStatus.available && onAction('water', plant)}
             disabled={!waterStatus.available}
             style={{
-              flex: '1 1 56px', padding: '10px 8px',
+              flex: '1 1 56px', padding: '10px 8px', minHeight: 44,
               background: waterStatus.available ? '#e8f4ff' : 'rgba(0,0,0,.03)',
               border: `1px solid ${waterStatus.available ? '#a8d0f0' : 'rgba(160,130,80,.15)'}`,
               borderRadius: 8, cursor: waterStatus.available ? 'pointer' : 'default',
@@ -798,7 +798,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
                   }
                 }}
                 style={{
-                  flex: '1 1 56px', padding: '10px 8px',
+                  flex: '1 1 56px', padding: '10px 8px', minHeight: 44,
                   background: `${color}10`,
                   border: `1px solid ${color}40`,
                   borderRadius: 8, cursor: 'pointer',
@@ -817,7 +817,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
             <button
               onClick={() => onAction('visit', plant)}
               style={{
-                flex: '1 1 56px', padding: '10px 8px',
+                flex: '1 1 56px', padding: '10px 8px', minHeight: 44,
                 background: briefing ? 'rgba(0,0,0,.03)' : 'rgba(0,0,0,.02)',
                 border: '1px solid rgba(160,130,80,.15)',
                 borderRadius: 8, cursor: 'pointer',
@@ -835,7 +835,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
           <button
             onClick={() => setNoteOpen(o => !o)}
             style={{
-              flex: '1 1 56px', padding: '10px 8px',
+              flex: '1 1 56px', padding: '10px 8px', minHeight: 44,
               background: noteOpen ? 'rgba(212,168,48,0.10)' : 'rgba(0,0,0,.02)',
               border: `1px solid ${noteOpen ? 'rgba(212,168,48,0.35)' : 'rgba(160,130,80,.15)'}`,
               borderRadius: 8, cursor: 'pointer',
@@ -861,7 +861,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
                   flex: 1, padding: '9px 12px',
                   background: 'rgba(255,255,255,0.7)',
                   border: '1px solid rgba(160,130,80,0.3)',
-                  borderRadius: 8, fontFamily: SERIF, fontSize: 14,
+                  borderRadius: 8, fontFamily: SERIF, fontSize: 16,
                   color: '#2a1808', outline: 'none',
                 }}
               />
@@ -888,7 +888,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
                   flex: 1, padding: '6px 10px',
                   background: 'rgba(255,255,255,0.5)',
                   border: '1px solid rgba(160,130,80,0.2)',
-                  borderRadius: 6, fontFamily: SERIF, fontSize: 12,
+                  borderRadius: 6, fontFamily: SERIF, fontSize: 16,
                   color: '#5a3c18', outline: 'none',
                   fontStyle: 'italic',
                 }}
@@ -1071,10 +1071,11 @@ function PlantAccordionRow({
         <div
           onClick={e => { e.stopPropagation(); onToggle(plant.id); }}
           style={{
-            padding: '6px 9px', borderRadius: 8,
+            padding: '6px 9px', borderRadius: 8, minHeight: 44, minWidth: 44,
             border: '1px solid rgba(160,130,80,0.22)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
             background: 'rgba(255,255,255,0.5)', flexShrink: 0,
+            WebkitTapHighlightColor: 'transparent',
           }}
         >
           <span style={{ fontSize: 14 }}>📷</span>
@@ -1418,7 +1419,7 @@ function GardenAccordion({
               onClick={() => setSortBy(opt.key)}
               style={{
                 flexShrink: 0,
-                padding: '5px 11px',
+                padding: '5px 11px', minHeight: 44,
                 borderRadius: 20,
                 border: `1px solid ${active ? 'rgba(212,168,48,0.55)' : 'rgba(160,130,80,0.22)'}`,
                 background: active ? 'rgba(212,168,48,0.12)' : 'transparent',
@@ -1552,7 +1553,7 @@ function AgendaRow({ item, completed, justDone, justDoneStreak, onTap, onDone, p
               background: 'none', border: '1px solid rgba(160,130,80,0.32)',
               borderRadius: 7, padding: '0 12px', color: '#907050',
               fontSize: 13, fontFamily: SERIF, cursor: 'pointer', flexShrink: 0,
-              minHeight: 40, display: 'flex', alignItems: 'center',
+              minHeight: 44, display: 'flex', alignItems: 'center',
               WebkitTapHighlightColor: 'transparent',
             }}
           >
@@ -2705,10 +2706,10 @@ export function MobileView({
 
       {/* Header */}
       <div style={{
-        height: 52, background: C.uiPane,
+        height: 'calc(52px + env(safe-area-inset-top))', background: C.uiPane,
         borderBottom: `2px solid ${C.uiBorder}`,
         display: 'flex', alignItems: 'center',
-        padding: '0 16px', gap: 10, flexShrink: 0,
+        padding: '0 16px', paddingTop: 'env(safe-area-inset-top)', gap: 10, flexShrink: 0,
       }}>
         <span style={{ fontFamily: MONO, fontSize: 9, color: C.uiGold, letterSpacing: .5 }}>
           GARDEN PARTY
@@ -2772,7 +2773,7 @@ export function MobileView({
       )}
 
       {/* Main content */}
-      <div style={{ flex: 1, overflowY: tab !== 'ask' ? 'auto' : 'hidden', position: 'relative' }}>
+      <div style={{ flex: 1, overflowY: tab !== 'ask' ? 'auto' : 'hidden', position: 'relative', overscrollBehavior: 'contain' }}>
         {tab === 'today' && (
           <TodayAgenda
             rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
