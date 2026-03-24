@@ -1992,38 +1992,21 @@ export default function App() {
   }, [todayCareCount, rainEntryCount]);
 
   // One-time backfill: log March 23 2026 rain for all active plants.
-  // Guard is data-driven (checks careLog directly) so a failed previous
-  // attempt doesn't permanently block it via a stale localStorage flag.
+  // Per-plant guard so plants that were missed on a previous run still get logged.
   useEffect(() => {
+    if (!gardenPlants.terrace.length) return;
     const rainDate = '2026-03-23';
-    const firstTerracePlant = gardenPlants.terrace[0];
-    if (!firstTerracePlant) return;
-    const alreadyLogged = (careLog[firstTerracePlant.id] || [])
-      .some(e => e.action === 'rain' && e.date?.startsWith(rainDate));
-    if (alreadyLogged) return;
     const yISO = new Date('2026-03-23T18:00:00').toISOString();
     const activePlants = [...gardenPlants.terrace, ...frontPlants]
       .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
     activePlants.forEach(plant => {
-      logAction('rain', plant, false, 'Rained in Brooklyn', yISO);
+      const alreadyLogged = (careLog[plant.id] || [])
+        .some(e => e.action === 'rain' && e.date?.startsWith(rainDate));
+      if (!alreadyLogged) {
+        logAction('rain', plant, false, 'Rained in Brooklyn', yISO);
+      }
     });
   }, [gardenPlants.terrace.length]);
-
-  // Auto-log rain watering — fires once per rainy day for all active plants.
-  // DEDUP_KEYS prevents double-logging if app is reloaded or weather polling fires again.
-  useEffect(() => {
-    if (!weather || !seasonOpen) return;
-    const today = weather.forecast?.[0];
-    if (!today || today.precip <= 1) return; // < 1mm — not meaningful rain
-    const inchesRaw = today.precip / 25.4;
-    const inches = inchesRaw < 0.1 ? inchesRaw.toFixed(2) : inchesRaw.toFixed(1);
-    const label = `Rained ${inches}" in Brooklyn`;
-    const activePlants = [...gardenPlants.terrace, ...frontPlants]
-      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
-    activePlants.forEach(plant => {
-      doAction('rain', plant, label);
-    });
-  }, [weather?.forecast?.[0]?.precip, seasonOpen]);
 
   // Map condition synthesis — runs when photos change, only for plants with ≥3 photos
   // and only when ≥2 new photos have accumulated since the last synthesis.
