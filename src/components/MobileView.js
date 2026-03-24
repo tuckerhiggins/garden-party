@@ -1652,10 +1652,16 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
   const doneCount = completedItems.length;
   const totalCount = todayItems.length + weekItems.length + optItems.length;
   const allDone = (todayItems.length + weekItems.length) === 0 && doneCount > 0;
-  // "Essentials done" banner: show only when there were essential tasks AND all are complete
-  // Computed directly (no latch) so it can't fire before briefings load
-  const essentialDoneCount = completedItems.filter(i => i.priority === 'urgent' || i.priority === 'recommended').length;
-  const essentialTotalCount = todayItems.length + essentialDoneCount;
+  // Essential counts: derive from pendingItems (correct priorities) rather than doneTodayItems
+  // (doneTodayItems are built from careLog with hardcoded priority:'routine', so can't be trusted)
+  const essentialKeys = useMemo(() => new Set(
+    pendingItems
+      .filter(i => (i.priority === 'urgent' || i.priority === 'recommended') && !extractFutureActionDate(i.task?.instructions))
+      .slice(0, 6)
+      .map(i => i.key)
+  ), [pendingItems]);
+  const essentialTotalCount = essentialKeys.size;
+  const essentialDoneCount = [...essentialKeys].filter(k => doneTodayKeys.has(k) || completedThisSession.has(k)).length;
   const urgentRecAllDone = rawItems.length > 0 && essentialTotalCount > 0 && todayItems.length === 0 && (weekItems.length > 0 || optItems.length > 0);
 
   if (!seasonOpen) {
@@ -1703,18 +1709,16 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
 
       {/* Progress header */}
       {(() => {
-        const essentialDone = completedItems.filter(i => i.priority === 'urgent' || i.priority === 'recommended').length;
-        const essentialTotal = todayItems.length + essentialDone;
         const optRemaining = optItems.length;
-        if (essentialTotal === 0 && optRemaining === 0) return null;
-        const pct = essentialTotal > 0 ? (essentialDone / essentialTotal) * 100 : 0;
+        if (essentialTotalCount === 0 && optRemaining === 0) return null;
+        const pct = essentialTotalCount > 0 ? (essentialDoneCount / essentialTotalCount) * 100 : 0;
         return (
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
                   <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 700, color: '#2a1808', lineHeight: 1 }}>
-                    {essentialDone}/{essentialTotal}
+                    {essentialDoneCount}/{essentialTotalCount}
                   </span>
                   <span style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, letterSpacing: .4, lineHeight: 1 }}>
                     ESSENTIAL
@@ -1744,7 +1748,7 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
             <div style={{ height: 4, background: 'rgba(160,130,80,0.15)', borderRadius: 2, overflow: 'hidden' }}>
               <div style={{
                 height: '100%', borderRadius: 2,
-                background: essentialDone === 0 ? 'transparent' : 'linear-gradient(90deg, #d4a830, #a07828)',
+                background: essentialDoneCount === 0 ? 'transparent' : 'linear-gradient(90deg, #d4a830, #a07828)',
                 width: `${pct}%`,
                 transition: 'width .4s ease',
               }}/>
@@ -1977,6 +1981,86 @@ function buildMobileDayMap(allPlants, careLog, portraits, allPhotos) {
   return days;
 }
 
+function PortraitCarousel({ plantIds, portraits, allPlants }) {
+  const [idx, setIdx] = React.useState(0);
+  const safeIdx = Math.min(idx, plantIds.length - 1);
+  const plantId = plantIds[safeIdx];
+  const plant = allPlants.find(p => p.id === plantId);
+  const portrait = portraits[plantId];
+  if (!plant || !portrait?.svg) return null;
+
+  const visualNote = portrait.visualNote || null;
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {/* Large portrait */}
+      <div style={{
+        position: 'relative',
+        width: '100%', maxWidth: 220,
+        aspectRatio: '1',
+        margin: '0 auto',
+        borderRadius: 12,
+        overflow: 'hidden',
+        background: '#faf6ee',
+        border: '1px solid rgba(160,130,80,0.22)',
+      }}>
+        <PlantPortrait plant={plant} aiSvg={portrait.svg} />
+        {/* Plant name overlay */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          background: 'linear-gradient(transparent, rgba(30,18,8,0.55))',
+          padding: '18px 10px 8px',
+        }}>
+          <span style={{ fontFamily: MONO, fontSize: 6.5, color: 'rgba(240,228,200,0.88)', letterSpacing: .4 }}>
+            {plant.name.toUpperCase()}
+          </span>
+        </div>
+        {/* Prev/next arrows if multiple */}
+        {plantIds.length > 1 && (
+          <>
+            <button
+              onClick={() => setIdx(i => (i - 1 + plantIds.length) % plantIds.length)}
+              style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 36,
+                background: 'none', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'rgba(240,228,200,0.6)', fontSize: 16,
+                WebkitTapHighlightColor: 'transparent' }}>
+              ‹
+            </button>
+            <button
+              onClick={() => setIdx(i => (i + 1) % plantIds.length)}
+              style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 36,
+                background: 'none', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'rgba(240,228,200,0.6)', fontSize: 16,
+                WebkitTapHighlightColor: 'transparent' }}>
+              ›
+            </button>
+          </>
+        )}
+      </div>
+      {/* Dot indicators */}
+      {plantIds.length > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 7 }}>
+          {plantIds.map((_, i) => (
+            <button key={i} onClick={() => setIdx(i)}
+              style={{ width: 5, height: 5, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer',
+                background: i === safeIdx ? '#a08050' : 'rgba(160,130,80,0.3)',
+                WebkitTapHighlightColor: 'transparent' }} />
+          ))}
+        </div>
+      )}
+      {/* Visual note from portrait analysis */}
+      {visualNote && (
+        <div style={{ fontFamily: SERIF, fontSize: 12, color: '#907050', fontStyle: 'italic',
+          lineHeight: 1.55, marginTop: 7, textAlign: 'center', paddingHorizontal: 4 }}>
+          {visualNote}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, allPlants, careLog, portraits = {} }) {
   const isToday = dateStr === new Date().toISOString().slice(0, 10);
   const [narrative, setNarrative] = useState(null);
@@ -2030,31 +2114,12 @@ function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, 
         </p>
       ) : null}
 
-      {/* SVG portrait strip */}
+      {/* SVG portrait carousel — one plant at a time, large */}
       {(() => {
         const dayPlantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
         const withSvg = dayPlantIds.filter(id => portraits[id]?.svg);
         if (!withSvg.length) return null;
-        return (
-          <div style={{ display: 'flex', gap: 5, marginBottom: 10, flexWrap: 'wrap' }}>
-            {withSvg.slice(0, 5).map(plantId => {
-              const plant = allPlants.find(p => p.id === plantId);
-              if (!plant) return null;
-              return (
-                <div key={plantId} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 7, overflow: 'hidden',
-                    border: '1px solid rgba(160,130,80,0.20)', background: '#faf6ee', flexShrink: 0 }}>
-                    <PlantPortrait plant={plant} aiSvg={portraits[plantId].svg} />
-                  </div>
-                  <span style={{ fontSize: 7, fontFamily: MONO, color: '#b09070',
-                    maxWidth: 40, textAlign: 'center', lineHeight: 1.2 }}>
-                    {plant.name.split(' ')[0]}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        );
+        return <PortraitCarousel plantIds={withSvg} portraits={portraits} allPlants={allPlants} />;
       })()}
 
       {careEntries.length > 0 && (() => {
