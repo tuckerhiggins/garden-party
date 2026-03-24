@@ -464,7 +464,7 @@ function MobileActionSheet({ plant, actionKey, task = null, careLog, portraits, 
               WebkitTapHighlightColor:'transparent' }}>→</button>
         </div>
         <input ref={chatFileRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }}
-          onChange={async e => { const f = e.target.files?.[0]; if (f) setChatPhoto(await readPhoto(f)); }}/>
+          onChange={async e => { const f = e.target.files?.[0]; if (f) readPhoto(f).then(setChatPhoto).catch(e => console.warn('action chat photo read failed', e)); }}/>
       </div>
     </div>
   );
@@ -1955,6 +1955,7 @@ function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, 
   React.useEffect(() => {
     setLoading(true);
     setNarrative(null);
+    let isMounted = true;
     const plantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
     const plantHistories = plantIds.map(pid => {
       const plant = allPlants.find(p => p.id === pid);
@@ -1967,8 +1968,9 @@ function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, 
     }).filter(Boolean);
 
     fetchJournalEntry({ dateStr, careEntries, portraitObservations, photoCount: photos.length, plantHistories })
-      .then(text => { setNarrative(text); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(text => { if (isMounted) { setNarrative(text); setLoading(false); } })
+      .catch(() => { if (isMounted) setLoading(false); });
+    return () => { isMounted = false; };
   }, [dateStr, versionKey]);
 
   const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -2457,15 +2459,23 @@ export function MobileView({
 
   useEffect(() => {
     if (!weather) return;
+    let cancelled = false;
+    const timeoutIds = [];
     [...plants, ...frontPlants]
       .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
       .forEach((p, i) => {
-        setTimeout(() => {
+        const tid = setTimeout(() => {
+          if (cancelled) return;
           fetchPlantBriefing(p, careLog, weather, portraits)
-            .then(b => setBriefings(prev => ({ ...prev, [p.id]: b })))
+            .then(b => { if (!cancelled) setBriefings(prev => ({ ...prev, [p.id]: b })); })
             .catch(() => {});
         }, i * 600); // stagger 600ms — avoids Anthropic rate limits
+        timeoutIds.push(tid);
       });
+    return () => {
+      cancelled = true;
+      timeoutIds.forEach(clearTimeout);
+    };
   }, [careVersion, weather]); // intentional: portraits/careLog refs change too often
 
 
@@ -2536,18 +2546,20 @@ export function MobileView({
   useEffect(() => {
     const prev = prevAnalyzingRef.current;
     const allPlants = [...plants, ...frontPlants];
+    let noticeTimer = null;
     for (const [id, portrait] of Object.entries(portraits)) {
       if (prev[id]?.analyzing && !portrait.analyzing) {
         const plant = allPlants.find(p => p.id === id);
         if (plant) {
           setAnalysisNotice(`${plant.name} portrait updated`);
-          setTimeout(() => setAnalysisNotice(null), 4000);
+          noticeTimer = setTimeout(() => setAnalysisNotice(null), 4000);
         }
       }
     }
     prevAnalyzingRef.current = Object.fromEntries(
       Object.entries(portraits).map(([id, p]) => [id, { analyzing: !!p.analyzing }])
     );
+    return () => { if (noticeTimer !== null) clearTimeout(noticeTimer); };
   }, [portraits]); // intentional: only track portrait analyzing transitions
 
   function handleAction(key, plant, customLabel, customDate = null) {

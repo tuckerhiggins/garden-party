@@ -203,21 +203,27 @@ export function useGardenData({ user }) {
       return u;
     });
     if (supabase && user) {
-      await supabase.from('care_log').delete().eq('plant_id', plantId).eq('created_at', entryDate);
+      await supabase.from('care_log').delete().eq('plant_id', plantId).eq('created_at', entryDate)
+        .then(({ error }) => { if (error) console.warn('[useGardenData] deleteAction sync failed:', error.message); })
+        .catch(e => console.warn('[useGardenData] deleteAction threw:', e));
     }
   }, [user]);
 
   const updateGrowth = useCallback(async (plantId, val) => {
     setGrowthState(prev => { const u = { ...prev, [plantId]: val }; lsSave(LS.growth, u); return u; });
     if (supabase && user) {
-      await supabase.from('plant_state').upsert({ plant_id: plantId, growth: val });
+      await supabase.from('plant_state').upsert({ plant_id: plantId, growth: val })
+        .then(({ error }) => { if (error) console.warn('[useGardenData] updateGrowth sync failed:', error.message); })
+        .catch(e => console.warn('[useGardenData] updateGrowth threw:', e));
     }
   }, [user]);
 
   const movePosition = useCallback(async (plantId, pos) => {
     setPositionsState(prev => { const u = { ...prev, [plantId]: pos }; lsSave(LS.positions, u); return u; });
     if (supabase && user) {
-      await supabase.from('plant_state').upsert({ plant_id: plantId, pos_x: pos.x, pos_y: pos.y });
+      await supabase.from('plant_state').upsert({ plant_id: plantId, pos_x: pos.x, pos_y: pos.y })
+        .then(({ error }) => { if (error) console.warn('[useGardenData] movePosition sync failed:', error.message); })
+        .catch(e => console.warn('[useGardenData] movePosition threw:', e));
     }
   }, [user]);
 
@@ -227,7 +233,9 @@ export function useGardenData({ user }) {
     if (supabase && user) {
       await supabase.from('expenses').insert({
         description: desc, cents, plant_id: plantId || null, logged_by: user.id,
-      });
+      })
+        .then(({ error }) => { if (error) console.warn('[useGardenData] addExpense sync failed:', error.message); })
+        .catch(e => console.warn('[useGardenData] addExpense threw:', e));
     }
   }, [user]);
 

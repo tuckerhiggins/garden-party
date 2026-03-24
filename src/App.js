@@ -551,9 +551,11 @@ function PlantBriefing({ plant, careLog, weather, portraits }) {
   const [briefing, setBriefing] = useState(null);
   useEffect(() => {
     setBriefing(null);
+    let isMounted = true;
     fetchPlantBriefing(plant, careLog, weather, portraits)
-      .then(setBriefing)
+      .then(b => { if (isMounted) setBriefing(b); })
       .catch(() => {});
+    return () => { isMounted = false; };
   }, [plant.id, plant.health]);
   const note = briefing?.note || (typeof briefing === 'string' ? briefing : null);
   if (!note) return null;
@@ -1042,7 +1044,7 @@ function ActionModal({ plant, actionKey, task = null, careLog, portraits, weathe
           </button>
         )}
         <input ref={confirmFileRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }}
-          onChange={async e => { const f = e.target.files?.[0]; if (f) sendConfirmPhoto(await readPhoto(f)); }}/>
+          onChange={async e => { const f = e.target.files?.[0]; if (f) readPhoto(f).then(sendConfirmPhoto).catch(e => console.warn('confirm photo read failed', e)); }}/>
         <button
           onClick={() => { onLog(); if (!confirmPhoto) setConfirmFeedback(getAffirmation(actionKey)); setConfirmed(true); }}
           disabled={confirmPhoto && !confirmFeedback}
@@ -1169,7 +1171,7 @@ function ActionModal({ plant, actionKey, task = null, careLog, portraits, weathe
               opacity:(chatLoading || (!input.trim() && !chatPhoto)) ? 0.4 : 1 }}>→</button>
         </div>
         <input ref={chatFileRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }}
-          onChange={async e => { const f = e.target.files?.[0]; if (f) setChatPhoto(await readPhoto(f)); }}/>
+          onChange={async e => { const f = e.target.files?.[0]; if (f) readPhoto(f).then(setChatPhoto).catch(e => console.warn('chat photo read failed', e)); }}/>
       </div>
     </div>
   );
@@ -1679,11 +1681,13 @@ function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPla
   useEffect(() => {
     setLoading(true);
     setNarrative(null);
+    let isMounted = true;
     const plantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
     const plantHistories = getPlantHistories(plantIds, allPlants, careLog, dateStr);
     fetchJournalEntry({ dateStr, careEntries, portraitObservations, photoCount: photos.length, plantHistories })
-      .then(text => { setNarrative(text); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(text => { if (isMounted) { setNarrative(text); setLoading(false); } })
+      .catch(() => { if (isMounted) setLoading(false); });
+    return () => { isMounted = false; };
   }, [dateStr, versionKey]);
 
   const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
@@ -1952,6 +1956,7 @@ export default function App() {
   // Re-fetches when today's care count changes; cachedClaude handles deduplication
   useEffect(() => {
     if (!weather) return;
+    let isMounted = true;
     const allPlants = [...gardenPlants.terrace, ...frontPlants];
     const agendaTasks = sharedAgendaItems.map(item => ({
       plantName: item.plant.name,
@@ -1961,11 +1966,12 @@ export default function App() {
       optional: item.task?.optional || false,
     }));
     fetchMorningBrief({ plants: allPlants, careLog, weather, portraits, agendaTasks })
-      .then(brief => { if (brief) setMorningBrief(brief); })
+      .then(brief => { if (isMounted && brief) setMorningBrief(brief); })
       .catch(() => {});
     fetchDailyBrief({ plants: allPlants, careLog, weather, portraits, agendaTasks })
-      .then(brief => { if (brief) setDailyBrief(brief); })
+      .then(brief => { if (isMounted && brief) setDailyBrief(brief); })
       .catch(() => {});
+    return () => { isMounted = false; };
   }, [weather, todayCareCount, sharedAgendaItems.length]);
 
   // Fetch plant briefings for all active plants in the background.
@@ -1974,15 +1980,23 @@ export default function App() {
     if (!weather || !seasonOpen) return;
     const active = [...gardenPlants.terrace, ...frontPlants]
       .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && !p.noTasks);
+    let cancelled = false;
+    const timeoutIds = [];
     active.forEach((plant, i) => {
       if (briefings[plant.id] !== undefined) return; // already loaded or loading
       setBriefings(prev => ({ ...prev, [plant.id]: 'loading' }));
-      setTimeout(() => {
+      const tid = setTimeout(() => {
+        if (cancelled) return;
         fetchPlantBriefing(plant, careLog, weather, portraits)
-          .then(b => setBriefings(prev => ({ ...prev, [plant.id]: b })))
-          .catch(() => setBriefings(prev => ({ ...prev, [plant.id]: null })));
+          .then(b => { if (!cancelled) setBriefings(prev => ({ ...prev, [plant.id]: b })); })
+          .catch(() => { if (!cancelled) setBriefings(prev => ({ ...prev, [plant.id]: null })); });
       }, i * 600); // stagger 600ms per plant — avoids Anthropic rate limits
+      timeoutIds.push(tid);
     });
+    return () => {
+      cancelled = true;
+      timeoutIds.forEach(clearTimeout);
+    };
   }, [weather, seasonOpen, rainEntryCount]);
 
   // Invalidate briefings when care is logged (so recommendations update immediately)
@@ -2439,7 +2453,7 @@ export default function App() {
                       return bestA !== bestB ? bestA - bestB : a.label.localeCompare(b.label);
                     });
                     return populated.map(grp => {
-                      const hasUrgent = grp.ps.some(p => plantUrgency(p) < 9);
+                      const hasUrgent = grp.ps.some(p => (desktopPlantUrgency[p.id] ?? 99) < 9);
                       const grpColor = hasUrgent ? healthColor(grp.ps[0].health) : '#a08060';
                       return (
                         <div key={grp.key} style={{marginBottom:24}}>

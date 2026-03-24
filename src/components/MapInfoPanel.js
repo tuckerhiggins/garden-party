@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { fetchJournalEntry } from '../claude';
 import { PlantPortrait } from '../PlantPortraits';
+import { extractFutureActionDate } from '../utils/agenda';
 
 const BRIEF_ACTION_COLORS = {
   water: '#4a8ac8', fertilize: '#5a9a40', prune: '#c87030',
@@ -65,18 +66,6 @@ function wmoEmoji(code) {
 
 function dayAbbr(dateStr) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-}
-
-// Detect "On the morning of [Month Day]" references to a future date in task instructions.
-// Used to push frost-check / post-event tasks out of the TODAY tier.
-function extractFutureActionDate(instructions) {
-  if (!instructions) return null;
-  const m = instructions.match(/\bOn the morning of ([A-Za-z]+ \d{1,2})\b/i);
-  if (!m) return null;
-  const parsed = new Date(m[1] + ', ' + new Date().getFullYear());
-  if (isNaN(parsed.getTime())) return null;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  return parsed > today ? m[1] : null;
 }
 
 // Garden-day condition scoring for the week-ahead grid
