@@ -2429,16 +2429,6 @@ export function MobileView({
   const [tab, setTab] = useState('today');
   const [flash, setFlash] = useState(null);
   const [actionSession, setActionSession] = useState(null); // { plant, actionKey } | null
-  const [highContrast, setHighContrast] = useState(() => {
-    try { return localStorage.getItem('gp_high_contrast') === '1'; } catch { return false; }
-  });
-  function toggleContrast() {
-    setHighContrast(hc => {
-      const next = !hc;
-      try { localStorage.setItem('gp_high_contrast', next ? '1' : '0'); } catch {}
-      return next;
-    });
-  }
   const [briefings, setBriefings] = useState({});
   const [agendaData, setAgendaData] = useState(null); // { sessionMinutes, tasks }
   // Guest sign-in state
@@ -2713,7 +2703,6 @@ export function MobileView({
   }
 
   return (
-    <HighContrastCtx.Provider value={highContrast}>
     <div style={{
       width: '100vw', height: '100dvh',
       display: 'flex', flexDirection: 'column',
@@ -2728,28 +2717,14 @@ export function MobileView({
         display: 'flex', alignItems: 'center',
         padding: '0 16px', paddingTop: 'env(safe-area-inset-top)', gap: 10, flexShrink: 0,
       }}>
-        <span style={{ fontFamily: MONO, fontSize: 9, color: C.uiGold, letterSpacing: .5 }}>
-          GARDEN PARTY
-        </span>
-        <div style={{ flex: 1 }}/>
-        {/* High contrast outdoor toggle */}
-        <button onClick={toggleContrast}
-          title={highContrast ? 'Normal contrast' : 'High contrast (outdoor)'}
-          style={{ background:'none', border:'none', fontSize:16, cursor:'pointer',
-            minHeight:44, minWidth:36, display:'flex', alignItems:'center', justifyContent:'center',
-            opacity: highContrast ? 1 : 0.4, WebkitTapHighlightColor:'transparent' }}>
-          ☀️
+        <button onClick={() => setTab('today')}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+            WebkitTapHighlightColor: 'transparent' }}>
+          <span style={{ fontFamily: MONO, fontSize: 9, color: C.uiGold, letterSpacing: .5 }}>
+            GARDEN PARTY
+          </span>
         </button>
-        {/* Front garden nav */}
-        {onGoFront && (
-          <button onClick={onGoFront}
-            style={{background:'none',border:'none',fontSize:16,cursor:'pointer',
-              minHeight:44, minWidth:36, display:'flex', alignItems:'center', justifyContent:'center',
-              WebkitTapHighlightColor:'transparent'}}
-            title="Emma's Rose Garden">
-            🌹
-          </button>
-        )}
+        <div style={{ flex: 1 }}/>
         {/* Auth indicator */}
         {role !== 'guest' ? (
           <button onClick={signOut}
@@ -2890,6 +2865,5 @@ export function MobileView({
         ))}
       </div>
     </div>
-    </HighContrastCtx.Provider>
   );
 }

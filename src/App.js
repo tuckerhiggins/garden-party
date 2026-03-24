@@ -2328,20 +2328,21 @@ export default function App() {
           paddingTop:8,
         }}>
           {[
-            {id:'garden', icon:'🌿', label:'Garden'},
-            {id:'journal',icon:'📖', label:'Journal'},
+            {id:'garden',  icon:'🌿', label:'Garden',  onClick:()=>{ setMode('garden'); setGardenView('cards'); }, active: mode==='garden' && gardenView==='cards' },
+            {id:'map',     icon:'🗺',  label:'Map',     onClick:()=>{ setMode('garden'); setGardenView('map');   }, active: mode==='garden' && gardenView==='map'   },
+            {id:'journal', icon:'📖', label:'Journal', onClick:()=>setMode('journal'),                            active: mode==='journal' },
           ].map(item=>(
-            <button key={item.id} onClick={()=>setMode(item.id)}
+            <button key={item.id} onClick={item.onClick}
               style={{
                 background:'none',border:'none',cursor:'pointer',
                 padding:'10px 0',width:'100%',
                 display:'flex',flexDirection:'column',alignItems:'center',gap:3,
-                borderLeft:`3px solid ${mode===item.id?C.uiGold:'transparent'}`,
+                borderLeft:`3px solid ${item.active?C.uiGold:'transparent'}`,
                 transition:'border-color .15s',
               }}>
               <span style={{fontSize:18,lineHeight:1}}>{item.icon}</span>
               <span style={{fontFamily:MONO,fontSize:5.5,
-                color:mode===item.id?C.uiGold:C.uiDim,letterSpacing:.4,transition:'color .15s'}}>
+                color:item.active?C.uiGold:C.uiDim,letterSpacing:.4,transition:'color .15s'}}>
                 {item.label.toUpperCase()}
               </span>
             </button>
@@ -2372,36 +2373,14 @@ export default function App() {
         {/* ── GARDEN VIEW ── */}
         {mode==='garden'&&(
           <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-            {/* Garden/Map toggle bar */}
+            {/* Top bar — cards view only, New Plant shortcut */}
+            {gardenView==='cards'&&(
             <div style={{
               height:38,flexShrink:0,background:C.appBg,
               borderBottom:`1px solid ${C.cardBorder}`,
-              display:'flex',alignItems:'center',padding:'0 16px',gap:8,
+              display:'flex',alignItems:'center',padding:'0 16px',
+              justifyContent:'flex-end',
             }}>
-              {[{id:'cards',label:'🌿 Plants'},{id:'map',label:'🗺 Map'}].map(v=>(
-                <button key={v.id} onClick={()=>setGardenView(v.id)}
-                  style={{background:gardenView===v.id?'#2a1808':'transparent',
-                    border:`1px solid ${gardenView===v.id?'rgba(90,60,24,0.6)':C.cardBorder}`,
-                    borderRadius:20,padding:'3px 14px',
-                    color:gardenView===v.id?'#f0e4cc':'#907050',
-                    fontFamily:SERIF,fontSize:12,cursor:'pointer',transition:'all .12s'}}>
-                  {v.label}
-                </button>
-              ))}
-              {gardenView==='map'&&(
-                <button onClick={()=>setScene('front')}
-                  style={{background:'transparent',
-                    border:`1px solid rgba(200,180,140,0.28)`,
-                    borderRadius:20,padding:'3px 14px',
-                    color:'#b09070',
-                    fontFamily:SERIF,fontSize:12,cursor:'pointer',transition:'all .12s',
-                    display:'flex',alignItems:'center',gap:4}}
-                  onMouseEnter={e=>e.currentTarget.style.borderColor='rgba(200,180,140,0.55)'}
-                  onMouseLeave={e=>e.currentTarget.style.borderColor='rgba(200,180,140,0.28)'}>
-                  🌹 Emma's Garden
-                </button>
-              )}
-              <div style={{flex:1}}/>
               <button onClick={()=>setShowShop(true)}
                 style={{background:'rgba(212,168,48,0.12)',border:'1px solid rgba(212,168,48,0.35)',
                   borderRadius:20,padding:'3px 14px',color:C.uiGold,
@@ -2411,6 +2390,7 @@ export default function App() {
                 + New Plant
               </button>
             </div>
+            )}
             <div style={{flex:1,display:'flex',overflow:'hidden'}}>
             {/* ── CARDS SUB-VIEW ── */}
             {gardenView==='cards'&&(<>
@@ -2563,24 +2543,8 @@ export default function App() {
                 <div style={{position:'absolute',inset:'-8%',backgroundImage:'url(/brownstone.jpg)',
                   backgroundSize:'cover',backgroundPosition:'center 35%',filter:'blur(32px)',zIndex:0}}/>
                 <div style={{position:'absolute',inset:0,background:'rgba(7,4,1,0.60)',zIndex:0}}/>
-                <div style={{flex:1,position:'relative',zIndex:1,display:'flex',flexDirection:'column',
-                  alignItems:'flex-start',padding:'0 0 0 20px',overflow:'hidden'}}>
-                  {/* Layer toggle */}
-                  <div style={{display:'flex',gap:6,padding:'10px 0 6px',flexShrink:0}}>
-                    {[{id:'terrace',label:'Terrace'},{id:'front',label:'🌹 Emma\'s Garden'}].map(layer=>(
-                      <button key={layer.id} onClick={()=>{ setMapLayer(layer.id); setSel(null); }}
-                        style={{padding:'5px 13px',borderRadius:20,cursor:'pointer',
-                          border:`1px solid ${mapLayer===layer.id?'rgba(212,168,48,0.65)':'rgba(160,130,80,0.28)'}`,
-                          background:mapLayer===layer.id?'rgba(212,168,48,0.14)':'rgba(0,0,0,0.25)',
-                          fontFamily:MONO,fontSize:7,letterSpacing:.3,
-                          color:mapLayer===layer.id?C.uiGold:'rgba(240,228,200,0.55)',
-                          transition:'all .12s'}}>
-                        {layer.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div style={{flex:1,display:'flex',alignItems:'center',width:'100%',overflow:'hidden'}}>
-                    <div style={{height:'100%',maxHeight:'calc(100% - 0px)',aspectRatio:'820 / 854',maxWidth:'58vw',flexShrink:0}}>
+                <div style={{flex:1,position:'relative',zIndex:1,display:'flex',overflow:'hidden'}}>
+                  <div style={{position:'relative',height:'100%',aspectRatio:'820 / 854',maxWidth:'58vw',flexShrink:0}}>
                       {mapLayer === 'terrace' ? (
                         <TerraceMap
                           plants={mapPlants}
@@ -2615,8 +2579,32 @@ export default function App() {
                           weather={weather}
                         />
                       )}
+                      {/* Elegant garden switcher pill — floats inside the map frame */}
+                      <button
+                        onClick={()=>{ setMapLayer(mapLayer==='terrace'?'front':'terrace'); setSel(null); }}
+                        style={{
+                          position:'absolute',
+                          bottom: mapLayer==='terrace' ? 18 : 'auto',
+                          top: mapLayer==='front' ? 18 : 'auto',
+                          right: 16,
+                          zIndex: 10,
+                          background:'rgba(12,7,3,0.78)',
+                          border:'1px solid rgba(212,168,48,0.28)',
+                          borderRadius:20,
+                          padding:'7px 14px 7px 11px',
+                          backdropFilter:'blur(12px)',
+                          WebkitBackdropFilter:'blur(12px)',
+                          display:'flex',alignItems:'center',gap:6,
+                          cursor:'pointer',
+                          fontFamily:MONO,fontSize:7,letterSpacing:.4,
+                          color:'rgba(240,228,200,0.72)',
+                          transition:'opacity .15s, border-color .15s',
+                        }}
+                        onMouseEnter={e=>{ e.currentTarget.style.borderColor='rgba(212,168,48,0.55)'; e.currentTarget.style.color='rgba(240,228,200,1)'; }}
+                        onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(212,168,48,0.28)'; e.currentTarget.style.color='rgba(240,228,200,0.72)'; }}>
+                        {mapLayer==='terrace' ? '🌹 Emma\'s Garden' : '🌿 Terrace'}
+                      </button>
                     </div>
-                  </div>
                 </div>
                 {/* Right panels: context (left) + care (right) by default, detail panel when plant selected */}
                 {!sel && (
