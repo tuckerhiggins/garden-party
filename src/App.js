@@ -2006,7 +2006,7 @@ export default function App() {
         logAction('rain', plant, false, 'Rained in Brooklyn', yISO);
       }
     });
-  }, [gardenPlants.terrace.length]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-log rain watering — fires when weather shows actual precip > 1mm today.
   // DEDUP_KEYS prevents double-logging on reload.
