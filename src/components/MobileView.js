@@ -787,7 +787,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
           {oracleTasks.map(t => {
             const def = ACTION_DEFS[t.key];
             const emoji = def?.emoji || '✨';
-            const label = (t.label || def?.label || t.key).toUpperCase().slice(0, 9);
+            const label = (t.label || def?.label || t.key || '').toUpperCase().slice(0, 9);
             return (
               <button key={`${t.key}:${t.label}`}
                 onClick={() => {
@@ -944,6 +944,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
                         <button onClick={() => setConfirmDeleteDate(isPendingDelete ? null : e.date)}
                           style={{ background: 'none', border: 'none', color: '#b09070', cursor: 'pointer',
                             fontSize: 15, lineHeight: 1, padding: '0 2px', flexShrink: 0,
+                            minHeight: 44, display: 'flex', alignItems: 'center',
                             WebkitTapHighlightColor: 'transparent' }}>
                           ×
                         </button>
@@ -1689,6 +1690,7 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
           background: 'none', border: '1px solid rgba(160,130,80,0.35)',
           borderRadius: 8, padding: '10px 22px', fontFamily: SERIF,
           fontSize: 14, color: '#6a4020', cursor: 'pointer', fontStyle: 'italic',
+          minHeight: 44, WebkitTapHighlightColor: 'transparent',
         }}>
           Anything I missed? →
         </button>
@@ -2247,6 +2249,7 @@ function MobileSpend({ expenses = [], onAddExpense }) {
     background: active ? 'rgba(212,168,48,0.18)' : '#fff',
     border: `1px solid ${active ? '#d4a830' : 'rgba(160,130,80,0.25)'}`,
     color: active ? '#2a1808' : '#5a3818',
+    minHeight: 44, WebkitTapHighlightColor: 'transparent',
   });
 
   return (
@@ -2260,7 +2263,8 @@ function MobileSpend({ expenses = [], onAddExpense }) {
         </div>
         <button onClick={()=>setShowForm(v=>!v)}
           style={{padding:'8px 14px',background:'rgba(212,168,48,0.14)',border:'1px solid rgba(212,168,48,0.5)',
-            borderRadius:7,cursor:'pointer',fontFamily:MONO,fontSize:7,color:'#2a1808'}}>
+            borderRadius:7,cursor:'pointer',fontFamily:MONO,fontSize:7,color:'#2a1808',
+            minHeight:44,WebkitTapHighlightColor:'transparent'}}>
           {showForm?'CANCEL':'+ LOG'}
         </button>
       </div>
@@ -2271,11 +2275,11 @@ function MobileSpend({ expenses = [], onAddExpense }) {
           <input value={form.desc} onChange={e=>setForm(p=>({...p,desc:e.target.value}))}
             placeholder="What did you buy?" onKeyDown={e=>{if(e.key==='Enter')submit();}}
             style={{background:'#fff',border:'1px solid rgba(160,130,80,0.30)',borderRadius:6,
-              padding:'9px 12px',color:'#2a1808',fontSize:14,fontFamily:SERIF,outline:'none'}}/>
+              padding:'9px 12px',color:'#2a1808',fontSize:16,fontFamily:SERIF,outline:'none'}}/>
           <input type="number" value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))}
             placeholder="Amount ($)" step=".01"
             style={{background:'#fff',border:'1px solid rgba(160,130,80,0.30)',borderRadius:6,
-              padding:'9px 12px',color:'#2a1808',fontSize:14,fontFamily:SERIF,outline:'none'}}/>
+              padding:'9px 12px',color:'#2a1808',fontSize:16,fontFamily:SERIF,outline:'none'}}/>
           <div>
             <div style={{fontFamily:MONO,fontSize:6,color:'#a08060',marginBottom:6}}>CATEGORY</div>
             <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
