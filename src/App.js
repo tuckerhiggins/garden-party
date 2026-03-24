@@ -7,6 +7,7 @@ import { TERRACE_PLANTS, FRONT_PLANTS, ACTION_DEFS, ACTION_HOWTO } from './data/
 import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
+import { RoseGardenMap } from './RoseGardenMap';
 import { fetchOracle, fetchSeasonOpener, fetchPlantBriefing, streamGardenChat, fetchMorningBrief, fetchDailyBrief, fetchJournalEntry, parseNoteActions, fetchMapCondition } from './claude';
 import { usePortraits } from './hooks/usePortraits';
 import { usePhotos } from './hooks/usePhotos';
@@ -1794,6 +1795,7 @@ export default function App() {
   const [gardenView, setGardenView] = useState('cards'); // 'cards' | 'map'
   const [gardenSection, setGardenSection] = useState('all');
   const [desktopSortBy, setDesktopSortBy] = useState('care');
+  const [mapLayer, setMapLayer] = useState('terrace'); // 'terrace' | 'front'
   const [sel, setSel] = useState(null);
   const [hov, setHov] = useState(null);
   const { user, role, signIn, signOut, checking, authError } = useAuth();
@@ -2491,41 +2493,71 @@ export default function App() {
                 <div style={{position:'absolute',inset:'-8%',backgroundImage:'url(/brownstone.jpg)',
                   backgroundSize:'cover',backgroundPosition:'center 35%',filter:'blur(32px)',zIndex:0}}/>
                 <div style={{position:'absolute',inset:0,background:'rgba(7,4,1,0.60)',zIndex:0}}/>
-                <div style={{flex:1,position:'relative',zIndex:1,display:'flex',alignItems:'center',
-                  justifyContent:'flex-start',padding:'0 0 0 20px',overflow:'hidden'}}>
-                  <div style={{height:'100%',maxHeight:'100%',aspectRatio:'820 / 854',maxWidth:'58vw',flexShrink:0}}>
-                    <TerraceMap
-                      plants={mapPlants}
-                      selectedId={sel?.id}
-                      onSelect={p=>{ if(p) setSel(p); else setSel(null); }}
-                      onMove={(id,pos)=>movePosition(id,pos)}
-                      onHover={setHov}
-                      onDescend={()=>setScene('front')}
-                      onAction={(k,p)=>doAction(k,p)}
-                      onPetCookie={() => {}}
-                      seasonOpen={seasonOpen}
-                      portraits={portraits}
-                      careLog={careLog}
-                      warmth={warmth}
-                      weather={weather}
-                      briefings={briefings}
-                      mapConditions={mapConditions}
-                      glowPlantId={glowPlantId}
-                    />
+                <div style={{flex:1,position:'relative',zIndex:1,display:'flex',flexDirection:'column',
+                  alignItems:'flex-start',padding:'0 0 0 20px',overflow:'hidden'}}>
+                  {/* Layer toggle */}
+                  <div style={{display:'flex',gap:6,padding:'10px 0 6px',flexShrink:0}}>
+                    {[{id:'terrace',label:'Terrace'},{id:'front',label:'🌹 Emma\'s Garden'}].map(layer=>(
+                      <button key={layer.id} onClick={()=>{ setMapLayer(layer.id); setSel(null); }}
+                        style={{padding:'5px 13px',borderRadius:20,cursor:'pointer',
+                          border:`1px solid ${mapLayer===layer.id?'rgba(212,168,48,0.65)':'rgba(160,130,80,0.28)'}`,
+                          background:mapLayer===layer.id?'rgba(212,168,48,0.14)':'rgba(0,0,0,0.25)',
+                          fontFamily:MONO,fontSize:7,letterSpacing:.3,
+                          color:mapLayer===layer.id?C.uiGold:'rgba(240,228,200,0.55)',
+                          transition:'all .12s'}}>
+                        {layer.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{flex:1,display:'flex',alignItems:'center',width:'100%',overflow:'hidden'}}>
+                    <div style={{height:'100%',maxHeight:'calc(100% - 0px)',aspectRatio:'820 / 854',maxWidth:'58vw',flexShrink:0}}>
+                      {mapLayer === 'terrace' ? (
+                        <TerraceMap
+                          plants={mapPlants}
+                          selectedId={sel?.id}
+                          onSelect={p=>{ if(p) setSel(p); else setSel(null); }}
+                          onMove={(id,pos)=>movePosition(id,pos)}
+                          onHover={setHov}
+                          onDescend={()=>setScene('front')}
+                          onAction={(k,p)=>doAction(k,p)}
+                          onPetCookie={() => {}}
+                          seasonOpen={seasonOpen}
+                          portraits={portraits}
+                          careLog={careLog}
+                          warmth={warmth}
+                          weather={weather}
+                          briefings={briefings}
+                          mapConditions={mapConditions}
+                          glowPlantId={glowPlantId}
+                        />
+                      ) : (
+                        <RoseGardenMap
+                          plants={frontPlants}
+                          selectedId={sel?.id}
+                          onSelect={p=>{ if(p) setSel(p); else setSel(null); }}
+                          onHover={setHov}
+                          portraits={portraits}
+                          careLog={careLog}
+                          briefings={briefings}
+                          mapConditions={mapConditions}
+                          glowPlantId={glowPlantId}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
                 {/* Right panels: context (left) + care (right) by default, detail panel when plant selected */}
                 {!sel && (
                   <>
                     <MapContextPanel
-                      plants={gardenPlants.terrace}
+                      plants={[...gardenPlants.terrace, ...frontPlants]}
                       careLog={careLog}
                       weather={weather}
                       portraits={portraits}
                       allPhotos={allPhotos}
                     />
                     <MapCarePanel
-                      plants={gardenPlants.terrace}
+                      plants={[...gardenPlants.terrace, ...frontPlants]}
                       careLog={careLog}
                       seasonOpen={seasonOpen}
                       seasonBlocking={seasonBlocking}
