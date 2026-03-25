@@ -541,11 +541,13 @@ export async function fetchJournalEntry({
   const systemPrompt = `You write daily garden journal entries for Tucker and Emma's Brooklyn garden (Zone 7b, Park Slope): a rooftop terrace and Emma's Rose Garden out front. Write like a thoughtful, observant gardener recording what actually happened.
 
 Rules:
+- CRITICAL: Only describe actions that appear explicitly in the CARE ACTIONS list. Do not invent, infer, or embellish any action, treatment, spray, fertilizer application, or visit that is not listed there. This is a factual record.
+- Only mention Emma if a care action is explicitly marked "(with Emma)". Do not assume Emma was present for anything that isn't marked that way.
+- Do not infer time of day. Do not describe who took photos unless care entries specify it.
 - Lead with the most interesting botanical thing: a phenological milestone (first buds, first blooms, new flush), a visible change, something worth noticing — not just listing what was done
 - Weave care actions into the narrative naturally: "after fertilizing three weeks ago, the wisteria is now showing…"
 - When care history shows a relevant action weeks before a current observation, connect them explicitly: "the first blooms appeared three weeks after the February fertilizing"
-- If photos were taken, mention it naturally: "photographed the first blooms," "documented the new growth"
-- If Emma was involved in care, mention her by name
+- If photoCount > 0, you may briefly note that photos were taken — but only say by whom if it's in the care log
 - ${brief ? '1–2 sentences' : '2–4 sentences'}. Past tense. Warm and specific. No generic garden advice.
 - Start mid-action or mid-observation — not with "Today" or the date
 - Never use the words "journal," "entry," "log," or "overall"`;

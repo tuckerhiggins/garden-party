@@ -2090,10 +2090,9 @@ function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, 
         {hasEmma && <span style={{ fontSize: 11, color: '#e84070' }}>♥</span>}
       </div>
 
-      {/* SVG portrait carousel — top of entry, like an article header */}
+      {/* SVG portrait carousel — only plants with photos taken that day */}
       {(() => {
-        const dayPlantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
-        const withSvg = dayPlantIds.filter(id => portraits[id]?.svg);
+        const withSvg = [...new Set(portraitObservations.map(o => o.plantId))].filter(id => portraits[id]?.svg);
         if (!withSvg.length) return null;
         return <PortraitCarousel plantIds={withSvg} portraits={portraits} allPlants={allPlants}/>;
       })()}
@@ -2461,6 +2460,7 @@ export function MobileView({
   morningBrief: externalMorningBrief = null,
   dailyBrief: externalDailyBrief = null,
   agendaItems: externalAgendaItems = null,
+  agendaData: externalAgendaData = null,
   agendaIsWeekend: externalAgendaIsWeekend = false,
   onRefreshAgenda,
 }) {
@@ -2468,7 +2468,6 @@ export function MobileView({
   const [flash, setFlash] = useState(null);
   const [actionSession, setActionSession] = useState(null); // { plant, actionKey } | null
   const [briefings, setBriefings] = useState({});
-  const [agendaData, setAgendaData] = useState(null); // { sessionMinutes, tasks }
   // Guest sign-in state
   const [guestWho, setGuestWho]     = useState(null);
   const [guestPw, setGuestPw]       = useState('');
@@ -2578,14 +2577,8 @@ export function MobileView({
     return result;
   }, [careLog, allPlantsFlat, todayStr]);
 
-  // Fetch AI-enriched agenda once per day (busts on care or weather changes)
-  const rawAgendaKeys = rawAgendaItems.map(i => i.key).join(',');
-  useEffect(() => {
-    if (!weather || !seasonOpen || !rawAgendaItems.length) return;
-    fetchDailyAgenda({ candidateTasks: rawAgendaItems, weather, careLog, portraits })
-      .then(data => setAgendaData(data))
-      .catch(() => {}); // fallback: rawAgendaItems shown with no AI reasons
-  }, [rawAgendaKeys, weather]); // intentional: stable string dep
+  // agendaData now comes from App.js (single source of truth)
+  const agendaData = externalAgendaData;
 
 
   // Watch portraits for analysis completion → show notification

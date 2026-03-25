@@ -8,7 +8,7 @@ import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
 import { RoseGardenMap } from './RoseGardenMap';
-import { fetchOracle, fetchSeasonOpener, fetchPlantBriefing, streamGardenChat, fetchMorningBrief, fetchDailyBrief, fetchJournalEntry, parseNoteActions, fetchMapCondition, fetchNoticeToday } from './claude';
+import { fetchOracle, fetchSeasonOpener, fetchPlantBriefing, fetchDailyAgenda, streamGardenChat, fetchMorningBrief, fetchDailyBrief, fetchJournalEntry, parseNoteActions, fetchMapCondition, fetchNoticeToday } from './claude';
 import { usePortraits } from './hooks/usePortraits';
 import { usePhotos } from './hooks/usePhotos';
 import { useAuth } from './hooks/useAuth';
@@ -1760,8 +1760,8 @@ function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPla
   const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const hasEmma = careEntries.some(e => e.withEmma);
 
-  const dayPlantIds = [...new Set([...careEntries.map(e => e.plantId), ...portraitObservations.map(o => o.plantId)])];
-  const withSvg = dayPlantIds.filter(id => portraits[id]?.svg);
+  // Only show portrait carousel for plants that had a photo taken that specific day
+  const withSvg = [...new Set(portraitObservations.map(o => o.plantId))].filter(id => portraits[id]?.svg);
 
   return (
     <div style={{ marginBottom: 40, paddingBottom: 40, borderBottom: `1px solid ${C.cardBorder}` }}>
@@ -1870,6 +1870,7 @@ export default function App() {
   // Fetched for all active plants in the background; shared across map, cards, mobile
   const [briefings, setBriefings] = useState({});
   const [briefingRefreshToken, setBriefingRefreshToken] = useState(0);
+  const [agendaData, setAgendaData] = useState(null); // { sessionMinutes, tasks } — AI ordering + priorities
   const _todayStr = new Date().toISOString().slice(0, 10);
   const { portraits, updatePortrait } = usePortraits({ user });
   const { allPhotos, addPhoto } = usePhotos({ user });
@@ -2023,6 +2024,36 @@ export default function App() {
       .catch(() => {});
     return () => { isMounted = false; };
   }, [weather, briefingRefreshToken]);
+
+  // Fetch AI-enriched agenda once per day — single source of truth for both mobile and desktop
+  const rawAgendaKeys = sharedAgendaItems.map(i => i.key).join(',');
+  useEffect(() => {
+    if (!weather || !seasonOpen || !sharedAgendaItems.length) return;
+    fetchDailyAgenda({ candidateTasks: sharedAgendaItems, weather, careLog, portraits })
+      .then(data => setAgendaData(data))
+      .catch(() => {});
+  }, [rawAgendaKeys, weather]); // stable string dep intentional
+
+  // pendingAgendaItems — sharedAgendaItems enriched with AI order + priorities/reasons
+  const pendingAgendaItems = useMemo(() => {
+    const apiTasks = agendaData?.tasks;
+    if (!apiTasks?.length) return sharedAgendaItems;
+    const rawMap = new Map(sharedAgendaItems.map(r => [r.key, r]));
+    const ordered = [];
+    const covered = new Set();
+    for (const apiTask of apiTasks) {
+      const key = `${apiTask.plantId}:${apiTask.actionKey}`;
+      const raw = rawMap.get(key);
+      if (raw) {
+        ordered.push({ ...raw, reason: apiTask.reason || raw.reason, priority: apiTask.priority || raw.priority });
+        covered.add(key);
+      }
+    }
+    for (const raw of sharedAgendaItems) {
+      if (!covered.has(raw.key)) ordered.push(raw);
+    }
+    return ordered;
+  }, [sharedAgendaItems, agendaData]);
 
   // Fetch "one thing to notice" — daily AI observation for the map left panel
   useEffect(() => {
@@ -2222,7 +2253,7 @@ export default function App() {
   // Converted to { plant, action, def, task } format for MapCarePanel compatibility
   const attentionItems = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
-    return sharedAgendaItems
+    return pendingAgendaItems
       .filter(item => {
         const entries = careLog[item.plantId] || [];
         if (item.actionKey === 'tend') {
@@ -2282,7 +2313,8 @@ export default function App() {
         }}
         morningBrief={morningBrief}
         dailyBrief={dailyBrief}
-        agendaItems={sharedAgendaItems}
+        agendaItems={pendingAgendaItems}
+        agendaData={agendaData}
         agendaIsWeekend={agendaIsWeekend}
         onRefreshAgenda={refreshBriefings}
       />
