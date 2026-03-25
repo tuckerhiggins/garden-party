@@ -1688,7 +1688,7 @@ function buildJournalDayMap(allPlants, careLog, portraits, allPhotos) {
     entries.forEach(e => {
       if (!e.date) return;
       ensure(e.date.slice(0, 10)).careEntries.push({
-        plantId, plantName: plant.name, label: e.label, action: e.action, withEmma: !!e.withEmma,
+        plantId, plantName: plant.name, label: e.label, action: e.action, withEmma: !!e.withEmma, loggedBy: e.loggedBy || null,
       });
     });
   });
@@ -2205,24 +2205,24 @@ export default function App() {
       parseNoteActions(customLabel, plant.name).then(async actions => {
         if (actions.length > 0) {
           for (const act of actions) {
-            await logAction(act.key, plant, isWithEmma, act.label, customDate);
+            await logAction(act.key, plant, isWithEmma, act.label, customDate, role);
           }
           const firstDef = ACTION_DEFS[actions[0].key];
           setFlash(`${firstDef?.emoji || '✨'} ${actions[0].label}${isWithEmma ? ' with Emma' : ''}${actions.length > 1 ? ` +${actions.length - 1} more` : ''}`);
         } else {
-          await logAction('note', plant, isWithEmma, customLabel, customDate);
+          await logAction('note', plant, isWithEmma, customLabel, customDate, role);
           setFlash(`📝 ${customLabel}${isWithEmma ? ' with Emma' : ''}`);
         }
         setTimeout(() => setFlash(null), 2500);
       }).catch(async () => {
-        await logAction('note', plant, isWithEmma, customLabel, customDate);
+        await logAction('note', plant, isWithEmma, customLabel, customDate, role);
         setFlash(`📝 ${customLabel}${isWithEmma ? ' with Emma' : ''}`);
         setTimeout(() => setFlash(null), 2500);
       });
       return;
     }
 
-    const syncError = await logAction(key, plant, isWithEmma, customLabel, customDate);
+    const syncError = await logAction(key, plant, isWithEmma, customLabel, customDate, role);
     if (syncError === 'duplicate') return; // already logged today — silent skip
     const displayLabel = customLabel || def?.label || key;
     const emoji = def?.emoji || '✨';

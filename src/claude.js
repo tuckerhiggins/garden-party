@@ -506,7 +506,7 @@ Write the daily briefing.`;
 // weaves care actions in naturally, connects actions to outcomes when timing supports it.
 export async function fetchJournalEntry({
   dateStr,
-  careEntries,          // [{ plantId, plantName, label, action, withEmma }]
+  careEntries,          // [{ plantId, plantName, label, action, withEmma, loggedBy }]
   portraitObservations, // [{ plantId, plantName, visualNote, bloomState, foliageState, stage }]
   photoCount,           // total photos taken this day across all plants
   plantHistories,       // [{ plantName, recentCare: [{ label, date }] }] — care before this date
@@ -554,9 +554,15 @@ Rules:
 
   const userPrompt = `Date: ${dateLabel}.${isToday ? ' (mid-day — not yet over)' : ''}
 
-CARE ACTIONS:
+CARE ACTIONS (journal is written for Tucker — use "you" for Tucker, "Emma" for Emma):
 ${careEntries.length
-  ? careEntries.map(e => `• ${e.plantName}: ${e.label}${e.withEmma ? ' (with Emma)' : ''}`).join('\n')
+  ? careEntries.map(e => {
+      const who = e.loggedBy === 'emma' ? 'Emma' : 'you';
+      const actor = (e.loggedBy === 'tucker' || e.loggedBy === 'emma')
+        ? (e.withEmma && e.loggedBy === 'tucker' ? 'you and Emma' : who)
+        : (e.withEmma ? 'you and Emma' : null);
+      return `• ${e.plantName}: ${e.label}${actor ? ` [done by: ${actor}]` : ''}`;
+    }).join('\n')
   : '(none)'}
 
 BOTANICAL OBSERVATIONS (from photo analysis):

@@ -164,7 +164,7 @@ export function useGardenData({ user }) {
   }, []);
 
   // ── WRITE OPERATIONS ──────────────────────────────────────────────────────
-  const logAction = useCallback(async (key, plant, withEmma, customLabel, customDate = null) => {
+  const logAction = useCallback(async (key, plant, withEmma, customLabel, customDate = null, loggedBy = null) => {
     const def = ACTION_DEFS[key];
     if (!def && key !== 'tend') return;
     const label = customLabel || def?.label || key;
@@ -185,6 +185,7 @@ export function useGardenData({ user }) {
     const entry = {
       action: key, label, emoji,
       date: entryDate, withEmma, plantName: plant.name,
+      ...(loggedBy ? { loggedBy } : {}),
     };
 
     // Optimistic local update — visible immediately regardless of Supabase status

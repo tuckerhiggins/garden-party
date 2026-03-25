@@ -1942,7 +1942,7 @@ function buildMobileDayMap(allPlants, careLog, portraits, allPhotos) {
       );
       if (!isDupe) {
         bucket.careEntries.push({
-          plantId, plantName: plant.name, label: entryLabel, action: e.action, withEmma: !!e.withEmma,
+          plantId, plantName: plant.name, label: entryLabel, action: e.action, withEmma: !!e.withEmma, loggedBy: e.loggedBy || null,
         });
       }
     });
