@@ -1589,12 +1589,119 @@ function AgendaRow({ item, completed, justDone, justDoneStreak, onTap, onDone, p
   );
 }
 
+// ── Bulk task grouping helpers ─────────────────────────────────────────────
+
+function plantTypePlural(type) {
+  return {
+    'climbing-rose': 'climbing roses', wisteria: 'wisteria', lavender: 'lavender',
+    hydrangea: 'hydrangeas', serviceberry: 'serviceberry', maple: 'maples',
+    evergreen: 'evergreens', 'evergreen-xmas': 'evergreens', rose: 'roses',
+  }[type] || type;
+}
+
+// Returns array of { type:'item', item } | { type:'group', actionKey, items, label, emoji }
+// Groups 2+ items sharing the same actionKey+plantType
+function groupAgendaItems(items) {
+  const byGroup = {};
+  for (const item of items) {
+    const gk = `${item.actionKey}:${item.plantType}`;
+    if (!byGroup[gk]) byGroup[gk] = [];
+    byGroup[gk].push(item);
+  }
+  const result = [];
+  const seen = new Set();
+  for (const item of items) {
+    const gk = `${item.actionKey}:${item.plantType}`;
+    if (seen.has(gk)) continue;
+    seen.add(gk);
+    const group = byGroup[gk];
+    if (group.length >= 2) {
+      const def = ACTION_DEFS[item.actionKey];
+      result.push({
+        type: 'group', gk, items: group,
+        label: item.task?.label || def?.label || item.actionKey,
+        emoji: item.task?.emoji || def?.emoji || '✨',
+      });
+    } else {
+      result.push({ type: 'item', item: group[0] });
+    }
+  }
+  return result;
+}
+
+function AgendaGroupCard({ group, onDoneAll, onDoneOne, justDoneKeys = new Set() }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const allDone = group.items.every(i => justDoneKeys.has(i.key));
+  const doneSoFar = group.items.filter(i => justDoneKeys.has(i.key)).length;
+  const accentColor = plantColor(group.items[0].plantType);
+  return (
+    <div style={{
+      background: allDone ? 'rgba(72,120,32,0.06)' : C.cardBg,
+      border: `1px solid ${allDone ? 'rgba(72,120,32,0.22)' : C.cardBorder}`,
+      borderRadius: 10, marginBottom: 10, overflow: 'hidden',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px' }}>
+        <span style={{ fontSize: 22, flexShrink: 0 }}>{group.emoji}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: SERIF, fontSize: 15, fontWeight: 600, color: '#2a1808', lineHeight: 1.2 }}>
+            {group.label}
+          </div>
+          <div style={{ fontSize: 11, color: '#907050', marginTop: 2 }}>
+            {group.items.length} {plantTypePlural(group.items[0].plantType)}
+            {doneSoFar > 0 && !allDone && <span style={{ color: '#5a9030', marginLeft: 6 }}>· {doneSoFar}/{group.items.length} done</span>}
+            {allDone && <span style={{ color: '#5a9030', marginLeft: 6 }}>· all done ✓</span>}
+          </div>
+          <button onClick={() => setExpanded(e => !e)}
+            style={{ background: 'none', border: 'none', padding: '3px 0 0', cursor: 'pointer',
+              fontFamily: SERIF, fontSize: 11, color: 'rgba(160,130,80,0.65)', textDecoration: 'underline' }}>
+            {expanded ? 'hide plants' : group.items.map(i => i.plant.name).join(', ')}
+          </button>
+        </div>
+        {!allDone && (
+          <button onClick={onDoneAll}
+            style={{
+              flexShrink: 0, fontFamily: SERIF, fontSize: 13, fontWeight: 600,
+              background: '#2a1808', color: '#f0e4cc',
+              border: 'none', borderRadius: 7, padding: '7px 13px', cursor: 'pointer',
+            }}>
+            Done all
+          </button>
+        )}
+        {allDone && <span style={{ fontSize: 18, flexShrink: 0 }}>✓</span>}
+      </div>
+      {expanded && (
+        <div style={{ borderTop: `1px solid ${C.cardBorder}`, padding: '6px 13px 8px' }}>
+          {group.items.map(item => (
+            <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: accentColor, flexShrink: 0 }}/>
+                <span style={{ fontFamily: SERIF, fontSize: 13, color: justDoneKeys.has(item.key) ? '#5a9030' : '#3a2010' }}>
+                  {item.plant.name}
+                </span>
+              </div>
+              {!justDoneKeys.has(item.key)
+                ? <button onClick={() => onDoneOne(item)}
+                    style={{ fontFamily: SERIF, fontSize: 12, background: 'none', border: `1px solid ${C.cardBorder}`,
+                      borderRadius: 5, padding: '2px 10px', cursor: 'pointer', color: '#5a3818' }}>
+                    Done
+                  </button>
+                : <span style={{ fontSize: 11, color: '#5a9030' }}>✓</span>
+              }
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seasonOpen,
   totalActivePlants = 0, morningBrief, fullBrief, onStartAction, portraits, completedThisSession = new Set(),
   doneTodayItems = [], onMarkDone, onOpenAsk, careLog = {}, onRefreshAgenda }) {
   const [briefExpanded, setBriefExpanded] = React.useState(false);
   const [justDoneKey, setJustDoneKey] = React.useState(null);
   const [justDoneStreak, setJustDoneStreak] = React.useState(0);
+  const [groupJustDoneKeys, setGroupJustDoneKeys] = React.useState(new Set());
 
   // Inject CSS animations once
   React.useEffect(() => {
@@ -1608,9 +1715,18 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
   function handleDone(item) {
     const streak = computeStreak(item.plantId, careLog);
     setJustDoneKey(item.key);
-    setJustDoneStreak(streak + 1); // +1 for the action being logged now
+    setGroupJustDoneKeys(prev => new Set([...prev, item.key]));
+    setJustDoneStreak(streak + 1);
     onMarkDone(item);
     setTimeout(() => setJustDoneKey(null), 3000);
+  }
+
+  function handleDoneAll(groupItems) {
+    groupItems.forEach(item => {
+      setGroupJustDoneKeys(prev => new Set([...prev, item.key]));
+      onMarkDone(item);
+    });
+    setJustDoneStreak(s => s + 1);
   }
 
   // Merge deterministic items with AI-enriched agenda (reason + priority + order)
@@ -1819,12 +1935,17 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
             <div style={{ flex: 1, height: 1, background: 'rgba(200,80,30,0.20)' }}/>
             <span style={{ color: 'rgba(200,80,30,0.55)' }}>{todayItems.length}</span>
           </div>
-          {todayItems.map(item => (
-            <AgendaRow key={item.key} item={item} completed={false}
-              justDone={justDoneKey === item.key} justDoneStreak={justDoneStreak}
-              onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
-              onDone={handleDone} portrait={portraits[item.plantId]}/>
-          ))}
+          {groupAgendaItems(todayItems).map(entry =>
+            entry.type === 'group'
+              ? <AgendaGroupCard key={entry.gk} group={entry}
+                  onDoneAll={() => handleDoneAll(entry.items)}
+                  onDoneOne={handleDone}
+                  justDoneKeys={groupJustDoneKeys}/>
+              : <AgendaRow key={entry.item.key} item={entry.item} completed={false}
+                  justDone={justDoneKey === entry.item.key} justDoneStreak={justDoneStreak}
+                  onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
+                  onDone={handleDone} portrait={portraits[entry.item.plantId]}/>
+          )}
         </div>
       )}
 
@@ -1852,12 +1973,17 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
             <div style={{ flex: 1, height: 1, background: 'rgba(160,130,80,0.20)' }}/>
             <span style={{ color: 'rgba(160,130,80,0.45)' }}>{weekItems.length}</span>
           </div>
-          {weekItems.map(item => (
-            <AgendaRow key={item.key} item={item} completed={false}
-              justDone={justDoneKey === item.key} justDoneStreak={justDoneStreak}
-              onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
-              onDone={handleDone} portrait={portraits[item.plantId]}/>
-          ))}
+          {groupAgendaItems(weekItems).map(entry =>
+            entry.type === 'group'
+              ? <AgendaGroupCard key={entry.gk} group={entry}
+                  onDoneAll={() => handleDoneAll(entry.items)}
+                  onDoneOne={handleDone}
+                  justDoneKeys={groupJustDoneKeys}/>
+              : <AgendaRow key={entry.item.key} item={entry.item} completed={false}
+                  justDone={justDoneKey === entry.item.key} justDoneStreak={justDoneStreak}
+                  onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
+                  onDone={handleDone} portrait={portraits[entry.item.plantId]}/>
+          )}
         </div>
       )}
 
@@ -1873,12 +1999,17 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
             <div style={{ flex: 1, height: 1, background: 'rgba(80,120,80,0.18)' }}/>
             <span style={{ color: 'rgba(80,120,80,0.40)' }}>{optItems.length}</span>
           </div>
-          {optItems.map(item => (
-            <AgendaRow key={item.key} item={item} completed={false}
-              justDone={justDoneKey === item.key} justDoneStreak={justDoneStreak}
-              onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
-              onDone={handleDone} portrait={portraits[item.plantId]}/>
-          ))}
+          {groupAgendaItems(optItems).map(entry =>
+            entry.type === 'group'
+              ? <AgendaGroupCard key={entry.gk} group={entry}
+                  onDoneAll={() => handleDoneAll(entry.items)}
+                  onDoneOne={handleDone}
+                  justDoneKeys={groupJustDoneKeys}/>
+              : <AgendaRow key={entry.item.key} item={entry.item} completed={false}
+                  justDone={justDoneKey === entry.item.key} justDoneStreak={justDoneStreak}
+                  onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
+                  onDone={handleDone} portrait={portraits[entry.item.plantId]}/>
+          )}
         </div>
       )}
 

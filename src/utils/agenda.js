@@ -63,6 +63,8 @@ export function computeAgenda({ plants, frontPlants, careLog, briefings, weather
   const emmaPlantsSet = new Set(frontPlants.map(p => p.id));
   const rainedToday = (weather?.forecast?.[0]?.precip > 1) || (weather?.forecast?.[0]?.precipChance >= 70);
   const hasRainSoon = rainedToday || weather?.forecast?.slice(0, 2).some(d => d.precipChance >= 60);
+  // Neem only blocked by same-day rain — applying before tomorrow's rain is fine (contact time matters)
+  const neemBlockedByRain = rainedToday;
   const hasFrostSoon = weather?.forecast?.slice(0, 2).some(d => d.low <= 35);
   const todayStr = new Date().toISOString().slice(0, 10);
   const nowMs = Date.now();
@@ -81,7 +83,7 @@ export function computeAgenda({ plants, frontPlants, careLog, briefings, weather
       if (AGENDA_SKIP_ACTIONS.has(task.key)) continue;
       if (task.key !== 'tend' && !actionStatus(plant, task.key, careLog, seasonOpen).available) continue;
       if (task.key === 'water' && hasRainSoon && !isUrgent) continue;
-      if (task.key === 'neem' && hasRainSoon) continue;
+      if (task.key === 'neem' && neemBlockedByRain) continue;
 
       const isTaskOptional = task.optional === true;
       const priority = isTaskOptional ? 'optional' : isUrgent ? 'urgent' : hasFrostSoon ? 'urgent' : 'recommended';
