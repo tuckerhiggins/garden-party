@@ -163,11 +163,11 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
     return m;
   }, [allPlants, careLog, briefings]);
 
-  // SVG coordinate helpers — viewBox 0 0 100 56
+  // SVG coordinate helpers — viewBox 0 0 100 72
   // terrace: pos.x → svgX, pos.y → svgY
-  function toSVG(pos) { return { x: 4 + pos.x * 89, y: 4 + pos.y * 46 }; }
+  function toSVG(pos) { return { x: 4 + pos.x * 89, y: 4 + pos.y * 62 }; }
   // front garden: map differently (horizontal garden bed)
-  function toFrontSVG(pos) { return { x: 8 + pos.x * 84, y: 10 + pos.y * 36 }; }
+  function toFrontSVG(pos) { return { x: 8 + pos.x * 84, y: 12 + pos.y * 48 }; }
 
   const activePlants = allPlants.filter(p => p.health !== 'empty' && p.type !== 'empty-pot');
 
@@ -196,31 +196,31 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
 
       {/* SVG Map */}
       <div style={{ padding:'12px', flexShrink:0 }}>
-        <svg viewBox="0 0 100 56" style={{ width:'100%', display:'block', touchAction:'none' }}>
+        <svg viewBox="0 0 100 72" style={{ width:'100%', display:'block', touchAction:'none' }}>
           {/* Deck background */}
           {section === 'terrace' ? (
             <>
-              <rect x={0} y={0} width={100} height={56} fill="#0e0b08"/>
+              <rect x={0} y={0} width={100} height={72} fill="#0e0b08"/>
               {/* Wall 2 — fence (left) */}
-              <rect x={0} y={0} width={4} height={56} fill="rgba(184,140,60,0.30)"/>
+              <rect x={0} y={0} width={4} height={72} fill="rgba(184,140,60,0.30)"/>
               {/* Wall 3 — back */}
               <rect x={0} y={0} width={100} height={4} fill="rgba(190,180,140,0.25)"/>
               {/* Wall 4 — railing (right) */}
-              <rect x={93} y={0} width={7} height={56} fill="rgba(60,64,56,0.80)"/>
+              <rect x={93} y={0} width={7} height={72} fill="rgba(60,64,56,0.80)"/>
               {/* Wall 1 — building (bottom) */}
-              <rect x={0} y={50} width={100} height={6} fill="rgba(200,196,160,0.20)"/>
+              <rect x={0} y={66} width={100} height={6} fill="rgba(200,196,160,0.20)"/>
               {/* Deck interior */}
-              <rect x={4} y={4} width={89} height={46} fill="#2a2420"/>
+              <rect x={4} y={4} width={89} height={62} fill="#2a2420"/>
               {/* Wire hint on fence */}
-              {[10,18,26,34,42,50].map(y => (
+              {[10,18,26,34,42,50,58,66].map(y => (
                 <line key={y} x1={0} y1={y} x2={4} y2={y} stroke="rgba(210,195,130,0.25)" strokeWidth={0.3}/>
               ))}
             </>
           ) : (
             <>
-              <rect x={0} y={0} width={100} height={56} fill="#0e0b08"/>
-              <rect x={5} y={5} width={90} height={46} rx={2} fill="rgba(40,60,24,0.70)" stroke="rgba(180,160,100,0.30)" strokeWidth={0.5}/>
-              <text x={8} y={11} fontFamily={SERIF} fontSize={3.5} fill="rgba(212,168,48,0.55)" fontStyle="italic">Emma's Rose Garden</text>
+              <rect x={0} y={0} width={100} height={72} fill="#0e0b08"/>
+              <rect x={5} y={5} width={90} height={62} rx={2} fill="rgba(40,60,24,0.70)" stroke="rgba(180,160,100,0.30)" strokeWidth={0.5}/>
+              <text x={8} y={13} fontFamily={SERIF} fontSize={3.5} fill="rgba(212,168,48,0.55)" fontStyle="italic">Emma's Rose Garden</text>
             </>
           )}
 
@@ -233,25 +233,41 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
             const wLevel = waterLevels[p.id] ?? 1;
             const pColor = plantColor(p.type);
             const urgent = ['thirsty','overlooked','struggling'].includes(p.health);
-            const arc = p.actions?.includes('water') ? arcPath(cx, cy, 4.8, wLevel) : null;
+            const arc = p.actions?.includes('water') ? arcPath(cx, cy, 6.5, wLevel) : null;
+            // Abbreviated label: first word, max 5 chars
+            const shortName = p.name.split(' ')[0].slice(0, 5).toUpperCase();
 
             return (
               <g key={p.id} onClick={() => setSelectedId(p.id === selectedId ? null : p.id)}
                 style={{ cursor:'pointer' }}>
-                {/* Transparent hit area */}
-                <circle cx={cx} cy={cy} r={8} fill="transparent"/>
+                {/* Transparent hit area — generous for fat fingers */}
+                <circle cx={cx} cy={cy} r={10} fill="transparent"/>
                 {/* Urgency halo */}
-                {urgent && <circle cx={cx} cy={cy} r={5.5} fill={healthColor(p.health)} opacity={0.18}
+                {urgent && <circle cx={cx} cy={cy} r={7} fill={healthColor(p.health)} opacity={0.15}
                   style={{ animation:'gpMapPulse 2s ease-in-out infinite' }}/>}
                 {/* Water arc */}
-                {arc && <path d={arc} fill="none" stroke={healthColor(p.health)} strokeWidth={1.2} strokeLinecap="round" opacity={0.7}/>}
+                {arc && <path d={arc} fill="none" stroke={healthColor(p.health)} strokeWidth={1.1} strokeLinecap="round" opacity={0.65}/>}
+                {/* Decorative outer ring */}
+                <circle cx={cx} cy={cy} r={4.8} fill="none" stroke={pColor} strokeWidth={0.5} opacity={isSelected ? 0 : 0.32}/>
                 {/* Main node */}
-                <circle cx={cx} cy={cy} r={3.2} fill={pColor} opacity={isSelected ? 0 : 0.9}/>
+                <circle cx={cx} cy={cy} r={3.4} fill={pColor} opacity={isSelected ? 0 : 0.92}/>
+                {/* Health glyph inside node */}
+                {!isSelected && (
+                  <text x={cx} y={cy + 1.1} textAnchor="middle" fontSize={2.6}
+                    fill="rgba(255,255,255,0.65)" fontFamily="sans-serif" style={{ pointerEvents:'none' }}>
+                    {healthGlyph(p.health)}
+                  </text>
+                )}
+                {/* Name label below */}
+                <text x={cx} y={cy + 9} textAnchor="middle" fontSize={2.4}
+                  fill="rgba(220,200,150,0.50)" fontFamily="monospace" style={{ pointerEvents:'none' }}>
+                  {shortName}
+                </text>
                 {/* Selected state */}
                 {isSelected && (
                   <>
-                    <circle cx={cx} cy={cy} r={3.2} fill="none" stroke={C.uiGold} strokeWidth={0.8}/>
-                    <circle cx={cx} cy={cy} r={5.5} fill="none" stroke={C.uiGold} strokeWidth={0.5} strokeDasharray="1.8 1.4" opacity={0.6}/>
+                    <circle cx={cx} cy={cy} r={3.4} fill="none" stroke={C.uiGold} strokeWidth={0.8}/>
+                    <circle cx={cx} cy={cy} r={6} fill="none" stroke={C.uiGold} strokeWidth={0.5} strokeDasharray="1.8 1.4" opacity={0.65}/>
                   </>
                 )}
               </g>
