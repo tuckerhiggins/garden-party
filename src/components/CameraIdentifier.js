@@ -41,15 +41,7 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
     return () => registerOpen?.(null);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Attach stream to <video> once both are available ──────────────────
-  useEffect(() => {
-    if (stream && videoRef.current) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(() => {});
-    }
-  }, [stream, phase]); // re-check after phase change re-mounts the video element
-
-  // ── Cleanup stream when it changes or on unmount ──────────────────────
+  // ── Cleanup stream on unmount ─────────────────────────────────────────
   useEffect(() => {
     return () => { stream?.getTracks().forEach(t => t.stop()); };
   }, [stream]);
@@ -102,16 +94,22 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
   // ── Camera ────────────────────────────────────────────────────────────
   async function startCamera() {
     if (phase !== 'idle') return;
-    setPhase('camera');
     try {
       const s = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 } },
         audio: false,
       });
-      setStream(s); // triggers useEffect to attach to <video>
+      setStream(s);
+      setPhase('camera');
+      // Wait one frame for React to render the <video> element, then attach
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = s;
+          videoRef.current.play().catch(() => {});
+        }
+      });
     } catch (err) {
       console.warn('Camera error:', err);
-      setPhase('idle');
     }
   }
   // Keep ref in sync so the landscape listener and registerOpen always call latest
