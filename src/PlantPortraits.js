@@ -514,7 +514,8 @@ export function StonePotPortrait() {
 
 // Master function — returns the right portrait for a plant
 export function PlantPortrait({ plant, aiSvg }) {
-  if (aiSvg) {
+  // Only render AI SVG if it looks complete — truncated SVGs cause DOM errors
+  if (aiSvg && aiSvg.includes('</svg>')) {
     return (
       <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}
         dangerouslySetInnerHTML={{ __html: aiSvg }}/>
