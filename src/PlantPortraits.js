@@ -513,9 +513,16 @@ export function StonePotPortrait() {
 }
 
 // Master function — returns the right portrait for a plant
+function isValidSvg(str) {
+  if (!str) return false;
+  try {
+    const doc = new DOMParser().parseFromString(str, 'image/svg+xml');
+    return !doc.querySelector('parsererror');
+  } catch { return false; }
+}
+
 export function PlantPortrait({ plant, aiSvg }) {
-  // Only render AI SVG if it ends cleanly — truncation mid-path causes DOM errors
-  if (aiSvg && aiSvg.trimEnd().endsWith('</svg>')) {
+  if (aiSvg && isValidSvg(aiSvg)) {
     return (
       <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}
         dangerouslySetInnerHTML={{ __html: aiSvg }}/>
