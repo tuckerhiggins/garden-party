@@ -1905,12 +1905,12 @@ export default function App() {
   );
   const weather = useWeather();
   const frontPlants = useMemo(() =>
-    FRONT_PLANTS.map(p => ({ ...p, health: computeHealth(p, careLog, briefings[p.id] || null) })),
-    [careLog, briefings]);
+    FRONT_PLANTS.map(p => ({ ...p, health: computeHealth(p, careLog, portraits[p.id] || null, weather) })),
+    [careLog, portraits, weather]);
 
   const terracePlants = useMemo(()=>
-    TERRACE_PLANTS.map(p=>({...p, pos:p.moveable ? (positions[p.id]||p.pos) : p.pos, growth:growth[p.id]??p.growth??0, health: computeHealth(p, careLog, briefings[p.id] || null)})),
-    [positions, growth, careLog, briefings]);
+    TERRACE_PLANTS.map(p=>({...p, pos:p.moveable ? (positions[p.id]||p.pos) : p.pos, growth:growth[p.id]??p.growth??0, health: computeHealth(p, careLog, portraits[p.id] || null, weather)})),
+    [positions, growth, careLog, portraits, weather]);
 
   // Custom plants with positions/growth merged from localStorage
   const customPlantsWithState = useMemo(() =>
@@ -2091,7 +2091,20 @@ export default function App() {
       const tid = setTimeout(() => {
         if (cancelled) return;
         fetchPlantBriefing(plant, careLog, weather, portraits, allPhotos)
-          .then(b => { if (!cancelled) setBriefings(prev => ({ ...prev, [plant.id]: b })); })
+          .then(b => {
+            if (cancelled) return;
+            setBriefings(prev => ({ ...prev, [plant.id]: b }));
+            // Persist health + waterDays from briefing into portrait so they
+            // survive app restarts without re-fetching the AI.
+            if (b && b.health && b.waterDays) {
+              updatePortrait(plant.id, {
+                health: b.health,
+                healthDate: new Date().toISOString(),
+                waterDays: b.waterDays,
+                waterDaysDate: new Date().toISOString(),
+              });
+            }
+          })
           .catch(() => { if (!cancelled) setBriefings(prev => ({ ...prev, [plant.id]: null })); });
       }, i * 600);
       timeoutIds.push(tid);
@@ -2116,7 +2129,17 @@ export default function App() {
         const newPhotos = allPhotos[plant.id] || [];
         setBriefings(prev => ({ ...prev, [plant.id]: 'loading' }));
         fetchPlantBriefing(plant, careLog, weather, portraits, { [plant.id]: newPhotos })
-          .then(b => setBriefings(prev => ({ ...prev, [plant.id]: b })))
+          .then(b => {
+            setBriefings(prev => ({ ...prev, [plant.id]: b }));
+            if (b && b.health && b.waterDays) {
+              updatePortrait(plant.id, {
+                health: b.health,
+                healthDate: new Date().toISOString(),
+                waterDays: b.waterDays,
+                waterDaysDate: new Date().toISOString(),
+              });
+            }
+          })
           .catch(() => setBriefings(prev => ({ ...prev, [plant.id]: null })));
       }
       prevPhotoCountsRef.current[plant.id] = currCount;

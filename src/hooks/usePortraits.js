@@ -53,6 +53,11 @@ export function usePortraits({ user }) {
         stages: stagesData.stages || existing.stages || [],
         currentStage: stagesData.currentStage || existing.currentStage || null,
         stageHistory: stagesData.stageHistory || existing.stageHistory || [],
+        // Persisted health assessment + water drain rate (set by photo analysis + oracle)
+        health: stagesData.health || existing.health || null,
+        healthDate: stagesData.healthDate || existing.healthDate || null,
+        waterDays: stagesData.waterDays || existing.waterDays || null,
+        waterDaysDate: stagesData.waterDaysDate || existing.waterDaysDate || null,
         analyzing: false,
         date: row.updated_at || existing.date,
       };
@@ -125,6 +130,10 @@ export function usePortraits({ user }) {
               stages: stagesData.stages || existing.stages || [],
               currentStage: stagesData.currentStage || existing.currentStage || null,
               stageHistory: stagesData.stageHistory || existing.stageHistory || [],
+              health: stagesData.health || existing.health || null,
+              healthDate: stagesData.healthDate || existing.healthDate || null,
+              waterDays: stagesData.waterDays || existing.waterDays || null,
+              waterDaysDate: stagesData.waterDaysDate || existing.waterDaysDate || null,
               analyzing: false,
               date: row.updated_at || existing.date,
             },
@@ -195,6 +204,10 @@ export function usePortraits({ user }) {
             stages: entry.stages || [],
             currentStage: entry.currentStage || null,
             stageHistory: entry.stageHistory || [],
+            health: entry.health || null,
+            healthDate: entry.healthDate || null,
+            waterDays: entry.waterDays || null,
+            waterDaysDate: entry.waterDaysDate || null,
           },
         };
         // Try with stages_data first; if column doesn't exist yet, fall back to base payload

@@ -1367,9 +1367,9 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
   // Pre-compute water levels for all token plants (avoids re-computing inside render)
   const waterLevels = useMemo(() => {
     const map = {};
-    for (const p of tokens) map[p.id] = computeWaterLevel(p, careLog, briefings[p.id] || null);
+    for (const p of tokens) map[p.id] = computeWaterLevel(p, careLog, portraits[p.id] || null, weather);
     return map;
-  }, [tokens, careLog, briefings]);
+  }, [tokens, careLog, portraits, weather]);
 
   // Garden-wide aggregate metrics for the HUD — includes Emma's Rose Garden (frontPlants)
   const { gardenHealth, gardenWater } = useMemo(() => {
@@ -1382,7 +1382,7 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
     const avgHealth = allActive.reduce((s, p) => s + (HEALTH_LEVEL[p.health] ?? 0.5), 0) / allActive.length;
     const waterPlants = allActive.filter(p => p.actions?.includes('water'));
     const allWaterLevels = { ...waterLevels };
-    for (const p of frontActive) allWaterLevels[p.id] = computeWaterLevel(p, careLog, briefings[p.id] || null);
+    for (const p of frontActive) allWaterLevels[p.id] = computeWaterLevel(p, careLog, portraits[p.id] || null, weather);
     const avgWater = waterPlants.length
       ? waterPlants.reduce((s, p) => s + (allWaterLevels[p.id] ?? 1), 0) / waterPlants.length
       : 1;

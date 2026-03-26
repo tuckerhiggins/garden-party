@@ -771,7 +771,7 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
         {/* Health + Water bars */}
         {plant.health !== 'memorial' && plant.health !== 'empty' && (() => {
           const healthLevel = HEALTH_LEVEL[plant.health] ?? 0.5;
-          const waterLevel = computeWaterLevel(plant, careLog, briefing?.waterDays ? briefing : null);
+          const waterLevel = computeWaterLevel(plant, careLog, portrait || null);
           const needsWater = plant.actions?.includes('water');
           const hColor = healthLevel >= 0.75 ? '#58c030' : healthLevel >= 0.5 ? '#a8c820' : healthLevel >= 0.25 ? '#d4820a' : '#c83020';
           const wColor = waterLevel >= 0.6 ? '#3898d0' : waterLevel >= 0.35 ? '#c8a820' : '#c83020';
