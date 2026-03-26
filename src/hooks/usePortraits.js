@@ -12,16 +12,27 @@ import { supabase } from '../supabase';
 
 function sanitizeSvg(svg) {
   if (!svg) return null;
-  return svg
+  const cleaned = svg
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<text[\s\S]*?<\/text>/gi, '')
     .replace(/\son\w+\s*=["'][^"']*["']/gi, '')
     .replace(/\son\w+\s*=[^\s>]*/gi, '');
+  // Reject truncated SVGs — unclosed d=" attributes contain < before closing quote
+  if (/\bd="[^"]*</.test(cleaned)) return null;
+  if (!cleaned.trimEnd().endsWith('</svg>')) return null;
+  return cleaned;
 }
 
 export function usePortraits({ user }) {
   const [portraits, setPortraits] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}'); } catch { return {}; }
+    try {
+      const raw = JSON.parse(localStorage.getItem('gp_portraits_v1') || '{}');
+      // Sanitize SVGs on load — rejects truncated portraits cached before validation was added
+      Object.keys(raw).forEach(id => {
+        if (raw[id]?.svg) raw[id] = { ...raw[id], svg: sanitizeSvg(raw[id].svg) };
+      });
+      return raw;
+    } catch { return {}; }
   });
   const setPortraitsRef = useRef(setPortraits);
   setPortraitsRef.current = setPortraits;
