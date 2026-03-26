@@ -1982,7 +1982,7 @@ export default function App() {
     fetchOracle({ weather, plants: allGardenPlants, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits, role, agendaItems: sharedAgendaItems })
       .then(setOracle)
       .catch(() => {});
-  }, [weather, role, todayCareCount, seasonOpen]);
+  }, [weather, role, todayCareCount, seasonOpen, rawAgendaKeys]);
 
   // Garden view plants (no empty pots — those become available containers in the UI)
   const gardenPlants = useMemo(()=>({

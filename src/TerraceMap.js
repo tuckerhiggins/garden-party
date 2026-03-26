@@ -2070,15 +2070,13 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         if (bx < DL + 4) bx = DL + 4;
         return (
           <g style={{ pointerEvents: 'auto' }} onClick={e => e.stopPropagation()}>
-            {/* shadow */}
-            <rect x={bx+4} y={by+4} width={cardW} height={cardH} fill="rgba(0,0,0,0.38)" rx={11}/>
             <foreignObject x={bx} y={by} width={cardW} height={cardH} style={{ overflow: 'visible' }}>
               <div style={{
                 width: cardW, fontFamily: '"Crimson Pro", Georgia, serif',
                 background: 'rgba(10,6,2,0.97)',
                 border: `1px solid ${accentColor}55`,
                 borderRadius: 11, overflow: 'hidden',
-                boxShadow: `0 0 0 0.5px ${accentColor}20`,
+                boxShadow: `0 4px 18px rgba(0,0,0,0.65), 0 0 0 0.5px ${accentColor}20`,
               }}>
                 {/* top accent bar */}
                 <div style={{ height: 3, background: accentColor, opacity: 0.85 }}/>
