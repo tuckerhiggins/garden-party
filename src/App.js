@@ -1968,22 +1968,6 @@ export default function App() {
     Object.values(careLog).flat().filter(e => e.action === 'rain').length,
   [careLog]);
 
-  // Oracle — fetch on mount (after weather loads) and whenever care is logged today
-  useEffect(() => {
-    if (!weather) return;
-    const allGardenPlants = [...TERRACE_PLANTS, ...frontPlants];
-    const photoContext = allGardenPlants
-      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
-      .map(p => {
-        const all = allPhotos[p.id] || [];
-        return { name: p.name, count: all.length, lastDate: all[all.length - 1]?.date ?? null };
-      });
-    const totalPhotos = photoContext.reduce((s, p) => s + p.count, 0);
-    fetchOracle({ weather, plants: allGardenPlants, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits, role, agendaItems: sharedAgendaItems })
-      .then(setOracle)
-      .catch(() => {});
-  }, [weather, role, todayCareCount, seasonOpen, rawAgendaKeys]);
-
   // Garden view plants (no empty pots — those become available containers in the UI)
   const gardenPlants = useMemo(()=>({
     terrace: [...terracePlants.filter(p => p.type !== 'empty-pot'), ...customPlantsWithState],
@@ -2031,6 +2015,23 @@ export default function App() {
 
   // Fetch AI-enriched agenda once per day — single source of truth for both mobile and desktop
   const rawAgendaKeys = sharedAgendaItems.map(i => i.key).join(',');
+
+  // Oracle — fetch on mount (after weather loads) and whenever care is logged or agenda changes
+  useEffect(() => {
+    if (!weather) return;
+    const allGardenPlants = [...TERRACE_PLANTS, ...frontPlants];
+    const photoContext = allGardenPlants
+      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
+      .map(p => {
+        const all = allPhotos[p.id] || [];
+        return { name: p.name, count: all.length, lastDate: all[all.length - 1]?.date ?? null };
+      });
+    const totalPhotos = photoContext.reduce((s, p) => s + p.count, 0);
+    fetchOracle({ weather, plants: allGardenPlants, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits, role, agendaItems: sharedAgendaItems })
+      .then(setOracle)
+      .catch(() => {});
+  }, [weather, role, todayCareCount, seasonOpen, rawAgendaKeys]); // intentionally excludes other deps — oracle is cached daily
+
   useEffect(() => {
     if (!weather || !seasonOpen || !sharedAgendaItems.length) return;
     fetchDailyAgenda({ candidateTasks: sharedAgendaItems, weather, careLog, portraits })
