@@ -83,10 +83,15 @@ export function computeAgenda({ plants, frontPlants, careLog, briefings, weather
     for (const task of briefTasks) {
       if (AGENDA_SKIP_ACTIONS.has(task.key)) continue;
       if (task.key !== 'tend' && !actionStatus(plant, task.key, careLog, seasonOpen).available) continue;
-      if (task.key === 'water' && hasRainSoon && !isUrgent) continue;
+      // Water suppression: skip entirely if it rained today; if rain is coming soon
+      // but the briefing has an explicit reason (e.g. "growth push, hydrate first"),
+      // keep it but downgrade to optional so Tucker can decide.
+      const waterBeforeRain = task.key === 'water' && hasRainSoon && !isUrgent;
+      if (task.key === 'water' && rainedToday && !isUrgent) continue;
+      if (waterBeforeRain && !task.reason) continue;
       if (task.key === 'neem' && neemBlockedByRain) continue;
 
-      const isTaskOptional = task.optional === true;
+      const isTaskOptional = task.optional === true || waterBeforeRain;
       const priority = isTaskOptional ? 'optional' : isUrgent ? 'urgent' : hasFrostSoon ? 'urgent' : 'recommended';
       if (!isWeekend && priority === 'routine') continue;
 
@@ -107,7 +112,7 @@ export function computeAgenda({ plants, frontPlants, careLog, briefings, weather
         if (AGENDA_SKIP_ACTIONS.has(actionKey)) continue;
         if (briefTaskKeys.has(actionKey)) continue;
         if (!actionStatus(plant, actionKey, careLog, seasonOpen).available) continue;
-        if (actionKey === 'water' && hasRainSoon) continue;
+        if (actionKey === 'water' && rainedToday) continue; // already rained — skip
         if (actionKey === 'neem' && hasRainSoon) continue;
 
         items.push({
