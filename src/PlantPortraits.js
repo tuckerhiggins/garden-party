@@ -515,10 +515,11 @@ export function StonePotPortrait() {
 // Master function — returns the right portrait for a plant
 function isValidSvg(str) {
   if (!str) return false;
-  try {
-    const doc = new DOMParser().parseFromString(str, 'image/svg+xml');
-    return !doc.querySelector('parsererror');
-  } catch { return false; }
+  // Truncated SVGs have an unclosed d=" attribute — the path data runs past the
+  // closing quote and into what should be tag content. Path data never contains
+  // a '<' character, so d="...<  means the attribute was never closed.
+  if (/\bd="[^"]*</.test(str)) return false;
+  return str.trimEnd().endsWith('</svg>');
 }
 
 export function PlantPortrait({ plant, aiSvg }) {
