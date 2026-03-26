@@ -2049,7 +2049,7 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
         const waterUrgent = daysSinceWater === null || daysSinceWater > 3;
         const recentActions = [...entries].reverse().slice(0, 4);
         const portHistory = buildPortraitHistory(portrait);
-        const briefing = externalBriefings[pinnedId];
+        const briefing = briefings[pinnedId];
         const isLoading = briefing === 'loading' || briefing === undefined;
         const aiTasks = (briefing && briefing !== 'loading') ? (briefing.tasks || []) : [];
         const timeline = getActionTimeline(pp, careLog, seasonOpen);
