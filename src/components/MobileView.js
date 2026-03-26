@@ -8,6 +8,7 @@ import { fetchPlantBriefing, fetchDailyAgenda, fetchJournalEntry, streamGardenCh
 import { compressChatImage } from '../utils/compressChatImage';
 import { actionStatus, extractFutureActionDate, computeAgenda } from '../utils/agenda';
 import { localDate } from '../utils/dates';
+import { computeWaterLevel, HEALTH_LEVEL } from '../utils/health';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO = '"Press Start 2P", monospace';
@@ -764,6 +765,35 @@ function MobilePlantCard({ plant, careLog, onAction, onStartAction, onPhotoAdded
             )}
           </div>
         </div>
+
+        {/* Health + Water bars */}
+        {plant.health !== 'memorial' && plant.health !== 'empty' && (() => {
+          const healthLevel = HEALTH_LEVEL[plant.health] ?? 0.5;
+          const waterLevel = computeWaterLevel(plant, careLog, briefing?.waterDays ? briefing : null);
+          const needsWater = plant.actions?.includes('water');
+          const hColor = healthLevel >= 0.75 ? '#58c030' : healthLevel >= 0.5 ? '#a8c820' : healthLevel >= 0.25 ? '#d4820a' : '#c83020';
+          const wColor = waterLevel >= 0.6 ? '#3898d0' : waterLevel >= 0.35 ? '#c8a820' : '#c83020';
+          return (
+            <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <span style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(80,50,20,0.45)', width: 14, flexShrink: 0 }}>HP</span>
+                <div style={{ flex: 1, height: 5, background: 'rgba(0,0,0,0.10)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.round(healthLevel * 100)}%`, height: '100%', background: hColor, borderRadius: 3, transition: 'width 0.4s' }}/>
+                </div>
+                <span style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(80,50,20,0.40)', width: 22, textAlign: 'right', flexShrink: 0 }}>{Math.round(healthLevel * 100)}%</span>
+              </div>
+              {needsWater && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <span style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(80,50,20,0.45)', width: 14, flexShrink: 0 }}>💧</span>
+                  <div style={{ flex: 1, height: 5, background: 'rgba(0,0,0,0.10)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.round(waterLevel * 100)}%`, height: '100%', background: wColor, borderRadius: 3, transition: 'width 0.4s' }}/>
+                  </div>
+                  <span style={{ fontFamily: MONO, fontSize: 5, color: 'rgba(80,50,20,0.40)', width: 22, textAlign: 'right', flexShrink: 0 }}>{Math.round(waterLevel * 100)}%</span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Quick action row — wraps when many actions are recommended */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
