@@ -2,6 +2,7 @@
 // Hero features: photo upload, quick care, oracle chat
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { OracleChat } from './OracleChat';
+import { MobileMapProtos } from './MobileMapProtos';
 import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
 import { fetchPlantBriefing, fetchDailyAgenda, fetchJournalEntry, streamGardenChat } from '../claude';
@@ -2787,6 +2788,7 @@ export function MobileView({
   const TABS = [
     { id: 'today',   label: '✦',  title: 'Today'   },
     { id: 'garden',  label: '🌿', title: 'Garden'  },
+    { id: 'map',     label: '🗺', title: 'Map'     },
     { id: 'ask',     label: '🌸', title: 'Ask'     },
     { id: 'journal', label: '📖', title: 'Journal' },
     { id: 'spend',   label: '💰', title: 'Spend'   },
@@ -2956,7 +2958,7 @@ export function MobileView({
       )}
 
       {/* Main content */}
-      <div style={{ flex: 1, overflowY: tab !== 'ask' ? 'auto' : 'hidden', position: 'relative', overscrollBehavior: 'contain' }}>
+      <div style={{ flex: 1, overflowY: (tab === 'ask' || tab === 'map') ? 'hidden' : 'auto', position: 'relative', overscrollBehavior: 'contain' }}>
         {tab === 'today' && (
           <TodayAgenda
             rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
@@ -2991,6 +2993,15 @@ export function MobileView({
             onDeleteAction={onDeleteAction}
             openPlantId={openPlantId}
             onOpenPlantHandled={() => setOpenPlantId(null)}
+          />
+        )}
+
+        {tab === 'map' && (
+          <MobileMapProtos
+            plants={plants} frontPlants={frontPlants} careLog={careLog}
+            briefings={mergedBriefings} portraits={portraits}
+            onAction={handleAction}
+            style={{ height: '100%' }}
           />
         )}
 
