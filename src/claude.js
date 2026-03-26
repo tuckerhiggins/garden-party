@@ -21,9 +21,11 @@ function lsSet(key, val) {
 }
 
 // Low-level call — throws on network/API error
-async function callClaude(systemPrompt, userPrompt, maxTokens = 200, imageBase64 = null, imageMimeType = 'image/jpeg') {
+// Pass imageBase64 (data URL base64) OR imageUrl (public HTTPS URL) for vision calls
+async function callClaude(systemPrompt, userPrompt, maxTokens = 200, imageBase64 = null, imageMimeType = 'image/jpeg', imageUrl = null) {
   const body = { systemPrompt, userPrompt, maxTokens };
   if (imageBase64) { body.imageBase64 = imageBase64; body.imageMimeType = imageMimeType; }
+  else if (imageUrl) { body.imageUrl = imageUrl; }
   const res = await fetch('/api/claude', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -37,7 +39,7 @@ async function callClaude(systemPrompt, userPrompt, maxTokens = 200, imageBase64
 
 // Cached call — returns cached value if fresh, otherwise fetches and caches
 // ttlMs: how long the cache is valid. Default: end of current calendar day
-export async function cachedClaude(cacheKey, systemPrompt, userPrompt, maxTokens = 200, ttlMs = null, imageBase64 = null) {
+export async function cachedClaude(cacheKey, systemPrompt, userPrompt, maxTokens = 200, ttlMs = null, imageBase64 = null, imageUrl = null) {
   const now = Date.now();
   // Default TTL = until midnight tonight
   if (ttlMs === null) {
@@ -48,7 +50,7 @@ export async function cachedClaude(cacheKey, systemPrompt, userPrompt, maxTokens
   const cached = lsGet(cacheKey);
   if (cached && cached.expiresAt > now) return cached.text;
 
-  const text = await callClaude(systemPrompt, userPrompt, maxTokens, imageBase64);
+  const text = await callClaude(systemPrompt, userPrompt, maxTokens, imageBase64, 'image/jpeg', imageUrl);
   lsSet(cacheKey, { text, expiresAt: now + ttlMs });
   return text;
 }
@@ -266,10 +268,11 @@ export async function fetchPlantBriefing(plant, careLog, weather, portraits, all
     (Date.now() - new Date(plantPhotos[0].date).getTime()) < 14 * 86400000
     ? plantPhotos[0]
     : null;
-  // Extract base64 from dataUrl (photos stored as data:image/jpeg;base64,...)
+  // Extract base64 from dataUrl, or fall back to public URL (after Supabase upload swaps dataUrl→url)
   const photoBase64 = recentPhoto?.dataUrl?.startsWith('data:')
     ? recentPhoto.dataUrl.split(',')[1]
     : null;
+  const photoUrl = !photoBase64 && recentPhoto?.url ? recentPhoto.url : null;
   const photoToken = recentPhoto ? new Date(recentPhoto.date).getTime().toString().slice(-8) : 'nophoto';
 
   // v14: cache key includes photo token so briefing refreshes when a new photo arrives
@@ -335,7 +338,7 @@ ${next3 ? `3-day forecast: ${next3}` : ''}
 
 What does this plant need right now?`;
 
-  const raw = await cachedClaude(cacheKey, systemPrompt, userPrompt, 600, 24 * 60 * 60 * 1000, photoBase64);
+  const raw = await cachedClaude(cacheKey, systemPrompt, userPrompt, 600, 24 * 60 * 60 * 1000, photoBase64, photoUrl);
   try {
     const jsonStart = raw.indexOf('{');
     const jsonEnd = raw.lastIndexOf('}');
@@ -764,7 +767,8 @@ export async function fetchMapCondition(plant, photoDataUrls) {
 
   const cacheKey = `mapCond_${plant.id}_${count}`;
   const cached = lsGet(cacheKey);
-  if (cached) return cached;
+  // Return cached result; null sentinel means a previous attempt failed — don't retry
+  if (cached !== null) return cached.failed ? null : cached;
 
   try {
     const res = await fetch('/api/map-condition', {
@@ -773,17 +777,22 @@ export async function fetchMapCondition(plant, photoDataUrls) {
       body: JSON.stringify({
         plantName: plant.name,
         plantType: plant.type,
-        imagesBase64: photoDataUrls.slice(-5), // most recent 5
+        imagesBase64: photoDataUrls.slice(-5), // most recent 5 (URLs or base64)
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      lsSet(cacheKey, { failed: true }); // don't retry until photo count changes
+      return null;
+    }
     const condition = await res.json();
     if (condition && !condition.error) {
       lsSet(cacheKey, condition);
       return condition;
     }
+    lsSet(cacheKey, { failed: true });
     return null;
   } catch {
+    lsSet(cacheKey, { failed: true });
     return null;
   }
 }
