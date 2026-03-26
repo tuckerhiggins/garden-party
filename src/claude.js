@@ -82,13 +82,8 @@ export async function fetchOracle({ weather, plants, careLog, seasonOpen, season
   const agendaToken = agendaItems.slice(0, 6).map(i => `${i.plantId}:${i.actionKey}`).join('|').replace(/\W/g, '').slice(0, 20);
   const cacheKey = `oracle_${todayStr}_p${totalPhotos}_v${portraitCacheToken}_w${weatherToken.slice(0, 12)}_c${todayCareCount}_r${role}_a${agendaToken}`;
 
-  const needsWater = plants.filter(p => {
-    if (!p.actions?.includes('water')) return false;
-    const entries = (careLog[p.id] || []).filter(e => e.action === 'water');
-    if (entries.length === 0) return true;
-    const last = new Date(entries[entries.length - 1].date);
-    return (Date.now() - last.getTime()) / 86400000 > 1;
-  }).map(p => p.name);
+  // Derive from the agenda only — if it's not a task, don't mention it
+  const needsWater = agendaItems.filter(i => i.actionKey === 'water').map(i => i.plantName);
 
   const recentCare = [];
   Object.entries(careLog).forEach(([id, entries]) => {
@@ -142,8 +137,10 @@ Speak directly and usefully. Tell Tucker one specific thing that's true right no
 
 Tone: warm but direct. Like a skilled friend who genuinely knows plants. Not poetic for its own sake. Not yearning. Grounded and specific.
 
-2–3 sentences. Start mid-thought — no greeting.${hasBriefing ? ' A weather event is coming that requires action — lead with the specific care decision Tucker needs to make because of it. Be concrete: skip watering, bring something inside, check ties.' : ' Vary what you foreground: care urgency, something happening underground, a weather note, a timing observation. Don\'t always lead with what needs water.'}
-When the season isn't open yet because of the photo requirement, speak specifically about which plants haven't been seen yet and what it means to document them. Make the photo ritual feel meaningful — not like checking boxes, but like making contact with the garden after winter.`;
+2–3 sentences. Start mid-thought — no greeting.${hasBriefing ? ' A weather event is coming — lead with how it affects the tasks already on the list, or what it means Tucker can skip. Never suggest a care action unless it appears in TODAY\'S TASK QUEUE.' : ' Vary what you foreground: care urgency, something happening underground, a weather note, a timing observation. Don\'t always lead with what needs water.'}
+When the season isn't open yet because of the photo requirement, speak specifically about which plants haven't been seen yet and what it means to document them. Make the photo ritual feel meaningful — not like checking boxes, but like making contact with the garden after winter.
+
+CRITICAL: Only mention care actions (water, neem, prune, fertilize, etc.) that appear in TODAY'S TASK QUEUE. If something isn't listed there, do not suggest it — even if it seems botanically reasonable.`;
 
   const agendaSummary = agendaItems.length > 0
     ? agendaItems.slice(0, 10).map(i => `• ${i.task?.label || i.actionKey} — ${i.plantName}`).join('\n')
@@ -164,7 +161,7 @@ ${needsWater.length > 0 ? `Overdue for water: ${needsWater.join(', ')}.` : 'No p
 ${recentCare.length > 0 ? `Cared for in past 48h: ${recentCare.join(', ')}.` : ''}
 ${weatherEvents.length > 0 ? `\nWEATHER ALERT — next 72 hours:\n${weatherEvents.map(e => `• ${e}`).join('\n')}` : ''}
 ${visualNotes.length > 0 ? `\nRECENT PHOTO OBSERVATIONS:\n${visualNotes.join('\n')}` : ''}
-${agendaSummary ? `\nTODAY'S TASK QUEUE (reference ONLY these, do not invent others):\n${agendaSummary}` : ''}
+${agendaSummary ? `\nTODAY'S TASK QUEUE — only mention actions from this list:\n${agendaSummary}` : '\nNo tasks assigned today — speak about observation, biology, or timing only. Do not suggest any care actions.'}
 ${hasBriefing ? 'Lead with the specific action Tucker needs to take because of the weather event.' : 'Give Tucker one specific, useful observation about what\'s happening right now.'}`;
 
   return cachedClaude(cacheKey, systemPrompt, userPrompt, 280);
