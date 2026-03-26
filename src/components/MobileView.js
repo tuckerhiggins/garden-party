@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { OracleChat } from './OracleChat';
 import { MobileMapProtos } from './MobileMapProtos';
+import { CameraIdentifier } from './CameraIdentifier';
 import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
 import { fetchPlantBriefing, fetchDailyAgenda, fetchJournalEntry, streamGardenChat } from '../claude';
@@ -2644,6 +2645,11 @@ export function MobileView({
   const [completedCount, setCompletedCount] = useState(0); // triggers re-render when item is marked done
   const [openPlantId, setOpenPlantId] = useState(null); // plant to auto-expand on Garden tab
 
+  function handleGoToPlant(plantId) {
+    setOpenPlantId(plantId);
+    setTab('garden');
+  }
+
   function handleMarkDone(item) {
     completedKeysRef.current.add(item.key);
     setCompletedCount(n => n + 1);
@@ -3038,6 +3044,15 @@ export function MobileView({
           onGoToPlant={id => { setOpenPlantId(id); setTab('garden'); }}
         />
       )}
+
+      {/* Tilt-activated plant identifier — active on all tabs */}
+      <CameraIdentifier
+        plants={plants}
+        frontPlants={frontPlants}
+        portraits={portraits}
+        onAddPhoto={onAddPhoto}
+        onGoToPlant={handleGoToPlant}
+      />
 
       {/* Bottom tab bar */}
       <div style={{
