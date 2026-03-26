@@ -40,23 +40,6 @@ function arcPath(cx, cy, r, frac) {
   return `M ${cx} ${cy-r} A ${r} ${r} 0 ${a > Math.PI ? 1 : 0} 1 ${ex} ${ey}`;
 }
 
-// Walk stop definitions — physical garden route
-const WALK_STOPS = [
-  { id:'fence',      label:'The Fence',          emoji:'🌿', plantIds:['wisteria-l','wisteria-r'] },
-  { id:'left-wall',  label:'Left Back Planter',  emoji:'🌹', plantIds:['ev-c23','zephy-l','lavender'] },
-  { id:'right-wall', label:'Right Back Planter', emoji:'🌹', plantIds:['zephy-r','lavender-r','ev-c34'] },
-  { id:'railing',    label:'The Railing',         emoji:'🍂', plantIds:['serviceberry','hydrangea-1','hydrangea-2','hydrangea-3','hydrangea-4','maple','ev-xmas'] },
-  { id:'floor',      label:'Floor Pots',          emoji:'🪴', plantIds:['pot-midcentury','pot-white-1','pot-blue','pot-pink'] },
-  { id:'front',      label:"Emma's Rose Garden",  emoji:'🌹', useFrontPlants:true },
-];
-
-// Journal column groupings
-const JOURNAL_GROUPS = [
-  { id:'fence',   label:'FENCE',     walls:[2] },
-  { id:'back',    label:'BACK WALL', walls:[3,'c23','c34'] },
-  { id:'railing', label:'RAILING',   walls:[4,'c41'] },
-  { id:'floor',   label:'FLOOR',     walls:[1] },
-];
 
 // ─────────────────────────────────────────────────────
 // Shared bottom sheet — slides up from bottom on plant tap
@@ -233,41 +216,32 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
             const wLevel = waterLevels[p.id] ?? 1;
             const pColor = plantColor(p.type);
             const urgent = ['thirsty','overlooked','struggling'].includes(p.health);
-            const arc = p.actions?.includes('water') ? arcPath(cx, cy, 6.5, wLevel) : null;
-            // Abbreviated label: first word, max 5 chars
-            const shortName = p.name.split(' ')[0].slice(0, 5).toUpperCase();
+            const arc = p.actions?.includes('water') ? arcPath(cx, cy, 4.8, wLevel) : null;
 
             return (
               <g key={p.id} onClick={() => setSelectedId(p.id === selectedId ? null : p.id)}
                 style={{ cursor:'pointer' }}>
-                {/* Transparent hit area — generous for fat fingers */}
-                <circle cx={cx} cy={cy} r={10} fill="transparent"/>
+                {/* Transparent hit area */}
+                <circle cx={cx} cy={cy} r={8} fill="transparent"/>
                 {/* Urgency halo */}
-                {urgent && <circle cx={cx} cy={cy} r={7} fill={healthColor(p.health)} opacity={0.15}
+                {urgent && <circle cx={cx} cy={cy} r={5.5} fill={healthColor(p.health)} opacity={0.18}
                   style={{ animation:'gpMapPulse 2s ease-in-out infinite' }}/>}
                 {/* Water arc */}
-                {arc && <path d={arc} fill="none" stroke={healthColor(p.health)} strokeWidth={1.1} strokeLinecap="round" opacity={0.65}/>}
-                {/* Decorative outer ring */}
-                <circle cx={cx} cy={cy} r={4.8} fill="none" stroke={pColor} strokeWidth={0.5} opacity={isSelected ? 0 : 0.32}/>
+                {arc && <path d={arc} fill="none" stroke={healthColor(p.health)} strokeWidth={1.2} strokeLinecap="round" opacity={0.7}/>}
                 {/* Main node */}
-                <circle cx={cx} cy={cy} r={3.4} fill={pColor} opacity={isSelected ? 0 : 0.92}/>
-                {/* Health glyph inside node */}
+                <circle cx={cx} cy={cy} r={3.2} fill={pColor} opacity={isSelected ? 0 : 0.9}/>
+                {/* Health glyph — subtle adornment inside the dot */}
                 {!isSelected && (
-                  <text x={cx} y={cy + 1.1} textAnchor="middle" fontSize={2.6}
-                    fill="rgba(255,255,255,0.65)" fontFamily="sans-serif" style={{ pointerEvents:'none' }}>
+                  <text x={cx} y={cy + 1.1} textAnchor="middle" fontSize={2.5}
+                    fill="rgba(255,255,255,0.60)" fontFamily="sans-serif" style={{ pointerEvents:'none' }}>
                     {healthGlyph(p.health)}
                   </text>
                 )}
-                {/* Name label below */}
-                <text x={cx} y={cy + 9} textAnchor="middle" fontSize={2.4}
-                  fill="rgba(220,200,150,0.50)" fontFamily="monospace" style={{ pointerEvents:'none' }}>
-                  {shortName}
-                </text>
                 {/* Selected state */}
                 {isSelected && (
                   <>
-                    <circle cx={cx} cy={cy} r={3.4} fill="none" stroke={C.uiGold} strokeWidth={0.8}/>
-                    <circle cx={cx} cy={cy} r={6} fill="none" stroke={C.uiGold} strokeWidth={0.5} strokeDasharray="1.8 1.4" opacity={0.65}/>
+                    <circle cx={cx} cy={cy} r={3.2} fill="none" stroke={C.uiGold} strokeWidth={0.8}/>
+                    <circle cx={cx} cy={cy} r={5.5} fill="none" stroke={C.uiGold} strokeWidth={0.5} strokeDasharray="1.8 1.4" opacity={0.6}/>
                   </>
                 )}
               </g>
@@ -312,391 +286,12 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
 }
 
 // ─────────────────────────────────────────────────────
-// PROTOTYPE 2: Field Journal
-// Parchment portrait grid, health via border weight + glyph
+// Main export
 // ─────────────────────────────────────────────────────
-function JournalProto({ plants, frontPlants, careLog, briefings, portraits, onAction }) {
-  const [selectedId, setSelectedId] = useState(null);
-  const allPlants = [...plants, ...frontPlants];
-  const selected = allPlants.find(p => p.id === selectedId) || null;
-  const sheetOpen = selectedId !== null;
-
-  const groupedPlants = useMemo(() => {
-    return JOURNAL_GROUPS.map(g => ({
-      ...g,
-      plants: plants.filter(p => g.walls.includes(p.wall) && p.health !== 'empty' && p.type !== 'empty-pot'),
-    })).filter(g => g.plants.length > 0);
-  }, [plants]);
-
-  const roseHealth = useMemo(() => {
-    const roses = frontPlants.filter(p => p.type === 'rose');
-    if (!roses.length) return null;
-    const allSame = roses.every(r => r.health === roses[0].health);
-    return allSame ? { uniform: true, health: roses[0].health, count: roses.length } : { uniform: false };
-  }, [frontPlants]);
-
-  function borderWeight(h) {
-    return { thriving:2, content:1.5, recovering:1.8, resting:1.2, thirsty:3.5, overlooked:4.5, struggling:5.5, memorial:1, empty:1 }[h] || 2;
-  }
-
-  function PlantCard2({ plant }) {
-    const portrait = portraits?.[plant.id] || {};
-    const briefing = briefings?.[plant.id] || null;
-    const waterLevel = computeWaterLevel(plant, careLog, briefing?.waterDays ? briefing : null);
-    const needsWater = plant.actions?.includes('water');
-    const wColor = waterLevel >= 0.6 ? '#3898d0' : waterLevel >= 0.35 ? '#c8a820' : '#c83020';
-    const hc = healthColor(plant.health);
-    const bw = borderWeight(plant.health);
-
-    return (
-      <div onClick={() => setSelectedId(plant.id)}
-        style={{ width:'calc(50% - 4px)', background:C.cardBg, borderRadius:10, overflow:'hidden',
-          marginBottom:8, cursor:'pointer',
-          border:`${bw}px solid ${hc}`,
-          boxShadow: ['thirsty','overlooked','struggling'].includes(plant.health) ? `0 0 0 3px ${hc}20` : 'none',
-        }}>
-        {/* Portrait */}
-        <div style={{ width:'100%', paddingTop:'75%', position:'relative', background:`${plantColor(plant.type)}08` }}>
-          <div style={{ position:'absolute', inset:0 }}>
-            <PlantPortrait plant={plant} aiSvg={portrait.svg || null}/>
-          </div>
-        </div>
-        {/* Info */}
-        <div style={{ padding:'6px 8px 8px' }}>
-          <div style={{ fontFamily:SERIF, fontSize:12, fontWeight:600, color:'#2a1808',
-            whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-            {plant.name}
-          </div>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:3 }}>
-            <span style={{ fontFamily:MONO, fontSize:7, color:hc }}>{healthGlyph(plant.health)}</span>
-            {needsWater && (
-              <div style={{ display:'flex', alignItems:'center', gap:3, flex:1, marginLeft:6 }}>
-                <span style={{ fontSize:8 }}>💧</span>
-                <div style={{ flex:1, height:3, background:'rgba(0,0,0,0.10)', borderRadius:2, overflow:'hidden' }}>
-                  <div style={{ width:`${Math.round(waterLevel*100)}%`, height:'100%', background:wColor, borderRadius:2 }}/>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+export function MobileMapProtos({ plants, frontPlants, careLog, briefings, portraits, onAction, style }) {
   return (
-    <div style={{ background:C.appBg, minHeight:'100%' }}>
-      {/* Terrace groups */}
-      {groupedPlants.map(group => (
-        <div key={group.id} style={{ padding:'12px 12px 0' }}>
-          <div style={{ fontFamily:MONO, fontSize:6, color:'rgba(212,168,48,0.60)',
-            letterSpacing:.8, marginBottom:8, paddingBottom:6,
-            borderBottom:'1px solid rgba(160,130,80,0.14)' }}>
-            {group.label}
-          </div>
-          <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-            {group.plants.map(p => <PlantCard2 key={p.id} plant={p}/>)}
-          </div>
-        </div>
-      ))}
-
-      {/* Emma's Rose Garden */}
-      {frontPlants.length > 0 && (
-        <div style={{ padding:'16px 12px 0' }}>
-          <div style={{ textAlign:'center', marginBottom:12 }}>
-            <div style={{ height:1, background:'rgba(232,64,112,0.25)', marginBottom:10 }}/>
-            <span style={{ fontFamily:SERIF, fontSize:16, fontStyle:'italic', color:'#e84070' }}>
-              🌹 Emma's Rose Garden
-            </span>
-            {roseHealth?.uniform && (
-              <div style={{ fontFamily:MONO, fontSize:6, color:healthColor(roseHealth.health),
-                marginTop:4, letterSpacing:.3 }}>
-                All {roseHealth.count} roses: {healthGlyph(roseHealth.health)} {roseHealth.health}
-              </div>
-            )}
-            <div style={{ height:1, background:'rgba(232,64,112,0.25)', marginTop:10 }}/>
-          </div>
-          <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-            {frontPlants.filter(p => p.health !== 'empty' && p.type !== 'empty-pot').map(p => (
-              <PlantCard2 key={p.id} plant={p}/>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div style={{ height:24 }}/>
-
-      {/* Backdrop */}
-      {sheetOpen && (
-        <div onClick={() => setSelectedId(null)}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.20)', zIndex:98 }}/>
-      )}
-
-      {/* Bottom sheet */}
-      <div style={{
-        position:'fixed', bottom:0, left:0, right:0,
-        height:'55vh', background:C.cardBg, borderRadius:'14px 14px 0 0',
-        border:`1px solid ${C.cardBorder}`, zIndex:99,
-        transform: sheetOpen ? 'translateY(0)' : 'translateY(100%)',
-        transition:'transform 0.28s cubic-bezier(0.32,0.72,0,1)',
-        overflowY:'auto',
-      }}>
-        {selected && (
-          <PlantSheet plant={selected} careLog={careLog} briefings={briefings}
-            portraits={portraits} onAction={onAction} onClose={() => setSelectedId(null)}/>
-        )}
-      </div>
-    </div>
+    <BlueprintProto plants={plants} frontPlants={frontPlants}
+      careLog={careLog} briefings={briefings} portraits={portraits} onAction={onAction}/>
   );
 }
 
-// ─────────────────────────────────────────────────────
-// PROTOTYPE 3: Garden Walk
-// Numbered route through the garden, stop cards with actions
-// ─────────────────────────────────────────────────────
-function WalkProto({ plants, frontPlants, careLog, briefings, portraits, onAction }) {
-  const [doneStops, setDoneStops]   = useState(new Set());
-  const [selectedId, setSelectedId] = useState(null);
-  const [activeStop, setActiveStop] = useState(0);
-  const stopRefs = useRef([]);
-  const sheetOpen = selectedId !== null;
-  const allPlants = [...plants, ...frontPlants];
-  const selected  = allPlants.find(p => p.id === selectedId) || null;
-
-  // Build resolved stops — map IDs to live plant objects
-  const resolvedStops = useMemo(() => {
-    return WALK_STOPS.map(stop => {
-      const stopPlants = stop.useFrontPlants
-        ? frontPlants.filter(p => p.health !== 'empty' && p.type !== 'empty-pot')
-        : (stop.plantIds || []).map(id => plants.find(p => p.id === id)).filter(Boolean);
-      const urgent = stopPlants.some(p => ['thirsty','overlooked','struggling'].includes(p.health));
-      return { ...stop, plants: stopPlants, urgent };
-    }).filter(s => s.plants.length > 0);
-  }, [plants, frontPlants]);
-
-  const remaining = resolvedStops.length - doneStops.size;
-
-  function markStopDone(stopId, stopPlants) {
-    // Log visit for all plants in this stop
-    stopPlants.forEach(p => {
-      if (p.actions?.includes('visit')) onAction('visit', p);
-    });
-    setDoneStops(prev => new Set([...prev, stopId]));
-  }
-
-  function scrollToStop(idx) {
-    stopRefs.current[idx]?.scrollIntoView({ behavior:'smooth', block:'start' });
-  }
-
-  // IntersectionObserver for active stop tracking
-  useEffect(() => {
-    const obs = new IntersectionObserver(
-      entries => {
-        entries.forEach(e => {
-          if (e.isIntersecting) {
-            const idx = parseInt(e.target.dataset.stopIdx);
-            if (!isNaN(idx)) setActiveStop(idx);
-          }
-        });
-      },
-      { threshold: 0.4, rootMargin:'-44px 0px 0px 0px' }
-    );
-    stopRefs.current.forEach(el => { if (el) obs.observe(el); });
-    return () => obs.disconnect();
-  }, [resolvedStops.length]);
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:C.uiBg }}>
-      {/* Header */}
-      <div style={{ height:44, display:'flex', alignItems:'center', justifyContent:'space-between',
-        padding:'0 14px', borderBottom:`1px solid ${C.uiBorder}`, flexShrink:0 }}>
-        <div>
-          <span style={{ fontFamily:MONO, fontSize:7, color: remaining === 0 ? '#58c030' : C.uiGold }}>
-            {remaining === 0 ? 'WALK COMPLETE ✓' : `TODAY'S WALK · ${remaining} stops`}
-          </span>
-        </div>
-        <button onClick={() => scrollToStop(resolvedStops.findIndex(s => !doneStops.has(s.id)))}
-          style={{ background:'rgba(212,168,48,0.12)', border:`1px solid ${C.uiBorder}`, borderRadius:4,
-            padding:'4px 8px', color:C.uiGold, fontFamily:MONO, fontSize:6, cursor:'pointer' }}>
-          START →
-        </button>
-      </div>
-
-      {/* Overview strip */}
-      <div style={{ flexShrink:0, borderBottom:`1px solid ${C.uiBorder}` }}>
-        <svg viewBox={`0 0 ${Math.max(390, resolvedStops.length * 56)} 56`}
-          style={{ width:'100%', height:56, display:'block' }}>
-          {/* Connecting dotted path */}
-          {resolvedStops.map((s, i) => {
-            if (i === 0) return null;
-            const x1 = 28 + (i-1) * ((390-56) / Math.max(resolvedStops.length-1,1));
-            const x2 = 28 + i     * ((390-56) / Math.max(resolvedStops.length-1,1));
-            return <line key={i} x1={x1} y1={28} x2={x2} y2={28}
-              stroke="rgba(212,168,48,0.28)" strokeWidth={1} strokeDasharray="4 4"/>;
-          })}
-          {/* Stop circles */}
-          {resolvedStops.map((s, i) => {
-            const cx = 28 + i * ((390-56) / Math.max(resolvedStops.length-1,1));
-            const done = doneStops.has(s.id);
-            const isActive = i === activeStop;
-            return (
-              <g key={s.id} onClick={() => scrollToStop(i)} style={{ cursor:'pointer' }}>
-                <circle cx={cx} cy={28} r={12} fill={done ? '#2a4418' : C.uiPane}
-                  stroke={isActive ? C.uiGold : (done ? '#3a6818' : C.uiBorder)} strokeWidth={isActive ? 1.5 : 1}/>
-                {/* Urgency dot */}
-                {s.urgent && !done && <circle cx={cx+8} cy={20} r={3.5} fill="#c83020"/>}
-                {/* Number / check */}
-                <text x={cx} y={32.5} textAnchor="middle" fontFamily={MONO} fontSize={8}
-                  fill={done ? '#58c030' : isActive ? C.uiGold : C.uiMuted}>
-                  {done ? '✓' : i+1}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-
-      {/* Stop list */}
-      <div style={{ flex:1, overflowY:'auto', overscrollBehavior:'contain', padding:'12px 12px 80px' }}>
-        {resolvedStops.map((stop, idx) => {
-          const done = doneStops.has(stop.id);
-          return (
-            <div key={stop.id} ref={el => stopRefs.current[idx] = el} data-stop-idx={idx}
-              style={{ marginBottom:12, borderRadius:10, overflow:'hidden',
-                border:`1px solid ${done ? 'rgba(58,104,24,0.40)' : C.uiBorder}`,
-                background: done ? 'rgba(18,28,10,0.60)' : C.uiPane, opacity: done ? 0.65 : 1,
-              }}>
-              {/* Stop header */}
-              <div style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 14px 10px' }}>
-                <span style={{ fontFamily:SERIF, fontSize:22, color: done ? '#58c030' : C.uiGold,
-                  lineHeight:1, flexShrink:0 }}>
-                  {['①','②','③','④','⑤','⑥','⑦','⑧'][idx] || `${idx+1}`}
-                </span>
-                <div style={{ flex:1 }}>
-                  <span style={{ fontFamily:SERIF, fontSize:15, fontWeight:600, color:C.uiText }}>{stop.label}</span>
-                  <span style={{ fontFamily:SERIF, fontSize:12, color:C.uiMuted, marginLeft:6 }}>{stop.emoji}</span>
-                </div>
-                {done && <span style={{ fontFamily:MONO, fontSize:6, color:'#58c030' }}>DONE ✓</span>}
-                {stop.urgent && !done && <span style={{ fontFamily:MONO, fontSize:6, color:'#c83020' }}>!</span>}
-              </div>
-
-              {/* Plant rows */}
-              {!done && (
-                <div style={{ padding:'0 14px 10px' }}>
-                  {stop.plants.map(p => {
-                    const portrait = portraits?.[p.id] || {};
-                    return (
-                      <div key={p.id} onClick={() => setSelectedId(p.id)}
-                        style={{ display:'flex', alignItems:'center', gap:10, padding:'6px 0',
-                          borderTop:'1px solid rgba(90,60,24,0.20)', cursor:'pointer' }}>
-                        <div style={{ width:28, height:21, borderRadius:3, overflow:'hidden', flexShrink:0,
-                          border:`1px solid ${plantColor(p.type)}30` }}>
-                          <PlantPortrait plant={p} aiSvg={portrait.svg || null}/>
-                        </div>
-                        <span style={{ fontFamily:SERIF, fontSize:13, color:C.uiText, flex:1 }}>{p.name}</span>
-                        <span style={{ fontFamily:MONO, fontSize:8, color:healthColor(p.health) }}>
-                          {healthGlyph(p.health)}
-                        </span>
-                        {(p.actions || []).slice(0,2).map(k => (
-                          <span key={k} style={{ fontSize:13 }}>{ACT_EMOJI[k] || ''}</span>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Mark done button */}
-              {!done && (
-                <button onClick={() => markStopDone(stop.id, stop.plants)}
-                  style={{ width:'100%', padding:'10px', background:'rgba(58,104,24,0.12)',
-                    border:'none', borderTop:`1px solid rgba(58,104,24,0.25)`,
-                    color:'#58c030', fontFamily:MONO, fontSize:6, cursor:'pointer',
-                    letterSpacing:.4 }}>
-                  DONE WITH STOP {idx+1} ✓
-                </button>
-              )}
-            </div>
-          );
-        })}
-
-        {remaining === 0 && (
-          <div style={{ textAlign:'center', padding:'20px 0' }}>
-            <div style={{ fontFamily:SERIF, fontSize:16, fontStyle:'italic', color:C.uiMuted }}>
-              The garden is tended.
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Backdrop */}
-      {sheetOpen && (
-        <div onClick={() => setSelectedId(null)}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.40)', zIndex:98 }}/>
-      )}
-
-      {/* Bottom sheet */}
-      <div style={{
-        position:'fixed', bottom:0, left:0, right:0,
-        height:'52vh', background:C.cardBg, borderRadius:'14px 14px 0 0',
-        border:`1px solid ${C.cardBorder}`, zIndex:99,
-        transform: sheetOpen ? 'translateY(0)' : 'translateY(100%)',
-        transition:'transform 0.28s cubic-bezier(0.32,0.72,0,1)',
-        overflowY:'auto',
-      }}>
-        {selected && (
-          <PlantSheet plant={selected} careLog={careLog} briefings={briefings}
-            portraits={portraits} onAction={onAction} onClose={() => setSelectedId(null)}/>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────
-// Main export — prototype selector + active prototype
-// ─────────────────────────────────────────────────────
-export function MobileMapProtos({ plants, frontPlants, careLog, briefings, portraits, onAction }) {
-  const [proto, setProto] = useState(() => {
-    try { return parseInt(localStorage.getItem('gp_map_proto') || '1'); } catch { return 1; }
-  });
-
-  function pickProto(n) {
-    setProto(n);
-    try { localStorage.setItem('gp_map_proto', String(n)); } catch {}
-  }
-
-  const PROTOS = [
-    { n:1, label:'BLUEPRINT' },
-    { n:2, label:'JOURNAL' },
-    { n:3, label:'WALK' },
-  ];
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-      {/* Prototype selector */}
-      <div style={{ display:'flex', background:C.uiPane, borderBottom:`1px solid ${C.uiBorder}`,
-        flexShrink:0 }}>
-        {PROTOS.map(p => (
-          <button key={p.n} onClick={() => pickProto(p.n)}
-            style={{ flex:1, background:'none', border:'none', padding:'9px 4px',
-              borderBottom: proto === p.n ? `2px solid ${C.uiGold}` : '2px solid transparent',
-              color: proto === p.n ? C.uiGold : C.uiMuted,
-              fontFamily:MONO, fontSize:6, cursor:'pointer', letterSpacing:.4,
-              transition:'all .12s' }}>
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Active prototype */}
-      <div style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
-        {proto === 1 && <BlueprintProto plants={plants} frontPlants={frontPlants}
-          careLog={careLog} briefings={briefings} portraits={portraits} onAction={onAction}/>}
-        {proto === 2 && <JournalProto plants={plants} frontPlants={frontPlants}
-          careLog={careLog} briefings={briefings} portraits={portraits} onAction={onAction}/>}
-        {proto === 3 && <WalkProto plants={plants} frontPlants={frontPlants}
-          careLog={careLog} briefings={briefings} portraits={portraits} onAction={onAction}/>}
-      </div>
-    </div>
-  );
-}
