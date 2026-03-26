@@ -4,6 +4,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { TERRACE_PLANTS, FRONT_PLANTS, ACTION_DEFS, ACTION_HOWTO } from './data/plants';
+import { computeHealth } from './utils/health';
 import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
@@ -21,6 +22,7 @@ import { PlantShopModal } from './components/PlantShopModal';
 import { MapInfoPanel, MapContextPanel, MapCarePanel } from './components/MapInfoPanel';
 import { getPhenologicalStage } from './utils/phenology';
 import { computeAgenda } from './utils/agenda';
+import { localDate } from './utils/dates';
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 640);
@@ -1687,7 +1689,7 @@ function buildJournalDayMap(allPlants, careLog, portraits, allPhotos) {
     if (!plant) return;
     entries.forEach(e => {
       if (!e.date) return;
-      ensure(e.date.slice(0, 10)).careEntries.push({
+      ensure(localDate(e.date)).careEntries.push({
         plantId, plantName: plant.name, label: e.label, action: e.action, withEmma: !!e.withEmma, loggedBy: e.loggedBy || null,
       });
     });
@@ -1697,7 +1699,7 @@ function buildJournalDayMap(allPlants, careLog, portraits, allPhotos) {
     const port = portraits[p.id];
     if (!port) return;
     if (port.visualNote && port.date) {
-      ensure(port.date.slice(0, 10)).portraitObservations.push({
+      ensure(localDate(port.date)).portraitObservations.push({
         plantId: p.id, plantName: p.name,
         visualNote: port.visualNote, bloomState: port.bloomState,
         foliageState: port.foliageState, stage: port.stage || port.currentStage,
@@ -1705,7 +1707,7 @@ function buildJournalDayMap(allPlants, careLog, portraits, allPhotos) {
     }
     (port.history || []).forEach(h => {
       if (!h.visualNote || !h.date) return;
-      const bucket = ensure(h.date.slice(0, 10));
+      const bucket = ensure(localDate(h.date));
       if (!bucket.portraitObservations.some(o => o.plantId === p.id && o.visualNote === h.visualNote)) {
         bucket.portraitObservations.push({
           plantId: p.id, plantName: p.name,
@@ -1718,7 +1720,7 @@ function buildJournalDayMap(allPlants, careLog, portraits, allPhotos) {
 
   Object.entries(allPhotos).forEach(([plantId, photos]) => {
     photos.forEach(ph => {
-      const d = (ph.date || '').slice(0, 10);
+      const d = ph.date ? localDate(ph.date) : '';
       if (d) ensure(d).photos.push({ ...ph, plantId });
     });
   });
@@ -1731,7 +1733,7 @@ function getPlantHistories(plantIds, allPlants, careLog, dateStr) {
     const plant = allPlants.find(p => p.id === pid);
     if (!plant) return null;
     const recentCare = (careLog[pid] || [])
-      .filter(e => e.date && e.date.slice(0, 10) < dateStr)
+      .filter(e => e.date && localDate(e.date) < dateStr)
       .slice(-8)
       .map(e => ({ label: e.label, date: e.date }));
     return { plantName: plant.name, recentCare };
@@ -1739,7 +1741,7 @@ function getPlantHistories(plantIds, allPlants, careLog, dateStr) {
 }
 
 function JournalDay({ dateStr, careEntries, portraitObservations, photos, allPlants, careLog, portraits = {} }) {
-  const isToday = dateStr === new Date().toISOString().slice(0, 10);
+  const isToday = dateStr === localDate();
   const [narrative, setNarrative] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -1871,7 +1873,7 @@ export default function App() {
   const [briefings, setBriefings] = useState({});
   const [briefingRefreshToken, setBriefingRefreshToken] = useState(0);
   const [agendaData, setAgendaData] = useState(null); // { sessionMinutes, tasks } — AI ordering + priorities
-  const _todayStr = new Date().toISOString().slice(0, 10);
+  const _todayStr = localDate();
   const { portraits, updatePortrait } = usePortraits({ user });
   const { allPhotos, addPhoto } = usePhotos({ user });
   const [mapConditions, setMapConditions] = useState({});
@@ -1897,11 +1899,13 @@ export default function App() {
     () => { try { return !!localStorage.getItem('gp_season_opener_dismissed_2026'); } catch { return false; } }
   );
   const weather = useWeather();
-  const frontPlants = useMemo(() => FRONT_PLANTS, []);
+  const frontPlants = useMemo(() =>
+    FRONT_PLANTS.map(p => ({ ...p, health: computeHealth(p, careLog, briefings[p.id] || null) })),
+    [careLog, briefings]);
 
   const terracePlants = useMemo(()=>
-    TERRACE_PLANTS.map(p=>({...p, pos:p.moveable ? (positions[p.id]||p.pos) : p.pos, growth:growth[p.id]??p.growth??0})),
-    [positions, growth]);
+    TERRACE_PLANTS.map(p=>({...p, pos:p.moveable ? (positions[p.id]||p.pos) : p.pos, growth:growth[p.id]??p.growth??0, health: computeHealth(p, careLog, briefings[p.id] || null)})),
+    [positions, growth, careLog, briefings]);
 
   // Custom plants with positions/growth merged from localStorage
   const customPlantsWithState = useMemo(() =>
@@ -1955,8 +1959,8 @@ export default function App() {
 
   // Re-run oracle when today's care count changes so recommendations stay current
   const todayCareCount = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return Object.values(careLog).flat().filter(e => e.date?.slice(0, 10) === today).length;
+    const today = localDate();
+    return Object.values(careLog).flat().filter(e => e.date && localDate(e.date) === today).length;
   }, [careLog]);
 
   // Tracks total rain entries — used to bust briefing cache after auto-rain logging
@@ -1975,7 +1979,7 @@ export default function App() {
         return { name: p.name, count: all.length, lastDate: all[all.length - 1]?.date ?? null };
       });
     const totalPhotos = photoContext.reduce((s, p) => s + p.count, 0);
-    fetchOracle({ weather, plants: allGardenPlants, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits, role })
+    fetchOracle({ weather, plants: allGardenPlants, careLog, seasonOpen, seasonBlocking, plantsNeedingPhotos, photoCount, activePlantCount, photoContext, totalPhotos, portraits, role, agendaItems: sharedAgendaItems })
       .then(setOracle)
       .catch(() => {});
   }, [weather, role, todayCareCount, seasonOpen]);
@@ -2094,7 +2098,7 @@ export default function App() {
 
   // Manual refresh — clears today's cached AI responses and re-fetches everything
   const refreshBriefings = useCallback(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDate();
     try {
       Object.keys(localStorage)
         .filter(k => k.startsWith('gp_claude_') && k.includes(today))
@@ -2198,7 +2202,7 @@ export default function App() {
   const doAction = useCallback(async (key, plant, customLabel, customDate = null) => {
     const def = ACTION_DEFS[key];
     if (!def && key !== 'tend') return;
-    const isWithEmma = role === 'emma';
+    const isWithEmma = false; // Emma doesn't tend the garden — withEmma is never set from auth role
 
     // Notes: parse first — log as detected care actions if found, else as a note
     if (key === 'note' && customLabel) {
@@ -2252,23 +2256,22 @@ export default function App() {
   // Map info panel data — shared agenda minus tasks already completed today
   // Converted to { plant, action, def, task } format for MapCarePanel compatibility
   const attentionItems = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = localDate();
     return pendingAgendaItems
       .filter(item => {
         const entries = careLog[item.plantId] || [];
         if (item.actionKey === 'tend') {
-          return !entries.some(e => e.action === 'tend' && e.label === (item.task?.label || '') && e.date?.startsWith(todayStr));
+          return !entries.some(e => e.action === 'tend' && e.label === (item.task?.label || '') && e.date && localDate(e.date) === todayStr);
         }
-        return !entries.some(e => e.action === item.actionKey && e.date?.startsWith(todayStr));
+        return !entries.some(e => e.action === item.actionKey && e.date && localDate(e.date) === todayStr);
       })
-      .slice(0, 8)
       .map(item => ({
         plant: item.plant,
         action: item.actionKey,
         def: ACTION_DEFS[item.actionKey] || null,
         task: item.task,
       }));
-  }, [sharedAgendaItems, careLog]);
+  }, [pendingAgendaItems, careLog]);
 
   const recentCare = useMemo(() => {
     const all = gardenPlants.terrace.flatMap(p =>

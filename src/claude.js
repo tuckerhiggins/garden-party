@@ -2,6 +2,7 @@
 // Calls /api/claude (Vercel serverless function) — never exposes API key in browser
 
 import { getPhenologicalStage } from './utils/phenology';
+import { localDate } from './utils/dates';
 
 const LS_PREFIX = 'gp_claude_';
 
@@ -52,7 +53,7 @@ export async function cachedClaude(cacheKey, systemPrompt, userPrompt, maxTokens
 
 // ── ORACLE ────────────────────────────────────────────────────────────────
 // Daily garden greeting. Cached until midnight (busted when photo count or weather events change).
-export async function fetchOracle({ weather, plants, careLog, seasonOpen, seasonBlocking, daysUntilSeason, photoContext = [], totalPhotos = 0, portraits = {}, role = 'tucker' }) {
+export async function fetchOracle({ weather, plants, careLog, seasonOpen, seasonBlocking, daysUntilSeason, photoContext = [], totalPhotos = 0, portraits = {}, role = 'tucker', agendaItems = [] }) {
   const today = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
 
   // Find most recent portrait analysis date so cache busts when new photos are analyzed
@@ -75,10 +76,11 @@ export async function fetchOracle({ weather, plants, careLog, seasonOpen, season
     });
   }
   const weatherToken = weatherEvents.length > 0 ? weatherEvents.map(e => e.slice(0, 10)).join('').replace(/\W/g, '') : 'clear';
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localDate();
   const todayCareCount = Object.values(careLog).flat()
-    .filter(e => e.date?.slice(0, 10) === todayStr).length;
-  const cacheKey = `oracle_${todayStr}_p${totalPhotos}_v${portraitCacheToken}_w${weatherToken.slice(0, 12)}_c${todayCareCount}_r${role}`;
+    .filter(e => e.date && localDate(e.date) === todayStr).length;
+  const agendaToken = agendaItems.slice(0, 6).map(i => `${i.plantId}:${i.actionKey}`).join('|').replace(/\W/g, '').slice(0, 20);
+  const cacheKey = `oracle_${todayStr}_p${totalPhotos}_v${portraitCacheToken}_w${weatherToken.slice(0, 12)}_c${todayCareCount}_r${role}_a${agendaToken}`;
 
   const needsWater = plants.filter(p => {
     if (!p.actions?.includes('water')) return false;
@@ -143,6 +145,10 @@ Tone: warm but direct. Like a skilled friend who genuinely knows plants. Not poe
 2–3 sentences. Start mid-thought — no greeting.${hasBriefing ? ' A weather event is coming that requires action — lead with the specific care decision Tucker needs to make because of it. Be concrete: skip watering, bring something inside, check ties.' : ' Vary what you foreground: care urgency, something happening underground, a weather note, a timing observation. Don\'t always lead with what needs water.'}
 When the season isn't open yet because of the photo requirement, speak specifically about which plants haven't been seen yet and what it means to document them. Make the photo ritual feel meaningful — not like checking boxes, but like making contact with the garden after winter.`;
 
+  const agendaSummary = agendaItems.length > 0
+    ? agendaItems.slice(0, 10).map(i => `• ${i.task?.label || i.actionKey} — ${i.plantName}`).join('\n')
+    : null;
+
   const userPrompt = `Today is ${today}. ${isEmma ? 'Emma is checking in on the garden.' : ''}
 ${seasonOpen
   ? `Day ${daysIntoSeason} of season 2. In Brooklyn, late March means soil temps climbing through 45–50°F, roots becoming active, break of dormancy for roses and wisteria.`
@@ -158,9 +164,83 @@ ${needsWater.length > 0 ? `Overdue for water: ${needsWater.join(', ')}.` : 'No p
 ${recentCare.length > 0 ? `Cared for in past 48h: ${recentCare.join(', ')}.` : ''}
 ${weatherEvents.length > 0 ? `\nWEATHER ALERT — next 72 hours:\n${weatherEvents.map(e => `• ${e}`).join('\n')}` : ''}
 ${visualNotes.length > 0 ? `\nRECENT PHOTO OBSERVATIONS:\n${visualNotes.join('\n')}` : ''}
+${agendaSummary ? `\nTODAY'S TASK QUEUE (reference ONLY these, do not invent others):\n${agendaSummary}` : ''}
 ${hasBriefing ? 'Lead with the specific action Tucker needs to take because of the weather event.' : 'Give Tucker one specific, useful observation about what\'s happening right now.'}`;
 
   return cachedClaude(cacheKey, systemPrompt, userPrompt, 280);
+}
+
+// ── ORACLE STARTERS ───────────────────────────────────────────────────────
+// AI-generated suggested questions for the Ask tab — "practical scientist mode".
+// 4 specific, curious, educational questions about what's actually happening
+// in the garden right now. Cached once per day per garden state.
+export async function fetchOracleStarters({ plants = [], careLog = {}, weather = null, portraits = {}, seasonOpen = true }) {
+  const today = localDate();
+
+  // Build a fingerprint for cache busting when garden state changes meaningfully
+  const plantNames = plants.filter(p => p.health !== 'memorial').map(p => p.name).join(',');
+  const weatherToken = weather ? `${Math.round(weather.temp)}` : 'x';
+  const visualNoteCount = plants.filter(p => portraits[p.id]?.visualNote && !portraits[p.id]?.analyzing).length;
+  const cacheKey = `oracle_starters_v1_${today}_${weatherToken}_vn${visualNoteCount}_${plantNames.slice(0, 30).replace(/\W/g, '')}`;
+
+  // Summarize garden for prompt
+  const activePlants = plants.filter(p => p.health !== 'memorial' && p.health !== 'empty');
+  const plantSummaries = activePlants.map(p => {
+    const entries = careLog[p.id] || [];
+    const lastCare = entries.length
+      ? new Date(entries[entries.length - 1].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : 'no recent care';
+    const visualNote = portraits[p.id]?.visualNote && !portraits[p.id]?.analyzing
+      ? ` — visual note: "${portraits[p.id].visualNote}"` : '';
+    const section = p.gardenSection ? ` [${p.gardenSection}]` : '';
+    return `${p.name}${section} (${p.type || 'plant'}, ${p.container || 'container'}, ${p.health || 'unknown'} health, last care ${lastCare})${visualNote}`;
+  });
+
+  const weatherDesc = weather ? `${Math.round(weather.temp)}°F, ${weather.poem || ''}` : 'unknown';
+  const forecast = weather?.forecast?.slice(0, 3).map((d, i) => {
+    const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : 'Day 3';
+    return `${label}: ${d.high}°/${d.low}°F, ${d.label}, ${d.precipChance}% rain`;
+  }).join('; ') ?? '';
+
+  const systemPrompt = `You are a botanist and garden scientist helping Tucker — an enthusiastic beginner gardener — learn deeply about his Brooklyn rooftop garden (Zone 7b, Park Slope, late March, season just opened).
+
+Generate exactly 4 suggested questions for him to ask his garden oracle. These should be "practical scientist mode" questions — specific, curious, educational, and grounded in what is actually happening in this garden right now.
+
+Good questions explain fascinating biological processes, illuminate plant behavior he can observe, reveal something counterintuitive or surprising, or connect what he's doing to underlying science. They should NOT be generic care questions ("what should I water?") — the app already handles that. Instead, make him go "oh wow, I never thought about that" — and then he'll go look at his plants differently.
+
+Examples of the RIGHT kind of question:
+- "What is happening in the wisteria's root system right now that explains its explosive spring push?"
+- "Why does lavender produce that particular grey-green color in late March, and what triggers it?"
+- "What's the biochemical reason neem oil works specifically against soft-bodied insects?"
+- "What are my roses doing underground right now while their canes still look dormant?"
+
+Respond as a JSON array of exactly 4 strings — question text only, no numbering or punctuation at the start. No other text.
+["question 1", "question 2", "question 3", "question 4"]`;
+
+  const userPrompt = `Today: ${today}. Season open: ${seasonOpen}. Weather: ${weatherDesc}.
+${forecast ? `Forecast: ${forecast}` : ''}
+
+Plants in this garden:
+${plantSummaries.join('\n')}
+
+Generate 4 specific, fascinating questions for Tucker to ask the oracle — grounded in what's actually happening in this garden right now. Make them the kind of question a curious plant scientist would ask.`;
+
+  try {
+    const raw = await cachedClaude(cacheKey, systemPrompt, userPrompt, 320);
+    // Parse JSON array
+    const match = raw.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error('no array');
+    const arr = JSON.parse(match[0]);
+    if (!Array.isArray(arr) || arr.length === 0) throw new Error('empty');
+    return arr.slice(0, 4).map(q => String(q).trim()).filter(Boolean);
+  } catch {
+    return [
+      "What's happening in the roots right now that we can't see?",
+      "What does this week's weather mean for what's happening underground?",
+      "What should I know about this time of year that most gardeners miss?",
+      "What's the most surprising thing happening in the garden right now?",
+    ];
+  }
 }
 
 // ── PLANT BRIEFING ────────────────────────────────────────────────────────
@@ -173,14 +253,14 @@ ${hasBriefing ? 'Lead with the specific action Tucker needs to take because of t
 const STANDARD_KEYS = new Set(['water','fertilize','neem','prune','train','repot','worms','photo','visit']);
 
 export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDate();
   const entries = careLog[plant.id] || [];
-  const lastActionDate = entries.length ? entries[entries.length - 1].date.slice(0, 10) : 'none';
+  const lastActionDate = entries.length ? localDate(entries[entries.length - 1].date) : 'none';
   const portrait = portraits?.[plant.id] || {};
   const currentStage = portrait.currentStage || null;
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
   // v12: removed lastActionDate — briefings are now frozen daily (refresh manually if needed)
-  const cacheKey = `plantbrief12_${plant.id}_${plant.health}_${today}_${currentStage || 'ns'}_${rainToken}`;
+  const cacheKey = `plantbrief13_${plant.id}_${plant.health}_${today}_${currentStage || 'ns'}_${rainToken}`;
 
   const lastWater = [...entries].reverse().find(e => e.action === 'water' || e.action === 'rain');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
@@ -209,6 +289,8 @@ Rain rules (non-negotiable):
 Respond as JSON only — no other text:
 {
   "note": "one specific observation about this plant right now, max 20 words",
+  "health": "content",
+  "waterDays": 2.5,
   "tasks": [
     {
       "key": "water",
@@ -219,6 +301,9 @@ Respond as JSON only — no other text:
     }
   ]
 }
+
+health: current health state — one of: thriving / content / recovering / thirsty / overlooked / struggling. Base this on days since last water, care history, visual note if available, and the plant's current growth stage.
+waterDays: how many days this specific plant can realistically go between waterings right now, given its species, container size, current weather, and season. A succulent in a large terracotta pot on a cool day might be 7+. A small-potted climbing rose in 80°F heat might be 1. An in-ground rose in spring might be 4–5. Be specific to this plant's actual situation.
 
 For standard actions use key: water / fertilize / neem / prune / train / repot / worms
 For any novel or custom task use key: tend
@@ -246,14 +331,17 @@ What does this plant need right now?`;
     const tasks = Array.isArray(parsed.tasks)
       ? parsed.tasks.filter(t => t && typeof t.label === 'string')
       : [];
+    const VALID_HEALTH = new Set(['thriving','content','recovering','thirsty','overlooked','struggling']);
     return {
       note: typeof parsed.note === 'string' ? parsed.note : '',
+      health: VALID_HEALTH.has(parsed.health) ? parsed.health : null,
+      waterDays: typeof parsed.waterDays === 'number' && parsed.waterDays > 0 ? parsed.waterDays : null,
       tasks,
       // backward compat — existing components that use briefing.actions still work
       actions: tasks.map(t => t.key).filter(k => STANDARD_KEYS.has(k)),
     };
   } catch {
-    return { note: '', tasks: [], actions: [] };
+    return { note: '', health: null, waterDays: null, tasks: [], actions: [] };
   }
 }
 
@@ -264,7 +352,7 @@ What does this plant need right now?`;
 export async function fetchDailyAgenda({ candidateTasks, weather, careLog, portraits }) {
   if (!candidateTasks?.length) return { sessionMinutes: null, tasks: [] };
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localDate();
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const isWeekend = [0, 6].includes(new Date().getDay());
 
@@ -326,7 +414,7 @@ export async function fetchDailyAgenda({ candidateTasks, weather, careLog, portr
 // One ambient sentence from the garden at the top of the Care tab each day.
 // Proactive — surfaces weather, what needs attention, or a quiet observation.
 export async function fetchMorningBrief({ plants, careLog, weather, portraits, agendaTasks = [] }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDate();
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
   // Invalidate when today's care changes — count of actions logged today
   const todayCareToken = Object.values(careLog).flat()
@@ -392,7 +480,7 @@ One sentence from the garden this morning.`;
 // Structured daily garden briefing — sectioned, practical, scientific.
 // Expanded view behind the one-liner morning brief on the Today tab.
 export async function fetchDailyBrief({ plants, careLog, weather, portraits, agendaTasks = [] }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDate();
   const todayFull = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
   // Invalidate when today's care changes (same pattern as fetchMorningBrief)
@@ -514,7 +602,7 @@ export async function fetchJournalEntry({
 }) {
   if (!careEntries.length && !portraitObservations.length) return null;
 
-  const isToday = dateStr === new Date().toISOString().slice(0, 10);
+  const isToday = dateStr === localDate();
   const careCacheToken = careEntries.length;
   const portraitToken = portraitObservations
     .map(p => (p.visualNote || '').slice(0, 8))
@@ -557,10 +645,11 @@ Rules:
 CARE ACTIONS (journal is written for Tucker — use "you" for Tucker, "Emma" for Emma):
 ${careEntries.length
   ? careEntries.map(e => {
-      const who = e.loggedBy === 'emma' ? 'Emma' : 'you';
-      const actor = (e.loggedBy === 'tucker' || e.loggedBy === 'emma')
-        ? (e.withEmma && e.loggedBy === 'tucker' ? 'you and Emma' : who)
-        : (e.withEmma ? 'you and Emma' : null);
+      // loggedBy is only present for in-session entries (Supabase-loaded entries lose it on reload).
+      // Only say "Emma" or "you and Emma" when loggedBy is explicitly set — never guess from withEmma alone.
+      const actor = e.loggedBy === 'emma' ? 'Emma'
+        : (e.withEmma && e.loggedBy === 'tucker') ? 'you and Emma'
+        : null; // null = journal defaults to "you"
       return `• ${e.plantName}: ${e.label}${actor ? ` [done by: ${actor}]` : ''}`;
     }).join('\n')
   : '(none)'}
@@ -716,7 +805,7 @@ export async function streamGardenChat({ messages, plantContext, action, onChunk
 // a pointed 1–2 sentence description. Cached daily.
 // Returns: { subject: string, observation: string } or null on failure.
 export async function fetchNoticeToday({ plants = [], portraits = {}, weather = null }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDate();
   const dateLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   const lastPortrait = Object.values(portraits)

@@ -7,6 +7,7 @@ import { PlantPortrait } from '../PlantPortraits';
 import { fetchPlantBriefing, fetchDailyAgenda, fetchJournalEntry, streamGardenChat } from '../claude';
 import { compressChatImage } from '../utils/compressChatImage';
 import { actionStatus, extractFutureActionDate, computeAgenda } from '../utils/agenda';
+import { localDate } from '../utils/dates';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO = '"Press Start 2P", monospace';
@@ -1446,7 +1447,7 @@ function computeStreak(plantId, careLog) {
   const days = new Set(
     entries
       .filter(e => !['note', 'visit', 'photo'].includes(e.action))
-      .map(e => e.date?.slice(0, 10))
+      .map(e => e.date ? localDate(e.date) : null)
       .filter(Boolean)
   );
   if (!days.size) return 0;
@@ -1455,7 +1456,7 @@ function computeStreak(plantId, careLog) {
   for (let i = 0; i < 90; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    if (days.has(d.toISOString().slice(0, 10))) { streak++; } else { break; }
+    if (days.has(localDate(d))) { streak++; } else { break; }
   }
   return streak;
 }
@@ -2065,7 +2066,8 @@ function buildMobileDayMap(allPlants, careLog, portraits, allPhotos) {
     const plant = allPlants.find(p => p.id === plantId);
     if (!plant) return;
     entries.forEach(e => {
-      const bucket = ensure(e.date.slice(0, 10));
+      if (!e.date) return;
+      const bucket = ensure(localDate(e.date));
       const entryLabel = e.label || e.action;
       // Skip duplicate entries (same plant + action + label on same day)
       const isDupe = bucket.careEntries.some(
@@ -2083,7 +2085,7 @@ function buildMobileDayMap(allPlants, careLog, portraits, allPhotos) {
     const port = portraits[p.id];
     if (!port) return;
     if (port.visualNote && port.date) {
-      ensure(port.date.slice(0, 10)).portraitObservations.push({
+      ensure(localDate(port.date)).portraitObservations.push({
         plantId: p.id, plantName: p.name,
         visualNote: port.visualNote, bloomState: port.bloomState,
         foliageState: port.foliageState, stage: port.stage || port.currentStage,
@@ -2091,7 +2093,7 @@ function buildMobileDayMap(allPlants, careLog, portraits, allPhotos) {
     }
     (port.history || []).forEach(h => {
       if (!h.visualNote || !h.date) return;
-      const bucket = ensure(h.date.slice(0, 10));
+      const bucket = ensure(localDate(h.date));
       if (!bucket.portraitObservations.some(o => o.plantId === p.id && o.visualNote === h.visualNote)) {
         bucket.portraitObservations.push({
           plantId: p.id, plantName: p.name,
@@ -2104,7 +2106,7 @@ function buildMobileDayMap(allPlants, careLog, portraits, allPhotos) {
 
   Object.entries(allPhotos).forEach(([plantId, photos]) => {
     photos.forEach(ph => {
-      const d = (ph.date || '').slice(0, 10);
+      const d = ph.date ? localDate(ph.date) : '';
       if (d) ensure(d).photos.push({ ...ph, plantId });
     });
   });
@@ -2177,7 +2179,7 @@ function PortraitCarousel({ plantIds, portraits, allPlants }) {
 }
 
 function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, allPlants, careLog, portraits = {} }) {
-  const isToday = dateStr === new Date().toISOString().slice(0, 10);
+  const isToday = dateStr === localDate();
   const [narrative, setNarrative] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -2192,7 +2194,7 @@ function MobileJournalDay({ dateStr, careEntries, portraitObservations, photos, 
       const plant = allPlants.find(p => p.id === pid);
       if (!plant) return null;
       const recentCare = (careLog[pid] || [])
-        .filter(e => e.date.slice(0, 10) < dateStr)
+        .filter(e => e.date && localDate(e.date) < dateStr)
         .slice(-8)
         .map(e => ({ label: e.label, date: e.date }));
       return { plantName: plant.name, recentCare };
@@ -2682,7 +2684,7 @@ export function MobileView({
   const rawAgendaItems = localAgendaItems;
   const agendaIsWeekend = localAgendaIsWeekend;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localDate();
   const allPlantsFlat = useMemo(() => [...plants, ...frontPlants], [plants, frontPlants]);
 
   // Tasks completed today from careLog — persists across page reloads.
@@ -2693,7 +2695,7 @@ export function MobileView({
     const result = [];
     for (const [plantId, entries] of Object.entries(careLog)) {
       for (const entry of entries) {
-        if (!entry.date?.startsWith(todayStr)) continue;
+        if (!entry.date || localDate(entry.date) !== todayStr) continue;
         if (skipActions.has(entry.action)) continue;
         const key = entry.action === 'tend'
           ? `${plantId}:tend:${entry.label || ''}`
@@ -2928,7 +2930,7 @@ export function MobileView({
         {tab === 'today' && (
           <TodayAgenda
             rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
-            agendaData={agendaData} seasonOpen={seasonOpen}
+            agendaData={externalAgendaItems ? null : agendaData} seasonOpen={seasonOpen}
             totalActivePlants={totalActivePlants}
             morningBrief={externalMorningBrief} fullBrief={externalDailyBrief}
             onStartAction={handleStartAction}
@@ -2965,6 +2967,7 @@ export function MobileView({
         {tab === 'ask' && (
           <OracleChat
             plants={[...plants, ...frontPlants]} careLog={careLog} weather={weather}
+            seasonOpen={seasonOpen} portraits={portraits}
             style={{ height: '100%' }}
           />
         )}

@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { fetchJournalEntry } from '../claude';
 import { PlantPortrait } from '../PlantPortraits';
 import { extractFutureActionDate } from '../utils/agenda';
+import { localDate } from '../utils/dates';
 
 const BRIEF_ACTION_COLORS = {
   water: '#4a8ac8', fertilize: '#5a9a40', prune: '#c87030',
@@ -133,13 +134,13 @@ function PanelJournalLog({ careLog, plants, portraits, allPhotos }) {
     Object.entries(careLog).forEach(([plantId, es]) => {
       const plant = plants.find(p => p.id === plantId);
       if (!plant) return;
-      es.forEach(e => ensure(e.date.slice(0,10)).care.push({ plantName: plant.name, label: e.label, action: e.action, withEmma: !!e.withEmma, plantId }));
+      es.forEach(e => { if (e.date) ensure(localDate(e.date)).care.push({ plantName: plant.name, label: e.label, action: e.action, withEmma: !!e.withEmma, plantId }); });
     });
     plants.forEach(p => {
       const port = portraits?.[p.id];
-      if (port?.visualNote && port.date) ensure(port.date.slice(0,10)).obs.push({ plantId: p.id, plantName: p.name, visualNote: port.visualNote, bloomState: port.bloomState, foliageState: port.foliageState, stage: port.currentStage });
-      (port?.history || []).forEach(h => { if (h.visualNote && h.date) { const b = ensure(h.date.slice(0,10)); if (!b.obs.some(o => o.plantId === p.id && o.visualNote === h.visualNote)) b.obs.push({ plantId: p.id, plantName: p.name, visualNote: h.visualNote, bloomState: h.bloomState, foliageState: h.foliageState, stage: h.stage }); }});
-      (allPhotos?.[p.id] || []).forEach(ph => { const d = (ph.date || '').slice(0,10); if (d) ensure(d).photos++; });
+      if (port?.visualNote && port.date) ensure(localDate(port.date)).obs.push({ plantId: p.id, plantName: p.name, visualNote: port.visualNote, bloomState: port.bloomState, foliageState: port.foliageState, stage: port.currentStage });
+      (port?.history || []).forEach(h => { if (h.visualNote && h.date) { const b = ensure(localDate(h.date)); if (!b.obs.some(o => o.plantId === p.id && o.visualNote === h.visualNote)) b.obs.push({ plantId: p.id, plantName: p.name, visualNote: h.visualNote, bloomState: h.bloomState, foliageState: h.foliageState, stage: h.stage }); }});
+      (allPhotos?.[p.id] || []).forEach(ph => { const d = ph.date ? localDate(ph.date) : ''; if (d) ensure(d).photos++; });
     });
     return Object.entries(days).sort(([a],[b]) => b.localeCompare(a)).slice(0, 4);
   }, [careLog, plants, portraits, allPhotos]);
@@ -170,7 +171,7 @@ function PanelJournalLog({ careLog, plants, portraits, allPhotos }) {
       {activeDays.map(([dateStr, day]) => {
         const text = entries[dateStr];
         const label = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        const isToday = dateStr === new Date().toISOString().slice(0,10);
+        const isToday = dateStr === localDate();
         const hasEmma = day.care.some(e => e.withEmma);
         return (
           <div key={dateStr} style={{ marginBottom: 14 }}>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase';
 import { ACTION_DEFS } from '../data/plants';
+import { localDate } from '../utils/dates';
 
 // ── localStorage fallbacks (identical to old App.js behavior) ─────────────
 const LS = {
@@ -38,7 +39,7 @@ function dedupeLog(log) {
     // Walk newest-first so we keep the last (most recent) entry
     const deduped = [...entries].reverse().filter(e => {
       if (!DEDUP_KEYS.has(e.action)) return true;
-      const key = `${e.action}:${e.date?.slice(0, 10)}`;
+      const key = `${e.action}:${e.date ? localDate(e.date) : ''}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -174,10 +175,10 @@ export function useGardenData({ user }) {
     // Silent guard: skip if identical entry (same plant + action + calendar day) already exists
     // Only applies when logging to today (not a past date)
     if (DEDUP_KEYS.has(key) && !customDate) {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = localDate();
       const currentLog = lsLoad(LS.care, {});
       const alreadyLogged = (currentLog[plant.id] || []).some(
-        e => e.action === key && e.date?.slice(0, 10) === todayStr
+        e => e.action === key && e.date && localDate(e.date) === todayStr
       );
       if (alreadyLogged) return 'duplicate';
     }

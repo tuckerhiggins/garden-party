@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { fetchOracleStarters } from '../claude';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO = '"Press Start 2P", monospace';
@@ -63,16 +64,35 @@ function buildGardenContext({ plants, careLog, weather, seasonOpen, seasonBlocki
   };
 }
 
+const FALLBACK_STARTERS = [
+  "What's actually happening out here right now?",
+  'What do I need to know for this week?',
+  'What are the roots doing underground right now?',
+  'What should I actually do today?',
+];
+
 export function OracleChat({ plants, careLog, weather, seasonOpen, seasonBlocking, portraits = {}, style }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
+  const [starters, setStarters] = useState(FALLBACK_STARTERS);
+  const [startersLoading, setStartersLoading] = useState(false);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Fetch AI-generated starters once on mount when we have plant data
+  useEffect(() => {
+    if (!plants?.length) return;
+    setStartersLoading(true);
+    fetchOracleStarters({ plants, careLog, weather, portraits, seasonOpen })
+      .then(qs => { setStarters(qs); setStartersLoading(false); })
+      .catch(() => setStartersLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally once on mount
 
   const send = useCallback(async (text) => {
     if (!text.trim() || streaming) return;
@@ -144,13 +164,6 @@ export function OracleChat({ plants, careLog, weather, seasonOpen, seasonBlockin
     }
   }, [messages, plants, careLog, weather, streaming, portraits]);
 
-  const STARTERS = [
-    "What's actually happening out here right now?",
-    'What do I need to know for this week?',
-    'What are the roots doing underground right now?',
-    'What should I actually do today?',
-  ];
-
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', height: '100%',
@@ -168,7 +181,7 @@ export function OracleChat({ plants, careLog, weather, seasonOpen, seasonBlockin
           ORACLE
         </div>
         <div style={{ fontFamily: SERIF, fontSize: 12, color: 'rgba(240,228,200,0.50)', marginTop: 3 }}>
-          Ask anything about the terrace
+          Ask anything — the terrace, Emma's Rose Garden, all of it
         </div>
       </div>
 
@@ -180,22 +193,32 @@ export function OracleChat({ plants, careLog, weather, seasonOpen, seasonBlockin
               fontFamily: SERIF, fontSize: 14, color: 'rgba(240,228,200,0.45)',
               fontStyle: 'italic', marginBottom: 20, lineHeight: 1.7,
             }}>
-              I know every plant on the terrace. Ask me anything.
+              I know every plant — the terrace and Emma's Rose Garden. Ask me anything.
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {STARTERS.map(s => (
-                <button key={s} onClick={() => send(s)}
-                  style={{
-                    background: 'rgba(212,168,48,0.08)',
-                    border: '1px solid rgba(212,168,48,0.20)',
-                    borderRadius: 8, padding: '9px 14px',
-                    color: 'rgba(212,168,48,0.80)',
-                    fontFamily: SERIF, fontSize: 13, cursor: 'pointer',
-                    textAlign: 'left', transition: 'all .12s',
+              {startersLoading
+                ? (
+                  <div style={{
+                    fontFamily: SERIF, fontSize: 12, color: 'rgba(212,168,48,0.35)',
+                    fontStyle: 'italic', padding: '6px 2px',
                   }}>
-                  {s}
-                </button>
-              ))}
+                    Thinking of questions…
+                  </div>
+                )
+                : starters.map(s => (
+                  <button key={s} onClick={() => send(s)}
+                    style={{
+                      background: 'rgba(212,168,48,0.08)',
+                      border: '1px solid rgba(212,168,48,0.20)',
+                      borderRadius: 8, padding: '9px 14px',
+                      color: 'rgba(212,168,48,0.80)',
+                      fontFamily: SERIF, fontSize: 13, cursor: 'pointer',
+                      textAlign: 'left', transition: 'all .12s',
+                    }}>
+                    {s}
+                  </button>
+                ))
+              }
             </div>
           </div>
         )}

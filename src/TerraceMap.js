@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { ACTION_DEFS } from './data/plants';
 import { PlantPortrait } from './PlantPortraits';
+import { computeWaterLevel, HEALTH_LEVEL } from './utils/health';
 
 // Build portrait history newest-first, deduping current from history
 function buildPortraitHistory(portrait) {
@@ -1059,7 +1060,20 @@ function tokenR(type) {
     ? 28 : 18;
 }
 
-function PlantToken({ plant, isSelected, isHovered, mapCondition = null, isGlowing = false }) {
+// PS5-style bar fill colors
+function healthBarColor(level) {
+  if (level > 0.65) return '#28ff78';
+  if (level > 0.45) return '#ffdd11';
+  if (level > 0.2)  return '#ff8811';
+  return '#ff2244';
+}
+function waterBarColor(level) {
+  if (level > 0.55) return '#22aaff';
+  if (level > 0.3)  return '#ffcc22';
+  return '#ff4411';
+}
+
+function PlantToken({ plant, isSelected, isHovered, mapCondition = null, isGlowing = false, waterLevel = 1 }) {
   const { x, y } = pxy(plant.pos);
   const color = plant.color || '#909080';
   const r = tokenR(plant.type);
@@ -1120,6 +1134,32 @@ function PlantToken({ plant, isSelected, isHovered, mapCondition = null, isGlowi
           {plant.name.length > 11 ? plant.name.slice(0, 10) + '…' : plant.name}
         </text>
       )}
+      {/* ── PS5-style health / water bars ── */}
+      {!isEmpty && plant.health !== 'memorial' && (() => {
+        const BW = 32, BH = 4, GAP = 3;
+        const barY = r + (showLabel ? 22 : 8);
+        const hl = HEALTH_LEVEL[plant.health] ?? 0.5;
+        const hc = healthBarColor(hl);
+        const wc = waterBarColor(waterLevel);
+        const needsWater = plant.actions?.includes('water');
+        return (
+          <g style={{ pointerEvents: 'none' }}>
+            {/* Health bar track + fill */}
+            <rect x={-BW/2} y={barY} width={BW} height={BH} rx={BH/2} fill="rgba(0,0,0,0.65)"/>
+            {hl > 0 && <rect x={-BW/2} y={barY} width={BW * hl} height={BH} rx={BH/2} fill={hc}/>}
+            {/* Highlight line at top of fill for depth */}
+            {hl > 0 && <rect x={-BW/2} y={barY} width={BW * hl} height={1} rx={0.5} fill="rgba(255,255,255,0.30)"/>}
+            {/* Water bar — only for plants that need watering */}
+            {needsWater && (
+              <>
+                <rect x={-BW/2} y={barY + BH + GAP} width={BW} height={BH} rx={BH/2} fill="rgba(0,0,0,0.65)"/>
+                {waterLevel > 0 && <rect x={-BW/2} y={barY + BH + GAP} width={BW * waterLevel} height={BH} rx={BH/2} fill={wc}/>}
+                {waterLevel > 0 && <rect x={-BW/2} y={barY + BH + GAP} width={BW * waterLevel} height={1} rx={0.5} fill="rgba(255,255,255,0.30)"/>}
+              </>
+            )}
+          </g>
+        );
+      })()}
     </g>
   );
 }
@@ -1203,7 +1243,7 @@ function CookieSVG({ pose }) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
-export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0, weather = null, briefings: externalBriefings = {}, mapConditions = {}, glowPlantId = null }) {
+export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0, weather = null, briefings = {}, mapConditions = {}, glowPlantId = null }) {
   const [hovId, setHovId] = useState(null);
   const [pinnedId, setPinnedId] = useState(null);
   const [cookiePetted, setCookiePetted] = useState(false);
@@ -1324,6 +1364,25 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
   const tokens     = plants.filter(p => !INTEGRATED_TYPES.has(p.type) && !WALL4_TYPES.has(p.type) && p.health !== 'memorial');
   const memorials  = plants.filter(p => p.health === 'memorial');
 
+  // Pre-compute water levels for all token plants (avoids re-computing inside render)
+  const waterLevels = useMemo(() => {
+    const map = {};
+    for (const p of tokens) map[p.id] = computeWaterLevel(p, careLog, briefings[p.id] || null);
+    return map;
+  }, [tokens, careLog, briefings]);
+
+  // Garden-wide aggregate metrics for the HUD
+  const { gardenHealth, gardenWater } = useMemo(() => {
+    const active = tokens.filter(p => p.health !== 'empty' && p.health !== 'resting');
+    if (!active.length) return { gardenHealth: 1, gardenWater: 1 };
+    const avgHealth = active.reduce((s, p) => s + (HEALTH_LEVEL[p.health] ?? 0.5), 0) / active.length;
+    const waterPlants = active.filter(p => p.actions?.includes('water'));
+    const avgWater = waterPlants.length
+      ? waterPlants.reduce((s, p) => s + (waterLevels[p.id] ?? 1), 0) / waterPlants.length
+      : 1;
+    return { gardenHealth: avgHealth, gardenWater: avgWater };
+  }, [tokens, waterLevels]);
+
   const brickRows = Math.ceil(BH / 10);
 
   const hovPlant = hovId ? plants.find(p => p.id === hovId) : null;
@@ -1395,6 +1454,12 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
             100% { opacity: 0;    transform: translateY(-22px); }
           }
         `}</style>
+
+        {/* Glow filter for PS5-style health bars */}
+        <filter id="barGlow" x="-30%" y="-80%" width="160%" height="360%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
 
         {/* Warm basketweave deck pattern — 80×80 unit, 4 quadrants */}
         <pattern id="bwDeck" x={DL} y={DT} width={80} height={80} patternUnits="userSpaceOnUse">
@@ -1796,11 +1861,33 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           isSelected={p.id === selectedId}
           isHovered={p.id === hovId}
           mapCondition={mapConditions[p.id] || null}
-          isGlowing={p.id === glowPlantId}/>
+          isGlowing={p.id === glowPlantId}
+          waterLevel={waterLevels[p.id] ?? 1}/>
       ))}
 
       {/* ── Vignette (depth) ── */}
       <rect x={0} y={0} width={VW} height={VH} fill="url(#vignette)" clipPath="url(#deckClip)"/>
+
+      {/* ── Garden HUD — global health + water meters ── */}
+      {(() => {
+        const HX = VW - 148, HY = 6, HW = 140, barW = 90, barH = 4.5, mono = '"SF Mono", "Fira Mono", monospace';
+        const hc = healthBarColor(gardenHealth), wc = waterBarColor(gardenWater);
+        return (
+          <g style={{ pointerEvents: 'none' }}>
+            <rect x={HX - 6} y={HY - 4} width={HW} height={46} rx={4} fill="rgba(0,0,0,0.62)" stroke="rgba(255,255,255,0.07)" strokeWidth={0.8}/>
+            {/* Health row */}
+            <text x={HX} y={HY + 8} fontFamily={mono} fontSize={7} fill="rgba(200,240,200,0.75)" letterSpacing="0.08em">GARDEN HEALTH</text>
+            <rect x={HX} y={HY + 12} width={barW} height={barH} rx={barH/2} fill="rgba(255,255,255,0.10)"/>
+            <rect x={HX} y={HY + 12} width={barW * gardenHealth} height={barH} rx={barH/2} fill={hc} opacity={0.9} filter="url(#barGlow)"/>
+            <text x={HX + barW + 4} y={HY + 17} fontFamily={mono} fontSize={6.5} fill={hc} opacity={0.85}>{Math.round(gardenHealth * 100)}%</text>
+            {/* Water row */}
+            <text x={HX} y={HY + 27} fontFamily={mono} fontSize={7} fill="rgba(180,220,255,0.75)" letterSpacing="0.08em">WATER STATUS</text>
+            <rect x={HX} y={HY + 31} width={barW} height={barH} rx={barH/2} fill="rgba(255,255,255,0.10)"/>
+            <rect x={HX} y={HY + 31} width={barW * gardenWater} height={barH} rx={barH/2} fill={wc} opacity={0.9} filter="url(#barGlow)"/>
+            <text x={HX + barW + 4} y={HY + 36} fontFamily={mono} fontSize={6.5} fill={wc} opacity={0.85}>{Math.round(gardenWater * 100)}%</text>
+          </g>
+        );
+      })()}
 
       {/* ── Cookie — random pose, random spot on couch ── */}
       {(() => {
@@ -1859,7 +1946,8 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
           py = DT + W3_PLANTER_H + 10;
         } else { const pt = pxy(hp.pos); px = pt.x; py = pt.y; }
         const boxW = 192;
-        const boxH = portHistory.length > 0 ? 192 : 110;
+        // Height estimate: base + portrait row + action tags. Overestimate slightly, never clip.
+        const boxH = portHistory.length > 0 ? 155 : 100;
         let bx = px + 20, by = py - boxH - 14;
         if (bx + boxW > VW - 10) bx = px - boxW - 20;
         if (by < DT + 4) by = py + 18;
@@ -1876,8 +1964,7 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
                 width: boxW, fontFamily: '"Crimson Pro", Georgia, serif',
                 background: 'rgba(12,7,3,0.97)', borderRadius: 8,
                 border: `1px solid ${accentColor}38`,
-                boxShadow: '0 3px 14px rgba(0,0,0,0.55)',
-                overflow: 'hidden',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.70)',
               }}>
                 <div style={{ height: 2, background: accentColor, opacity: 0.75 }}/>
                 {/* Portrait + name header */}

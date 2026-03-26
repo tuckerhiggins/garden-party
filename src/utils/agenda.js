@@ -3,6 +3,7 @@
 // Both views call computeAgenda with the same inputs so they always show identical tasks.
 
 import { ACTION_DEFS } from '../data/plants';
+import { localDate } from './dates';
 
 export const AGENDA_SKIP_ACTIONS = new Set(['photo', 'visit', 'note', 'plant']);
 export const AGENDA_URGENT_HEALTH = new Set(['struggling', 'thirsty', 'overlooked']);
@@ -66,7 +67,7 @@ export function computeAgenda({ plants, frontPlants, careLog, briefings, weather
   // Neem only blocked by same-day rain — applying before tomorrow's rain is fine (contact time matters)
   const neemBlockedByRain = rainedToday;
   const hasFrostSoon = weather?.forecast?.slice(0, 2).some(d => d.low <= 35);
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localDate();
   const nowMs = Date.now();
   const items = [];
 
@@ -146,7 +147,7 @@ export function computeAgenda({ plants, frontPlants, careLog, briefings, weather
 
     // Photo-due check: 7+ days without a photo → prompt as care action
     const alreadyPhotoedToday = (careLog[plant.id] || []).some(
-      e => e.action === 'photo' && e.date?.slice(0, 10) === todayStr
+      e => e.action === 'photo' && e.date && localDate(e.date) === todayStr
     );
     if (!alreadyPhotoedToday) {
       const plantPhotos = allPhotos[plant.id] || [];
