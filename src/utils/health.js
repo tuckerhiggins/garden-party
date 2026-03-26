@@ -64,10 +64,20 @@ export function computeHealth(plant, careLog, briefing = null) {
     if (prevGap > drainDays && daysSinceLast < 3) return 'recovering';
   }
 
+  // Manual override: Tucker explicitly set a health state — respect it.
+  // Still allows water-urgency states above to override (thirsty/struggling always win).
+  if (plant.manualHealth) return plant.health;
+
+  // Briefing health is the primary signal when available — it comes from visual photo
+  // analysis + care context, which is more accurate than pure algorithmic thresholds.
+  if (briefing?.health) return briefing.health;
+
+  // Algorithmic fallback (no briefing loaded yet)
   const recentCare = careEntries.filter(
     e => (now - new Date(e.date).getTime()) / 86400000 < 14
   ).length;
-  if (recentCare >= 3) return 'thriving';
+  const wellHydrated = !needsWater || daysSinceWater < drainDays * 0.5;
+  if (recentCare >= 3 && wellHydrated) return 'thriving';
   if (daysSinceCare < 7) return 'content';
 
   return plant.health;

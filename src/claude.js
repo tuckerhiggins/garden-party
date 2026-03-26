@@ -21,11 +21,13 @@ function lsSet(key, val) {
 }
 
 // Low-level call — throws on network/API error
-async function callClaude(systemPrompt, userPrompt, maxTokens = 200) {
+async function callClaude(systemPrompt, userPrompt, maxTokens = 200, imageBase64 = null, imageMimeType = 'image/jpeg') {
+  const body = { systemPrompt, userPrompt, maxTokens };
+  if (imageBase64) { body.imageBase64 = imageBase64; body.imageMimeType = imageMimeType; }
   const res = await fetch('/api/claude', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ systemPrompt, userPrompt, maxTokens }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Claude API ${res.status}`);
   const data = await res.json();
@@ -35,7 +37,7 @@ async function callClaude(systemPrompt, userPrompt, maxTokens = 200) {
 
 // Cached call — returns cached value if fresh, otherwise fetches and caches
 // ttlMs: how long the cache is valid. Default: end of current calendar day
-export async function cachedClaude(cacheKey, systemPrompt, userPrompt, maxTokens = 200, ttlMs = null) {
+export async function cachedClaude(cacheKey, systemPrompt, userPrompt, maxTokens = 200, ttlMs = null, imageBase64 = null) {
   const now = Date.now();
   // Default TTL = until midnight tonight
   if (ttlMs === null) {
@@ -46,7 +48,7 @@ export async function cachedClaude(cacheKey, systemPrompt, userPrompt, maxTokens
   const cached = lsGet(cacheKey);
   if (cached && cached.expiresAt > now) return cached.text;
 
-  const text = await callClaude(systemPrompt, userPrompt, maxTokens);
+  const text = await callClaude(systemPrompt, userPrompt, maxTokens, imageBase64);
   lsSet(cacheKey, { text, expiresAt: now + ttlMs });
   return text;
 }
@@ -249,15 +251,29 @@ Generate 4 specific, fascinating questions for Tucker to ask the oracle — grou
 // Standard action keys — used for backward compat with existing UI components
 const STANDARD_KEYS = new Set(['water','fertilize','neem','prune','train','repot','worms','photo','visit']);
 
-export async function fetchPlantBriefing(plant, careLog, weather, portraits) {
+export async function fetchPlantBriefing(plant, careLog, weather, portraits, allPhotos = {}) {
   const today = localDate();
   const entries = careLog[plant.id] || [];
   const lastActionDate = entries.length ? localDate(entries[entries.length - 1].date) : 'none';
   const portrait = portraits?.[plant.id] || {};
   const currentStage = portrait.currentStage || null;
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
-  // v12: removed lastActionDate — briefings are now frozen daily (refresh manually if needed)
-  const cacheKey = `plantbrief13_${plant.id}_${plant.health}_${today}_${currentStage || 'ns'}_${rainToken}`;
+
+  // Find most recent photo for vision analysis (within last 14 days)
+  const plantPhotos = (allPhotos[plant.id] || []).filter(ph => ph.dataUrl || ph.url);
+  plantPhotos.sort((a, b) => new Date(b.date) - new Date(a.date));
+  const recentPhoto = plantPhotos.length > 0 &&
+    (Date.now() - new Date(plantPhotos[0].date).getTime()) < 14 * 86400000
+    ? plantPhotos[0]
+    : null;
+  // Extract base64 from dataUrl (photos stored as data:image/jpeg;base64,...)
+  const photoBase64 = recentPhoto?.dataUrl?.startsWith('data:')
+    ? recentPhoto.dataUrl.split(',')[1]
+    : null;
+  const photoToken = recentPhoto ? new Date(recentPhoto.date).getTime().toString().slice(-8) : 'nophoto';
+
+  // v14: cache key includes photo token so briefing refreshes when a new photo arrives
+  const cacheKey = `plantbrief14_${plant.id}_${plant.health}_${today}_${currentStage || 'ns'}_${rainToken}_${photoToken}`;
 
   const lastWater = [...entries].reverse().find(e => e.action === 'water' || e.action === 'rain');
   const daysSinceWater = lastWater ? Math.floor((Date.now() - new Date(lastWater.date).getTime()) / 86400000) : null;
@@ -299,7 +315,7 @@ Respond as JSON only — no other text:
   ]
 }
 
-health: current health state — one of: thriving / content / recovering / thirsty / overlooked / struggling. Base this on days since last water, care history, visual note if available, and the plant's current growth stage.
+health: current health state — one of: thriving / content / recovering / thirsty / overlooked / struggling. Base this PRIMARY on the photo if one is provided — what the plant actually looks like is the most important signal. Use care history and watering data as context (e.g., browning + no water → thirsty; browning + over-watered → struggling). If no photo, base on care history and days since water.
 waterDays: how many days this specific plant can realistically go between waterings right now, given its species, container size, current weather, and season. A succulent in a large terracotta pot on a cool day might be 7+. A small-potted climbing rose in 80°F heat might be 1. An in-ground rose in spring might be 4–5. Be specific to this plant's actual situation.
 
 For standard actions use key: water / fertilize / neem / prune / train / repot / worms
@@ -314,12 +330,12 @@ ${plant.container ? `Growing situation: ${plant.container}.` : ''}
 Current stage: ${currentStage || getPhenologicalStage(plant.type)}.
 ${daysSinceWater !== null ? `Last watered ${daysSinceWater} day${daysSinceWater !== 1 ? 's' : ''} ago${lastWaterWasRain ? ' (by rain)' : ''}.` : 'Never watered this season.'}
 ${recentActions ? `Recent care: ${recentActions}.` : 'No care logged this season.'}
-${visualNote ? `Last photo observation: "${visualNote}"` : ''}
+${recentPhoto ? `Photo taken ${Math.floor((Date.now() - new Date(recentPhoto.date).getTime()) / 86400000)} day(s) ago — examine it carefully for leaf color, wilting, new growth, stress signs.` : (visualNote ? `Last photo observation: "${visualNote}"` : '')}
 ${next3 ? `3-day forecast: ${next3}` : ''}
 
 What does this plant need right now?`;
 
-  const raw = await cachedClaude(cacheKey, systemPrompt, userPrompt, 600, 24 * 60 * 60 * 1000);
+  const raw = await cachedClaude(cacheKey, systemPrompt, userPrompt, 600, 24 * 60 * 60 * 1000, photoBase64);
   try {
     const jsonStart = raw.indexOf('{');
     const jsonEnd = raw.lastIndexOf('}');

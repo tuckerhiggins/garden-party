@@ -1243,7 +1243,7 @@ function CookieSVG({ pose }) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
-export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0, weather = null, briefings = {}, mapConditions = {}, glowPlantId = null }) {
+export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onMove, onDescend, onHover, onAction, onPetCookie, seasonOpen, portraits = {}, careLog = {}, warmth = 0, weather = null, briefings = {}, mapConditions = {}, glowPlantId = null }) {
   const [hovId, setHovId] = useState(null);
   const [pinnedId, setPinnedId] = useState(null);
   const [cookiePetted, setCookiePetted] = useState(false);
@@ -1371,17 +1371,23 @@ export function TerraceMap({ plants, selectedId, onSelect, onMove, onDescend, on
     return map;
   }, [tokens, careLog, briefings]);
 
-  // Garden-wide aggregate metrics for the HUD
+  // Garden-wide aggregate metrics for the HUD — includes Emma's Rose Garden (frontPlants)
   const { gardenHealth, gardenWater } = useMemo(() => {
-    const active = tokens.filter(p => p.health !== 'empty' && p.health !== 'resting');
-    if (!active.length) return { gardenHealth: 1, gardenWater: 1 };
-    const avgHealth = active.reduce((s, p) => s + (HEALTH_LEVEL[p.health] ?? 0.5), 0) / active.length;
-    const waterPlants = active.filter(p => p.actions?.includes('water'));
+    const frontActive = frontPlants.filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
+    const allActive = [
+      ...tokens.filter(p => p.health !== 'empty' && p.health !== 'resting'),
+      ...frontActive,
+    ];
+    if (!allActive.length) return { gardenHealth: 1, gardenWater: 1 };
+    const avgHealth = allActive.reduce((s, p) => s + (HEALTH_LEVEL[p.health] ?? 0.5), 0) / allActive.length;
+    const waterPlants = allActive.filter(p => p.actions?.includes('water'));
+    const allWaterLevels = { ...waterLevels };
+    for (const p of frontActive) allWaterLevels[p.id] = computeWaterLevel(p, careLog, briefings[p.id] || null);
     const avgWater = waterPlants.length
-      ? waterPlants.reduce((s, p) => s + (waterLevels[p.id] ?? 1), 0) / waterPlants.length
+      ? waterPlants.reduce((s, p) => s + (allWaterLevels[p.id] ?? 1), 0) / waterPlants.length
       : 1;
     return { gardenHealth: avgHealth, gardenWater: avgWater };
-  }, [tokens, waterLevels]);
+  }, [tokens, waterLevels, frontPlants, careLog, briefings]);
 
   const brickRows = Math.ceil(BH / 10);
 

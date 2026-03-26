@@ -551,16 +551,16 @@ function drawCookieSprite(ctx,cx,cy,f){
 }
 
 
-function PlantBriefing({ plant, careLog, weather, portraits }) {
+function PlantBriefing({ plant, careLog, weather, portraits, photos = [] }) {
   const [briefing, setBriefing] = useState(null);
   useEffect(() => {
     setBriefing(null);
     let isMounted = true;
-    fetchPlantBriefing(plant, careLog, weather, portraits)
+    fetchPlantBriefing(plant, careLog, weather, portraits, { [plant.id]: photos })
       .then(b => { if (isMounted) setBriefing(b); })
       .catch(() => {});
     return () => { isMounted = false; };
-  }, [plant.id, plant.health]);
+  }, [plant.id, plant.health, photos.length]);
   const note = briefing?.note || (typeof briefing === 'string' ? briefing : null);
   if (!note) return null;
   return (
@@ -735,7 +735,7 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait,
             <span style={{fontSize:10,color:color,fontFamily:SERIF,opacity:0.8}}>{history.length}×</span>
           )}
         </div>
-        <PlantBriefing plant={plant} careLog={careLog} weather={null} portraits={portrait ? {[plant.id]: portrait} : {}}/>
+        <PlantBriefing plant={plant} careLog={careLog} weather={null} portraits={portrait ? {[plant.id]: portrait} : {}} photos={photos}/>
       </div>
     </div>
   );
@@ -1875,7 +1875,12 @@ export default function App() {
   const [agendaData, setAgendaData] = useState(null); // { sessionMinutes, tasks } — AI ordering + priorities
   const _todayStr = localDate();
   const { portraits, updatePortrait } = usePortraits({ user });
-  const { allPhotos, addPhoto } = usePhotos({ user });
+  const { allPhotos, addPhoto: _addPhoto } = usePhotos({ user });
+  // When a new photo is added, re-fetch that plant's briefing immediately with the new
+  // photo included so Claude can do a fresh visual health assessment.
+  const addPhoto = useCallback((plantId, dataUrl, date) => {
+    _addPhoto(plantId, dataUrl, date);
+  }, [_addPhoto]);
   const [mapConditions, setMapConditions] = useState({});
   const [glowPlantId, setGlowPlantId] = useState(null);
   const [customPlants, setCustomPlants] = useState(() => {
@@ -2085,7 +2090,7 @@ export default function App() {
       setBriefings(prev => ({ ...prev, [plant.id]: 'loading' }));
       const tid = setTimeout(() => {
         if (cancelled) return;
-        fetchPlantBriefing(plant, careLog, weather, portraits)
+        fetchPlantBriefing(plant, careLog, weather, portraits, allPhotos)
           .then(b => { if (!cancelled) setBriefings(prev => ({ ...prev, [plant.id]: b })); })
           .catch(() => { if (!cancelled) setBriefings(prev => ({ ...prev, [plant.id]: null })); });
       }, i * 600);
@@ -2095,7 +2100,28 @@ export default function App() {
       cancelled = true;
       timeoutIds.forEach(clearTimeout);
     };
-  }, [weather, seasonOpen, briefingRefreshToken]); 
+  }, [weather, seasonOpen, briefingRefreshToken]);
+
+  // When a new photo arrives for a specific plant, re-fetch that plant's briefing
+  // immediately so the visual health assessment reflects the latest photo.
+  const prevPhotoCountsRef = useRef({});
+  useEffect(() => {
+    if (!weather || !seasonOpen) return;
+    const allPlants = [...gardenPlants.terrace, ...frontPlants];
+    for (const plant of allPlants) {
+      const prevCount = prevPhotoCountsRef.current[plant.id] ?? null;
+      const currCount = (allPhotos[plant.id] || []).length;
+      if (prevCount !== null && currCount > prevCount) {
+        // New photo arrived — re-fetch briefing with latest photo
+        const newPhotos = allPhotos[plant.id] || [];
+        setBriefings(prev => ({ ...prev, [plant.id]: 'loading' }));
+        fetchPlantBriefing(plant, careLog, weather, portraits, { [plant.id]: newPhotos })
+          .then(b => setBriefings(prev => ({ ...prev, [plant.id]: b })))
+          .catch(() => setBriefings(prev => ({ ...prev, [plant.id]: null })));
+      }
+      prevPhotoCountsRef.current[plant.id] = currCount;
+    }
+  }, [allPhotos]); // intentionally omits other deps — reads them via closure, fires only on photo count changes
 
   // Manual refresh — clears today's cached AI responses and re-fetches everything
   const refreshBriefings = useCallback(() => {
@@ -2645,6 +2671,7 @@ export default function App() {
                       {mapLayer === 'terrace' ? (
                         <TerraceMap
                           plants={mapPlants}
+                          frontPlants={frontPlants}
                           selectedId={sel?.id}
                           onSelect={p=>{ if(p) setSel(p); else setSel(null); }}
                           onMove={(id,pos)=>movePosition(id,pos)}

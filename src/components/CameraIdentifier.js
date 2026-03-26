@@ -39,7 +39,7 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
   useEffect(() => {
     registerOpen?.(() => startCameraRef.current?.());
     return () => registerOpen?.(null);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // intentionally run once — registerOpen is a stable ref pattern
 
   // ── Cleanup stream on unmount ─────────────────────────────────────────
   useEffect(() => {
