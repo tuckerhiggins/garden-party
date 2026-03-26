@@ -72,12 +72,9 @@ export function computeHealth(plant, careLog, briefing = null) {
   // analysis + care context, which is more accurate than pure algorithmic thresholds.
   if (briefing?.health) return briefing.health;
 
-  // Algorithmic fallback (no briefing loaded yet)
-  const recentCare = careEntries.filter(
-    e => (now - new Date(e.date).getTime()) / 86400000 < 14
-  ).length;
-  const wellHydrated = !needsWater || daysSinceWater < drainDays * 0.5;
-  if (recentCare >= 3 && wellHydrated) return 'thriving';
+  // Algorithmic fallback (no briefing loaded yet).
+  // 'thriving' is never assigned algorithmically — only the briefing can grant it,
+  // since it requires visual confirmation that the plant actually looks good.
   if (daysSinceCare < 7) return 'content';
 
   return plant.health;

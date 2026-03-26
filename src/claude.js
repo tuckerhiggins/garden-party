@@ -82,7 +82,7 @@ export async function fetchOracle({ weather, plants, careLog, seasonOpen, season
   const todayCareCount = Object.values(careLog).flat()
     .filter(e => e.date && localDate(e.date) === todayStr).length;
   const agendaToken = agendaItems.slice(0, 6).map(i => `${i.plantId}:${i.actionKey}`).join('|').replace(/\W/g, '').slice(0, 20);
-  const cacheKey = `oracle_${todayStr}_p${totalPhotos}_v${portraitCacheToken}_w${weatherToken.slice(0, 12)}_c${todayCareCount}_r${role}_a${agendaToken}`;
+  const cacheKey = `oracle2_${todayStr}_p${totalPhotos}_v${portraitCacheToken}_w${weatherToken.slice(0, 12)}_c${todayCareCount}_r${role}_a${agendaToken}`;
 
   // Derive from the agenda only — if it's not a task, don't mention it
   const needsWater = agendaItems.filter(i => i.actionKey === 'water').map(i => i.plantName);
