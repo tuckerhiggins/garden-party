@@ -132,9 +132,14 @@ function PlantSheet({ plant, careLog, briefings, portraits, onAction, onClose })
 function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, onAction }) {
   const [section, setSection] = useState('terrace');
   const [selectedId, setSelectedId] = useState(null);
+  // expandedCluster: [{id, x, y}] — spread positions while picker is open, null otherwise
+  const [expandedCluster, setExpandedCluster] = useState(null);
   const sheetOpen = selectedId !== null;
   const allPlants = section === 'terrace' ? plants : frontPlants;
   const selected   = allPlants.find(p => p.id === selectedId) || null;
+
+  // Collapse cluster when switching sections
+  useEffect(() => { setExpandedCluster(null); }, [section]);
 
   const urgentCount = useMemo(() =>
     plants.filter(p => ['thirsty','overlooked','struggling'].includes(p.health)).length,
@@ -147,12 +152,51 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
   }, [allPlants, careLog, briefings]);
 
   // SVG coordinate helpers — viewBox 0 0 100 72
-  // terrace: pos.x → svgX, pos.y → svgY
   function toSVG(pos) { return { x: 4 + pos.x * 89, y: 4 + pos.y * 62 }; }
-  // front garden: map differently (horizontal garden bed)
   function toFrontSVG(pos) { return { x: 8 + pos.x * 84, y: 12 + pos.y * 48 }; }
+  function getPos(p) { return section === 'terrace' ? toSVG(p.pos) : toFrontSVG(p.pos); }
 
   const activePlants = allPlants.filter(p => p.health !== 'empty' && p.type !== 'empty-pot');
+
+  // Spiderfy: tap a cluster → nodes fan out; tap a spread node → select it
+  function handleNodeTap(p, cx, cy) {
+    if (expandedCluster) {
+      // If this plant is part of the cluster, select it; either way, collapse
+      if (expandedCluster.some(e => e.id === p.id)) {
+        setSelectedId(p.id);
+      }
+      setExpandedCluster(null);
+      return;
+    }
+
+    // Find all plants whose node falls within hit range of this tap point
+    const HIT = 8;
+    const nearby = activePlants.filter(q => {
+      const { x, y } = getPos(q);
+      return Math.hypot(x - cx, y - cy) < HIT;
+    });
+
+    if (nearby.length <= 1) {
+      setSelectedId(prev => prev === p.id ? null : p.id);
+      return;
+    }
+
+    // Multiple plants — spread them radially from their center
+    const avgX = nearby.reduce((s, q) => s + getPos(q).x, 0) / nearby.length;
+    const avgY = nearby.reduce((s, q) => s + getPos(q).y, 0) / nearby.length;
+    const n = nearby.length;
+    const r = Math.min(22, 11 + n * 1.5);
+    // Nudge center inward so spread nodes stay in deck bounds
+    const centerX = Math.max(10 + r, Math.min(90 - r, avgX));
+    const centerY = Math.max(10 + r, Math.min(62 - r, avgY));
+
+    setExpandedCluster(nearby.map((q, i) => {
+      const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+      return { id: q.id, x: centerX + r * Math.cos(angle), y: centerY + r * Math.sin(angle) };
+    }));
+  }
+
+  const clusterOpen = expandedCluster !== null;
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', background:C.uiBg }}>
@@ -179,22 +223,18 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
 
       {/* SVG Map */}
       <div style={{ padding:'12px', flexShrink:0 }}>
-        <svg viewBox="0 0 100 72" style={{ width:'100%', display:'block', touchAction:'none' }}>
+        <svg viewBox="0 0 100 72" style={{ width:'100%', display:'block', touchAction:'none' }}
+          onClick={() => { if (clusterOpen) setExpandedCluster(null); }}>
+
           {/* Deck background */}
           {section === 'terrace' ? (
             <>
               <rect x={0} y={0} width={100} height={72} fill="#0e0b08"/>
-              {/* Wall 2 — fence (left) */}
               <rect x={0} y={0} width={4} height={72} fill="rgba(184,140,60,0.30)"/>
-              {/* Wall 3 — back */}
               <rect x={0} y={0} width={100} height={4} fill="rgba(190,180,140,0.25)"/>
-              {/* Wall 4 — railing (right) */}
               <rect x={93} y={0} width={7} height={72} fill="rgba(60,64,56,0.80)"/>
-              {/* Wall 1 — building (bottom) */}
               <rect x={0} y={66} width={100} height={6} fill="rgba(200,196,160,0.20)"/>
-              {/* Deck interior */}
               <rect x={4} y={4} width={89} height={62} fill="#2a2420"/>
-              {/* Wire hint on fence */}
               {[10,18,26,34,42,50,58,66].map(y => (
                 <line key={y} x1={0} y1={y} x2={4} y2={y} stroke="rgba(210,195,130,0.25)" strokeWidth={0.3}/>
               ))}
@@ -207,59 +247,88 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
             </>
           )}
 
+          {/* Spread connector lines — hair-thin lines from original position to spread node */}
+          {clusterOpen && activePlants.map(p => {
+            const spread = expandedCluster.find(e => e.id === p.id);
+            if (!spread) return null;
+            const { x: cx, y: cy } = getPos(p);
+            return (
+              <line key={`cl-${p.id}`} x1={cx} y1={cy} x2={spread.x} y2={spread.y}
+                stroke="rgba(212,168,48,0.20)" strokeWidth={0.5} strokeDasharray="1.5 1.5"/>
+            );
+          })}
+
           {/* Plant nodes */}
           {activePlants.map(p => {
-            const pos = section === 'terrace' ? toSVG(p.pos) : toFrontSVG(p.pos);
-            const { x: cx, y: cy } = pos;
+            const { x: cx, y: cy } = getPos(p);
+            const spread = expandedCluster?.find(e => e.id === p.id);
+            // Render at spread position when expanded, original otherwise
+            const rx = spread ? spread.x : cx;
+            const ry = spread ? spread.y : cy;
+            const isSpread = !!spread;
             const isSelected = p.id === selectedId;
-            const hLevel = HEALTH_LEVEL[p.health] ?? 0.5;
             const wLevel = waterLevels[p.id] ?? 1;
             const pColor = plantColor(p.type);
             const urgent = ['thirsty','overlooked','struggling'].includes(p.health);
-            const arc = p.actions?.includes('water') ? arcPath(cx, cy, 4.8, wLevel) : null;
+            // Only show arc when not spread (arcs on spread nodes look noisy)
+            const arc = (!isSpread && p.actions?.includes('water')) ? arcPath(rx, ry, 4.8, wLevel) : null;
 
             return (
-              <g key={p.id} onClick={() => setSelectedId(p.id === selectedId ? null : p.id)}
+              <g key={p.id} onClick={e => { e.stopPropagation(); handleNodeTap(p, cx, cy); }}
                 style={{ cursor:'pointer' }}>
-                {/* Transparent hit area */}
-                <circle cx={cx} cy={cy} r={8} fill="transparent"/>
+                {/* Hit area */}
+                <circle cx={rx} cy={ry} r={isSpread ? 9 : 8} fill="transparent"/>
                 {/* Urgency halo */}
-                {urgent && <circle cx={cx} cy={cy} r={5.5} fill={healthColor(p.health)} opacity={0.18}
+                {urgent && !isSpread && <circle cx={rx} cy={ry} r={5.5} fill={healthColor(p.health)} opacity={0.18}
                   style={{ animation:'gpMapPulse 2s ease-in-out infinite' }}/>}
                 {/* Water arc */}
                 {arc && <path d={arc} fill="none" stroke={healthColor(p.health)} strokeWidth={1.2} strokeLinecap="round" opacity={0.7}/>}
                 {/* Main node */}
-                <circle cx={cx} cy={cy} r={3.2} fill={pColor} opacity={isSelected ? 0 : 0.9}/>
-                {/* Health glyph — subtle adornment inside the dot */}
+                <circle cx={rx} cy={ry} r={isSpread ? 4 : 3.2} fill={pColor} opacity={isSelected ? 0 : 0.9}/>
+                {/* Health glyph */}
                 {!isSelected && (
-                  <text x={cx} y={cy + 1.1} textAnchor="middle" fontSize={2.5}
+                  <text x={rx} y={ry + 1.2} textAnchor="middle" fontSize={isSpread ? 3 : 2.5}
                     fill="rgba(255,255,255,0.60)" fontFamily="sans-serif" style={{ pointerEvents:'none' }}>
                     {healthGlyph(p.health)}
+                  </text>
+                )}
+                {/* Name label — only visible when spread so you know what you're tapping */}
+                {isSpread && (
+                  <text x={rx} y={ry + 8.5} textAnchor="middle" fontSize={3}
+                    fill="rgba(240,220,160,0.92)" fontFamily={SERIF} fontStyle="italic"
+                    style={{ pointerEvents:'none' }}>
+                    {p.name.split(' ')[0]}
                   </text>
                 )}
                 {/* Selected state */}
                 {isSelected && (
                   <>
-                    <circle cx={cx} cy={cy} r={3.2} fill="none" stroke={C.uiGold} strokeWidth={0.8}/>
-                    <circle cx={cx} cy={cy} r={5.5} fill="none" stroke={C.uiGold} strokeWidth={0.5} strokeDasharray="1.8 1.4" opacity={0.6}/>
+                    <circle cx={rx} cy={ry} r={3.2} fill="none" stroke={C.uiGold} strokeWidth={0.8}/>
+                    <circle cx={rx} cy={ry} r={5.5} fill="none" stroke={C.uiGold} strokeWidth={0.5} strokeDasharray="1.8 1.4" opacity={0.6}/>
                   </>
                 )}
               </g>
             );
           })}
         </svg>
+
         <div style={{ display:'flex', gap:12, padding:'6px 2px', flexWrap:'wrap' }}>
           {[['◉','Thriving','#58c030'],['◉','Thirsty','#c8a820'],['◉','Struggling','#c83020'],['◌','Water arc','rgba(120,180,220,0.7)']].map(([sym,lbl,clr]) => (
             <span key={lbl} style={{ display:'flex', alignItems:'center', gap:3, fontFamily:MONO, fontSize:5, color:C.uiMuted }}>
               <span style={{ color:clr }}>{sym}</span>{lbl}
             </span>
           ))}
+          {clusterOpen && (
+            <span style={{ fontFamily:MONO, fontSize:5, color:'rgba(212,168,48,0.60)' }}>
+              tap a plant · tap outside to cancel
+            </span>
+          )}
         </div>
       </div>
 
       {/* Bottom sheet backdrop */}
       {sheetOpen && (
-        <div onClick={() => setSelectedId(null)}
+        <div onClick={() => { setSelectedId(null); setExpandedCluster(null); }}
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.20)', zIndex:98 }}/>
       )}
 
