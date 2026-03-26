@@ -91,8 +91,7 @@ export function OracleChat({ plants, careLog, weather, seasonOpen, seasonBlockin
     fetchOracleStarters({ plants, careLog, weather, portraits, seasonOpen })
       .then(qs => { setStarters(qs); setStartersLoading(false); })
       .catch(() => setStartersLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally once on mount
+  }, []); // intentionally once on mount — starters are cached daily anyway
 
   const send = useCallback(async (text) => {
     if (!text.trim() || streaming) return;
