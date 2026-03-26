@@ -4,7 +4,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { TERRACE_PLANTS, FRONT_PLANTS, ACTION_DEFS, ACTION_HOWTO } from './data/plants';
-import { computeHealth } from './utils/health';
+import { computeHealth, computeWaterLevel, HEALTH_LEVEL } from './utils/health';
 import { PlantPortrait } from './PlantPortraits';
 import { TerraceMap } from './TerraceMap';
 import { FrontMap } from './FrontMap';
@@ -582,6 +582,9 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait,
   const hColor = healthColor(plant.health);
   const hasPhoto = photos.length > 0;
   const needsDoc = !seasonOpen && !hasPhoto && plant.health !== 'memorial' && plant.type !== 'empty-pot';
+  const healthLevel = HEALTH_LEVEL[plant.health] ?? 0.5;
+  const waterLevel = computeWaterLevel(plant, careLog, portrait || null);
+  const needsWater = plant.actions?.includes('water');
 
   return (
     <div onClick={() => onSelect(plant)}
@@ -721,6 +724,32 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait,
         )}
         {plant.special === 'xmas' && (
           <div style={{fontSize:10,color:'#806020',marginBottom:6,fontFamily:SERIF}}>🎄 Was the Christmas tree</div>
+        )}
+
+        {/* Health + water bars */}
+        {plant.health !== 'memorial' && plant.type !== 'empty-pot' && (
+          <div style={{marginBottom:8,marginTop:4,display:'flex',flexDirection:'column',gap:4}}>
+            {/* Health bar */}
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{fontSize:9,color:'rgba(160,130,80,0.55)',fontFamily:MONO,width:36,flexShrink:0,letterSpacing:.2}}>HEALTH</span>
+              <div style={{flex:1,height:3,background:'rgba(160,130,80,0.12)',borderRadius:2,overflow:'hidden'}}>
+                <div style={{height:'100%',width:`${healthLevel*100}%`,
+                  background:healthLevel>=0.75?'#58c030':healthLevel>=0.5?'#a8c820':healthLevel>=0.25?'#d4820a':'#c83020',
+                  borderRadius:2,transition:'width .4s'}}/>
+              </div>
+            </div>
+            {/* Water bar */}
+            {needsWater && (
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <span style={{fontSize:9,color:'rgba(160,130,80,0.55)',fontFamily:MONO,width:36,flexShrink:0,letterSpacing:.2}}>WATER</span>
+                <div style={{flex:1,height:3,background:'rgba(160,130,80,0.12)',borderRadius:2,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${waterLevel*100}%`,
+                    background:waterLevel>=0.6?'#4a8ac8':waterLevel>=0.3?'#7aa8d0':'#c87030',
+                    borderRadius:2,transition:'width .4s'}}/>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Footer: last action */}
@@ -2096,13 +2125,11 @@ export default function App() {
             setBriefings(prev => ({ ...prev, [plant.id]: b }));
             // Persist health + waterDays from briefing into portrait so they
             // survive app restarts without re-fetching the AI.
-            if (b && b.health && b.waterDays) {
-              updatePortrait(plant.id, {
-                health: b.health,
-                healthDate: new Date().toISOString(),
-                waterDays: b.waterDays,
-                waterDaysDate: new Date().toISOString(),
-              });
+            if (b && (b.health || b.waterDays)) {
+              const update = {};
+              if (b.health)    { update.health = b.health; update.healthDate = new Date().toISOString(); }
+              if (b.waterDays) { update.waterDays = b.waterDays; update.waterDaysDate = new Date().toISOString(); }
+              updatePortrait(plant.id, update);
             }
           })
           .catch(() => { if (!cancelled) setBriefings(prev => ({ ...prev, [plant.id]: null })); });
@@ -2131,13 +2158,11 @@ export default function App() {
         fetchPlantBriefing(plant, careLog, weather, portraits, { [plant.id]: newPhotos })
           .then(b => {
             setBriefings(prev => ({ ...prev, [plant.id]: b }));
-            if (b && b.health && b.waterDays) {
-              updatePortrait(plant.id, {
-                health: b.health,
-                healthDate: new Date().toISOString(),
-                waterDays: b.waterDays,
-                waterDaysDate: new Date().toISOString(),
-              });
+            if (b && (b.health || b.waterDays)) {
+              const update = {};
+              if (b.health)    { update.health = b.health; update.healthDate = new Date().toISOString(); }
+              if (b.waterDays) { update.waterDays = b.waterDays; update.waterDaysDate = new Date().toISOString(); }
+              updatePortrait(plant.id, update);
             }
           })
           .catch(() => setBriefings(prev => ({ ...prev, [plant.id]: null })));

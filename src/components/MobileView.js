@@ -6,7 +6,7 @@ import { MobileMapProtos } from './MobileMapProtos';
 import { CameraIdentifier } from './CameraIdentifier';
 import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
-import { fetchPlantBriefing, fetchDailyAgenda, fetchJournalEntry, streamGardenChat } from '../claude';
+import { fetchDailyAgenda, fetchJournalEntry, streamGardenChat } from '../claude';
 import { compressChatImage } from '../utils/compressChatImage';
 import { actionStatus, extractFutureActionDate, computeAgenda } from '../utils/agenda';
 import { localDate } from '../utils/dates';
@@ -2632,7 +2632,7 @@ export function MobileView({
   const [tab, setTab] = useState('today');
   const [flash, setFlash] = useState(null);
   const [actionSession, setActionSession] = useState(null); // { plant, actionKey } | null
-  const [briefings, setBriefings] = useState({});
+  const [briefings] = useState({});
   // Guest sign-in state
   const [guestWho, setGuestWho]     = useState(null);
   const [guestPw, setGuestPw]       = useState('');
@@ -2666,34 +2666,8 @@ export function MobileView({
     onTaskDone?.(item.plantId);
   }
 
-  // Version string that changes when any plant's last care action changes
-  const careVersion = useMemo(() =>
-    [...plants, ...frontPlants].map(p => {
-      const e = careLog[p.id] || [];
-      return e.length ? e[e.length - 1].date : '';
-    }).join('|'),
-  [plants, frontPlants, careLog]);
-
-  useEffect(() => {
-    if (!weather) return;
-    let cancelled = false;
-    const timeoutIds = [];
-    [...plants, ...frontPlants]
-      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot')
-      .forEach((p, i) => {
-        const tid = setTimeout(() => {
-          if (cancelled) return;
-          fetchPlantBriefing(p, careLog, weather, portraits)
-            .then(b => { if (!cancelled) setBriefings(prev => ({ ...prev, [p.id]: b })); })
-            .catch(() => {});
-        }, i * 600); // stagger 600ms — avoids Anthropic rate limits
-        timeoutIds.push(tid);
-      });
-    return () => {
-      cancelled = true;
-      timeoutIds.forEach(clearTimeout);
-    };
-  }, [careVersion, weather]); // intentional: portraits/careLog refs change too often
+  // Briefings come from App.js (externalBriefings) — no local fetch needed.
+  // App.js is the single source of truth and includes allPhotos in the cache key.
 
 
   // Total active plants — passed to TodayAgenda for "N plants resting" count
@@ -2970,7 +2944,7 @@ export function MobileView({
         {tab === 'today' && (
           <TodayAgenda
             rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
-            agendaData={externalAgendaItems ? null : agendaData} seasonOpen={seasonOpen}
+            agendaData={agendaData} seasonOpen={seasonOpen}
             totalActivePlants={totalActivePlants}
             morningBrief={externalMorningBrief} fullBrief={externalDailyBrief}
             onStartAction={handleStartAction}
