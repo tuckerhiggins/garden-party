@@ -129,7 +129,7 @@ function PlantSheet({ plant, careLog, briefings, portraits, onAction, onClose })
 // PROTOTYPE 1: Terrace Blueprint
 // Minimal SVG overhead map, dark HUD aesthetic
 // ─────────────────────────────────────────────────────
-function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, onAction }) {
+function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, onAction, onOpenCamera }) {
   const [section, setSection] = useState('terrace');
   const [selectedId, setSelectedId] = useState(null);
   // expandedCluster: [{id, x, y}] — spread positions while picker is open, null otherwise
@@ -214,11 +214,22 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
             <span style={{ fontFamily:MONO, fontSize:6, color:'#58c030' }}>· all clear</span>
           )}
         </div>
-        <button onClick={() => { setSection(s => s === 'terrace' ? 'front' : 'terrace'); setSelectedId(null); }}
-          style={{ background:'rgba(212,168,48,0.12)', border:`1px solid ${C.uiBorder}`, borderRadius:4,
-            padding:'4px 8px', color:C.uiGold, fontFamily:MONO, fontSize:6, cursor:'pointer' }}>
-          {section === 'terrace' ? 'FRONT ▾' : 'TERRACE ▾'}
-        </button>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          {onOpenCamera && (
+            <button onClick={onOpenCamera}
+              title="Identify a plant with your camera"
+              style={{ background:'rgba(212,168,48,0.10)', border:`1px solid rgba(212,168,48,0.22)`,
+                borderRadius:4, padding:'4px 7px', color:C.uiGold, fontSize:13, cursor:'pointer',
+                lineHeight:1, display:'flex', alignItems:'center' }}>
+              📷
+            </button>
+          )}
+          <button onClick={() => { setSection(s => s === 'terrace' ? 'front' : 'terrace'); setSelectedId(null); }}
+            style={{ background:'rgba(212,168,48,0.12)', border:`1px solid ${C.uiBorder}`, borderRadius:4,
+              padding:'4px 8px', color:C.uiGold, fontFamily:MONO, fontSize:6, cursor:'pointer' }}>
+            {section === 'terrace' ? 'FRONT ▾' : 'TERRACE ▾'}
+          </button>
+        </div>
       </div>
 
       {/* SVG Map */}
@@ -357,10 +368,11 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
 // ─────────────────────────────────────────────────────
 // Main export
 // ─────────────────────────────────────────────────────
-export function MobileMapProtos({ plants, frontPlants, careLog, briefings, portraits, onAction, style }) {
+export function MobileMapProtos({ plants, frontPlants, careLog, briefings, portraits, onAction, onOpenCamera, style }) {
   return (
     <BlueprintProto plants={plants} frontPlants={frontPlants}
-      careLog={careLog} briefings={briefings} portraits={portraits} onAction={onAction}/>
+      careLog={careLog} briefings={briefings} portraits={portraits}
+      onAction={onAction} onOpenCamera={onOpenCamera}/>
   );
 }
 

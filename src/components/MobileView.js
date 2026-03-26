@@ -2645,6 +2645,8 @@ export function MobileView({
   const [completedCount, setCompletedCount] = useState(0); // triggers re-render when item is marked done
   const [openPlantId, setOpenPlantId] = useState(null); // plant to auto-expand on Garden tab
 
+  const cameraHandlerRef = useRef(null);
+
   function handleGoToPlant(plantId) {
     setOpenPlantId(plantId);
     setTab('garden');
@@ -3007,6 +3009,7 @@ export function MobileView({
             plants={plants} frontPlants={frontPlants} careLog={careLog}
             briefings={mergedBriefings} portraits={portraits}
             onAction={handleAction}
+            onOpenCamera={() => cameraHandlerRef.current?.()}
             style={{ height: '100%' }}
           />
         )}
@@ -3052,6 +3055,7 @@ export function MobileView({
         portraits={portraits}
         onAddPhoto={onAddPhoto}
         onGoToPlant={handleGoToPlant}
+        registerOpen={fn => { cameraHandlerRef.current = fn; }}
       />
 
       {/* Bottom tab bar */}

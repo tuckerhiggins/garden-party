@@ -1,17 +1,15 @@
-// CameraIdentifier — tilt-activated plant identification
-// Tilt phone forward (beta < 40°) for 800ms → camera opens
-// Take photo → Claude vision identifies plant → confirm → logs photo + navigates
+// CameraIdentifier — landscape-tilt-activated plant identification
+// Trigger: rotate phone to landscape (|gamma| > 65°) for 600ms — like holding a camera
+// Also triggered directly via registerOpen callback (used by Map header button)
 import React, { useState, useRef, useEffect } from 'react';
 import { PlantPortrait } from '../PlantPortraits';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
 const MONO  = '"Press Start 2P", monospace';
 const C = {
-  uiBg: '#120c06', uiPane: '#1c1008', uiBorder: '#5a3c18',
+  uiBg: '#120c06', uiBorder: '#5a3c18',
   uiText: '#f0e4cc', uiMuted: '#a89070', uiGold: '#d4a830',
-  cardBorder: 'rgba(160,130,80,0.18)',
 };
-
 function hColor(h) {
   return { thriving:'#58c030', content:'#88c838', thirsty:'#c8a820',
     overlooked:'#c87020', struggling:'#c83020', resting:'#7898a8',
@@ -20,44 +18,64 @@ function hColor(h) {
 const CONF_LABEL = { high:'✓ Strong match', medium:'~ Possible match', low:'? Uncertain' };
 const CONF_COLOR = { high:'#58c030', medium:'#c8a820', low:'#a89070' };
 
-export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}, onAddPhoto, onGoToPlant }) {
-  const [phase, setPhase] = useState('idle'); // idle | camera | identifying | confirming
-  const [captured, setCaptured] = useState(null); // { dataUrl, base64 }
-  const [matches, setMatches] = useState([]);
-  // iOS 13+ requires explicit permission for DeviceOrientationEvent
+export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}, onAddPhoto, onGoToPlant, registerOpen }) {
+  const [phase, setPhase]       = useState('idle'); // idle|camera|identifying|confirming
+  const [stream, setStream]     = useState(null);   // MediaStream — drives video attachment via effect
+  const [captured, setCaptured] = useState(null);   // { dataUrl, base64 }
+  const [matches, setMatches]   = useState([]);
   const [permState, setPermState] = useState(() =>
     typeof DeviceOrientationEvent?.requestPermission === 'function' ? 'needs-request' : 'granted'
   );
 
-  const videoRef   = useRef(null);
-  const canvasRef  = useRef(null);
-  const streamRef  = useRef(null);
-  const tiltingRef = useRef(false);   // currently in threshold?
-  const timerRef   = useRef(null);    // countdown to open camera
+  const videoRef  = useRef(null);
+  const canvasRef = useRef(null);
+  // Ref-wrapped startCamera so registerOpen can expose a stable reference
+  const startCameraRef = useRef(null);
 
   const allPlants = [...plants, ...frontPlants]
     .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
 
-  // ── Tilt detection ──────────────────────────────────────────────────────
+  // ── Expose startCamera to parent (Map header button) ──────────────────
+  useEffect(() => {
+    registerOpen?.(() => startCameraRef.current?.());
+    return () => registerOpen?.(null);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Attach stream to <video> once both are available ──────────────────
+  useEffect(() => {
+    if (stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [stream, phase]); // re-check after phase change re-mounts the video element
+
+  // ── Cleanup stream when it changes or on unmount ──────────────────────
+  useEffect(() => {
+    return () => { stream?.getTracks().forEach(t => t.stop()); };
+  }, [stream]);
+
+  // ── Tilt detection (landscape rotation: |gamma| > 65°) ────────────────
   useEffect(() => {
     if (permState !== 'granted') return;
 
+    const timerRef   = { current: null };
+    const tiltingRef = { current: false };
+
     function onOrientation(e) {
       if (phase !== 'idle') return;
-      const { beta, gamma } = e;
-      if (beta === null) return;
+      const gamma = e.gamma;
+      if (gamma === null) return;
 
-      // "Pointing the camera at a plant" — phone tipped forward past 40°
-      // Normal upright reading: beta ≈ 80–90. Pointing camera: beta < 40.
-      const isTilted = beta < 40 && Math.abs(gamma || 0) < 65;
+      // Landscape hold: phone rotated sideways like a camera
+      const isLandscape = Math.abs(gamma) > 65;
 
-      if (isTilted && !tiltingRef.current) {
+      if (isLandscape && !tiltingRef.current) {
         tiltingRef.current = true;
         timerRef.current = setTimeout(() => {
           timerRef.current = null;
-          startCamera();
-        }, 800);
-      } else if (!isTilted && tiltingRef.current) {
+          startCameraRef.current?.();
+        }, 600);
+      } else if (!isLandscape && tiltingRef.current) {
         tiltingRef.current = false;
         clearTimeout(timerRef.current);
         timerRef.current = null;
@@ -69,23 +87,9 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
       window.removeEventListener('deviceorientation', onOrientation);
       clearTimeout(timerRef.current);
     };
-  }, [permState, phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [permState, phase]);
 
-  // Attach stream to <video> once camera phase begins
-  useEffect(() => {
-    if (phase === 'camera' && videoRef.current && streamRef.current) {
-      videoRef.current.srcObject = streamRef.current;
-      videoRef.current.play().catch(() => {});
-    }
-  }, [phase]);
-
-  // Cleanup on unmount
-  useEffect(() => () => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    clearTimeout(timerRef.current);
-  }, []);
-
-  // ── Permission (iOS) ────────────────────────────────────────────────────
+  // ── Permission (iOS 13+) ──────────────────────────────────────────────
   async function requestPermission() {
     try {
       const result = await DeviceOrientationEvent.requestPermission();
@@ -95,28 +99,26 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
     }
   }
 
-  // ── Camera ──────────────────────────────────────────────────────────────
+  // ── Camera ────────────────────────────────────────────────────────────
   async function startCamera() {
+    if (phase !== 'idle') return;
     setPhase('camera');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const s = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 } },
         audio: false,
       });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
-      }
-    } catch {
+      setStream(s); // triggers useEffect to attach to <video>
+    } catch (err) {
+      console.warn('Camera error:', err);
       setPhase('idle');
     }
   }
+  // Keep ref in sync so the landscape listener and registerOpen always call latest
+  startCameraRef.current = startCamera;
 
   function close() {
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
-    tiltingRef.current = false;
+    setStream(null); // cleanup effect fires
     setPhase('idle');
     setCaptured(null);
     setMatches([]);
@@ -127,23 +129,20 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    // Resize to max 800px wide before encoding — keeps API payload reasonable
     const scale = Math.min(1, 800 / (video.videoWidth || 800));
     canvas.width  = Math.round((video.videoWidth  || 800) * scale);
     canvas.height = Math.round((video.videoHeight || 600) * scale);
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
+    setStream(null); // stop stream
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-    const base64  = dataUrl.split(',')[1];
-    setCaptured({ dataUrl, base64 });
+    setCaptured({ dataUrl, base64: dataUrl.split(',')[1] });
     setPhase('identifying');
-    identify(base64);
+    identify(dataUrl.split(',')[1]);
   }
 
-  // ── Identification ──────────────────────────────────────────────────────
+  // ── Identification ────────────────────────────────────────────────────
   async function identify(base64) {
     try {
       const plantData = allPlants.map(p => ({
@@ -163,18 +162,16 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
     setPhase('confirming');
   }
 
-  // ── Confirmation ────────────────────────────────────────────────────────
+  // ── Confirm ───────────────────────────────────────────────────────────
   function confirm(match) {
-    if (captured) {
-      onAddPhoto?.(match.plantId, captured.dataUrl, new Date().toISOString());
-    }
+    if (captured) onAddPhoto?.(match.plantId, captured.dataUrl, new Date().toISOString());
     close();
     onGoToPlant?.(match.plantId);
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────
 
-  // iOS needs a tap to enable tilt detection
+  // iOS needs one tap to unlock orientation events
   if (phase === 'idle' && permState === 'needs-request') {
     return (
       <button onClick={requestPermission} style={{
@@ -194,7 +191,7 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
 
   if (phase === 'idle') return null;
 
-  // ── Camera view ─────────────────────────────────────────────────────────
+  // ── Camera view ───────────────────────────────────────────────────────
   if (phase === 'camera') {
     return (
       <div style={{
@@ -208,10 +205,9 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
         {/* Top bar */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0,
-          paddingTop: 'max(16px, env(safe-area-inset-top))',
           padding: 'max(16px, env(safe-area-inset-top)) 16px 12px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: 'linear-gradient(rgba(0,0,0,0.50), transparent)',
+          background: 'linear-gradient(rgba(0,0,0,0.55), transparent)',
         }}>
           <button onClick={close} style={{
             background: 'rgba(0,0,0,0.45)', border: 'none', borderRadius: 18,
@@ -228,23 +224,22 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
         {/* Capture button */}
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
-          paddingBottom: 'max(32px, env(safe-area-inset-bottom))',
+          padding: '20px 0 max(36px, env(safe-area-inset-bottom))',
           background: 'linear-gradient(transparent, rgba(0,0,0,0.55))',
-          display: 'flex', justifyContent: 'center', padding: '20px 0 max(32px, env(safe-area-inset-bottom))',
+          display: 'flex', justifyContent: 'center',
         }}>
           <button onClick={capture} style={{
             width: 72, height: 72, borderRadius: 36,
             background: 'rgba(255,255,255,0.95)',
             border: '4px solid rgba(255,255,255,0.35)',
-            cursor: 'pointer',
-            boxShadow: '0 2px 20px rgba(0,0,0,0.50)',
+            cursor: 'pointer', boxShadow: '0 2px 20px rgba(0,0,0,0.50)',
           }}/>
         </div>
       </div>
     );
   }
 
-  // ── Identifying view ────────────────────────────────────────────────────
+  // ── Identifying view ──────────────────────────────────────────────────
   if (phase === 'identifying') {
     return (
       <div style={{
@@ -259,8 +254,7 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
         )}
         <div style={{ position: 'relative', textAlign: 'center', padding: '0 32px' }}>
           <div style={{ fontFamily: SERIF, fontSize: 22, fontStyle: 'italic',
-            color: 'rgba(240,220,180,0.92)',
-            textShadow: '0 2px 10px rgba(0,0,0,0.80)', marginBottom: 6 }}>
+            color: 'rgba(240,220,180,0.92)', textShadow: '0 2px 10px rgba(0,0,0,0.80)', marginBottom: 6 }}>
             Looking it up…
           </div>
           <div style={{ fontFamily: MONO, fontSize: 6, color: 'rgba(212,168,48,0.55)',
@@ -272,7 +266,7 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
     );
   }
 
-  // ── Confirmation view ───────────────────────────────────────────────────
+  // ── Confirmation view ─────────────────────────────────────────────────
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 200, background: C.uiBg,
@@ -280,7 +274,6 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
     }}>
       {/* Header */}
       <div style={{
-        paddingTop: 'max(16px, env(safe-area-inset-top))',
         padding: 'max(16px, env(safe-area-inset-top)) 16px 12px',
         borderBottom: `1px solid ${C.uiBorder}`, flexShrink: 0,
         display: 'flex', alignItems: 'center', gap: 10,
@@ -302,7 +295,7 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
         </div>
       </div>
 
-      {/* Captured photo thumbnail */}
+      {/* Captured thumbnail */}
       {captured && (
         <div style={{ padding: '10px 14px 0', flexShrink: 0 }}>
           <img src={captured.dataUrl} alt="" style={{
@@ -332,7 +325,6 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
               padding: '12px 0',
               borderTop: i > 0 ? `1px solid rgba(90,60,24,0.22)` : 'none',
             }}>
-              {/* Portrait */}
               <div style={{
                 width: 52, height: 40, borderRadius: 6, overflow: 'hidden', flexShrink: 0,
                 border: `1px solid rgba(160,130,80,0.22)`,
@@ -340,12 +332,9 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
                 {plantObj && <PlantPortrait plant={plantObj} aiSvg={portrait.svg || null}/>}
               </div>
 
-              {/* Plant info */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: SERIF, fontSize: 16, fontWeight: 600,
-                  color: C.uiText, lineHeight: 1.2 }}>
-                  {m.name}
-                </div>
+                  color: C.uiText, lineHeight: 1.2 }}>{m.name}</div>
                 {m.subtitle && (
                   <div style={{ fontFamily: SERIF, fontSize: 11, color: C.uiMuted, marginTop: 1 }}>
                     {m.subtitle}
@@ -361,7 +350,6 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
                 </div>
               </div>
 
-              {/* Confirm button */}
               <button onClick={() => confirm(m)} style={{
                 background: isTopPick ? C.uiGold : 'rgba(212,168,48,0.10)',
                 border: `1px solid ${isTopPick ? C.uiGold : C.uiBorder}`,
