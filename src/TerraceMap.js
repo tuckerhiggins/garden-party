@@ -1875,16 +1875,30 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
       {/* ── Health/water bars for illustrated plants (Wall 3 roses/lavender, wisteria, Wall 4 plants) ── */}
       {(() => {
         const BW = 38, BH2 = 4, GAP = 3;
+        // Wall 3 bar x positions — use planter box geometry so rose+lavender
+        // within the same planter are evenly spaced (pos.x values aren't reliable for this)
+        const WALL3_BAR_X = {
+          'zephy-l':    W3_L_BOX_X + W3_PLANTER_W * 0.28,
+          'lavender':   W3_L_BOX_X + W3_PLANTER_W * 0.60,
+          'lavender-r': W3_R_BOX_X + W3_PLANTER_W * 0.40,
+          'zephy-r':    W3_R_BOX_X + W3_PLANTER_W * 0.72,
+        };
+        const WALL3_BAR_Y = DT + W3_PLANTER_H + 5;
         const illustrated = [
           ...wisteria,
           ...wall3,
           ...plants.filter(p => WALL4_TYPES.has(p.type) && p.health !== 'memorial'),
         ].filter(p => p.health !== 'memorial');
         return illustrated.map(p => {
-          const { x, y } = WALL4_TYPES.has(p.type) ? pxyW4(p.pos) : pxy(p.pos);
-          // Offset bars below the plant illustration center
-          const yOff = WALL4_TYPES.has(p.type) ? 52 : p.type === 'wisteria' ? 30 : 16;
-          const barY = y + yOff;
+          let x, barY;
+          if (WALL3_BAR_X[p.id] !== undefined) {
+            x = WALL3_BAR_X[p.id];
+            barY = WALL3_BAR_Y;
+          } else {
+            const pos = WALL4_TYPES.has(p.type) ? pxyW4(p.pos) : pxy(p.pos);
+            x = pos.x;
+            barY = pos.y + (WALL4_TYPES.has(p.type) ? 52 : 30); // wisteria
+          }
           const hl = HEALTH_LEVEL[p.health] ?? 0.5;
           const hc = healthBarColor(hl);
           const needsWater = p.actions?.includes('water');

@@ -2,7 +2,8 @@
 // A rectangular in-ground bed: 6 DKO roses + 1 magnolia.
 // Same interaction contract as TerraceMap.
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { computeWaterLevel, HEALTH_LEVEL } from './utils/health';
 
 const VW = 820, VH = 854;
 const SERIF = '"Crimson Pro", Georgia, serif';
@@ -439,6 +440,24 @@ export function RoseGardenMap({
     onHover?.(null);
   }, [onHover]);
 
+  const waterLevels = useMemo(() => {
+    const map = {};
+    for (const p of plants) map[p.id] = computeWaterLevel(p, careLog, portraits[p.id] || null, weather);
+    return map;
+  }, [plants, careLog, portraits, weather]);
+
+  function healthBarColor(level) {
+    if (level > 0.65) return '#28ff78';
+    if (level > 0.45) return '#ffdd11';
+    if (level > 0.2)  return '#ff8811';
+    return '#ff2244';
+  }
+  function waterBarColor(level) {
+    if (level > 0.55) return '#22aaff';
+    if (level > 0.3)  return '#ffcc22';
+    return '#ff4411';
+  }
+
   return (
     <svg
       ref={svgRef}
@@ -476,6 +495,33 @@ export function RoseGardenMap({
             mapCondition={mapConditions[plant.id]}
           />
         ))}
+
+      {/* ── Health/water bars for all garden plants ── */}
+      {plants.filter(p => p.health !== 'memorial').map(p => {
+        const { x, y } = pxy(p.pos);
+        const r = p.type === 'magnolia' ? 42 : 22;
+        const BW = p.type === 'magnolia' ? 52 : 38, BH2 = 4, GAP = 3;
+        const barY = y + r + 8;
+        const hl = HEALTH_LEVEL[p.health] ?? 0.5;
+        const hc = healthBarColor(hl);
+        const needsWater = p.actions?.includes('water');
+        const wl = waterLevels[p.id] ?? 1;
+        const wc = waterBarColor(wl);
+        return (
+          <g key={`rbar-${p.id}`} style={{ pointerEvents: 'none' }}>
+            <rect x={x - BW/2} y={barY} width={BW} height={BH2} rx={BH2/2} fill="rgba(0,0,0,0.55)"/>
+            {hl > 0 && <rect x={x - BW/2} y={barY} width={BW * hl} height={BH2} rx={BH2/2} fill={hc}/>}
+            {hl > 0 && <rect x={x - BW/2} y={barY} width={BW * hl} height={1} rx={0.5} fill="rgba(255,255,255,0.22)"/>}
+            {needsWater && (
+              <>
+                <rect x={x - BW/2} y={barY + BH2 + GAP} width={BW} height={BH2} rx={BH2/2} fill="rgba(0,0,0,0.55)"/>
+                {wl > 0 && <rect x={x - BW/2} y={barY + BH2 + GAP} width={BW * wl} height={BH2} rx={BH2/2} fill={wc}/>}
+                {wl > 0 && <rect x={x - BW/2} y={barY + BH2 + GAP} width={BW * wl} height={1} rx={0.5} fill="rgba(255,255,255,0.22)"/>}
+              </>
+            )}
+          </g>
+        );
+      })}
     </svg>
   );
 }
