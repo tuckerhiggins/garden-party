@@ -147,7 +147,7 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
 
   const waterLevels = useMemo(() => {
     const m = {};
-    allPlants.forEach(p => { m[p.id] = computeWaterLevel(p, careLog, briefings?.[p.id]?.waterDays ? briefings[p.id] : null); });
+    allPlants.forEach(p => { m[p.id] = computeWaterLevel(p, careLog, portraits?.[p.id]?.waterDays ? portraits[p.id] : null); });
     return m;
   }, [allPlants, careLog, briefings]);
 

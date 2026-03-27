@@ -1364,12 +1364,13 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
   const tokens     = plants.filter(p => !INTEGRATED_TYPES.has(p.type) && !WALL4_TYPES.has(p.type) && p.health !== 'memorial');
   const memorials  = plants.filter(p => p.health === 'memorial');
 
-  // Pre-compute water levels for all token plants (avoids re-computing inside render)
+  // Pre-compute water levels for all plants (tokens + illustrated)
   const waterLevels = useMemo(() => {
     const map = {};
-    for (const p of tokens) map[p.id] = computeWaterLevel(p, careLog, portraits[p.id] || null, weather);
+    const allNonMemorial = plants.filter(p => p.health !== 'memorial');
+    for (const p of allNonMemorial) map[p.id] = computeWaterLevel(p, careLog, portraits[p.id] || null, weather);
     return map;
-  }, [tokens, careLog, portraits, weather]);
+  }, [plants, careLog, portraits, weather]);
 
   // Garden-wide aggregate metrics for the HUD — includes Emma's Rose Garden (frontPlants)
   const { gardenHealth, gardenWater } = useMemo(() => {
@@ -1870,6 +1871,41 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
           isGlowing={p.id === glowPlantId}
           waterLevel={waterLevels[p.id] ?? 1}/>
       ))}
+
+      {/* ── Health/water bars for illustrated plants (Wall 3 roses/lavender, wisteria, Wall 4 plants) ── */}
+      {(() => {
+        const BW = 38, BH2 = 4, GAP = 3;
+        const illustrated = [
+          ...wisteria,
+          ...wall3,
+          ...plants.filter(p => WALL4_TYPES.has(p.type) && p.health !== 'memorial'),
+        ].filter(p => p.health !== 'memorial');
+        return illustrated.map(p => {
+          const { x, y } = WALL4_TYPES.has(p.type) ? pxyW4(p.pos) : pxy(p.pos);
+          // Offset bars below the plant illustration center
+          const yOff = WALL4_TYPES.has(p.type) ? 52 : p.type === 'wisteria' ? 30 : 16;
+          const barY = y + yOff;
+          const hl = HEALTH_LEVEL[p.health] ?? 0.5;
+          const hc = healthBarColor(hl);
+          const needsWater = p.actions?.includes('water');
+          const wl = waterLevels[p.id] ?? 1;
+          const wc = waterBarColor(wl);
+          return (
+            <g key={`ibar-${p.id}`} style={{ pointerEvents: 'none' }}>
+              <rect x={x - BW/2} y={barY} width={BW} height={BH2} rx={BH2/2} fill="rgba(0,0,0,0.55)"/>
+              {hl > 0 && <rect x={x - BW/2} y={barY} width={BW * hl} height={BH2} rx={BH2/2} fill={hc}/>}
+              {hl > 0 && <rect x={x - BW/2} y={barY} width={BW * hl} height={1} rx={0.5} fill="rgba(255,255,255,0.22)"/>}
+              {needsWater && (
+                <>
+                  <rect x={x - BW/2} y={barY + BH2 + GAP} width={BW} height={BH2} rx={BH2/2} fill="rgba(0,0,0,0.55)"/>
+                  {wl > 0 && <rect x={x - BW/2} y={barY + BH2 + GAP} width={BW * wl} height={BH2} rx={BH2/2} fill={wc}/>}
+                  {wl > 0 && <rect x={x - BW/2} y={barY + BH2 + GAP} width={BW * wl} height={1} rx={0.5} fill="rgba(255,255,255,0.22)"/>}
+                </>
+              )}
+            </g>
+          );
+        });
+      })()}
 
       {/* ── Vignette (depth) ── */}
       <rect x={0} y={0} width={VW} height={VH} fill="url(#vignette)" clipPath="url(#deckClip)"/>
