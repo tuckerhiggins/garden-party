@@ -3,7 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { ACTION_DEFS } from './data/plants';
 import { PlantPortrait } from './PlantPortraits';
-import { computeWaterLevel, HEALTH_LEVEL } from './utils/health';
+import { computeWaterLevel, computeHealth, HEALTH_LEVEL } from './utils/health';
 
 // Build portrait history newest-first, deduping current from history
 function buildPortraitHistory(portrait) {
@@ -1079,7 +1079,7 @@ function waterBarColor(level) {
   return '#ff4411';
 }
 
-function PlantToken({ plant, isSelected, isHovered, mapCondition = null, isGlowing = false, waterLevel = 1 }) {
+function PlantToken({ plant, isSelected, isHovered, mapCondition = null, isGlowing = false, waterLevel = 1, healthLevel = 0.5 }) {
   const { x, y } = pxy(plant.pos);
   const color = plant.color || '#909080';
   const r = tokenR(plant.type);
@@ -1144,7 +1144,7 @@ function PlantToken({ plant, isSelected, isHovered, mapCondition = null, isGlowi
       {!isEmpty && plant.health !== 'memorial' && (() => {
         const BW = 32, BH = 4, GAP = 3;
         const barY = r + (showLabel ? 22 : 8);
-        const hl = HEALTH_LEVEL[plant.health] ?? 0.5;
+        const hl = healthLevel;
         const hc = healthBarColor(hl);
         const wc = waterBarColor(waterLevel);
         const needsWater = plant.actions?.includes('water');
@@ -1461,6 +1461,14 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
     return map;
   }, [plants, careLog, portraits, weather]);
 
+  // Pre-compute health levels using computeHealth (not static plant.health)
+  const healthLevels = useMemo(() => {
+    const map = {};
+    const allNonMemorial = plants.filter(p => p.health !== 'memorial');
+    for (const p of allNonMemorial) map[p.id] = HEALTH_LEVEL[computeHealth(p, careLog, portraits[p.id] || null, weather)] ?? 0.5;
+    return map;
+  }, [plants, careLog, portraits, weather]);
+
   // Garden-wide aggregate metrics for the HUD — includes Emma's Rose Garden (frontPlants)
   const { gardenHealth, gardenWater } = useMemo(() => {
     const frontActive = frontPlants.filter(p => p.health !== 'memorial' && p.type !== 'empty-pot');
@@ -1469,7 +1477,7 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
       ...frontActive,
     ];
     if (!allActive.length) return { gardenHealth: 1, gardenWater: 1 };
-    const avgHealth = allActive.reduce((s, p) => s + (HEALTH_LEVEL[p.health] ?? 0.5), 0) / allActive.length;
+    const avgHealth = allActive.reduce((s, p) => s + (HEALTH_LEVEL[computeHealth(p, careLog, portraits[p.id] || null, weather)] ?? 0.5), 0) / allActive.length;
     const waterPlants = allActive.filter(p => p.actions?.includes('water'));
     const allWaterLevels = { ...waterLevels };
     for (const p of frontActive) allWaterLevels[p.id] = computeWaterLevel(p, careLog, portraits[p.id] || null, weather);
@@ -1477,7 +1485,7 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
       ? waterPlants.reduce((s, p) => s + (allWaterLevels[p.id] ?? 1), 0) / waterPlants.length
       : 1;
     return { gardenHealth: avgHealth, gardenWater: avgWater };
-  }, [tokens, waterLevels, frontPlants, careLog, briefings]);
+  }, [tokens, waterLevels, frontPlants, careLog, portraits, weather]);
 
   const brickRows = Math.ceil(BH / 10);
 
@@ -1958,7 +1966,8 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
           isHovered={p.id === hovId}
           mapCondition={mapConditions[p.id] || null}
           isGlowing={p.id === glowPlantId}
-          waterLevel={waterLevels[p.id] ?? 1}/>
+          waterLevel={waterLevels[p.id] ?? 1}
+          healthLevel={healthLevels[p.id] ?? 0.5}/>
       ))}
 
       {/* ── Health/water bars for illustrated plants (Wall 3 roses/lavender, wisteria, Wall 4 plants) ── */}
@@ -1988,7 +1997,7 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
             x = pos.x;
             barY = pos.y + (WALL4_TYPES.has(p.type) ? 52 : 30); // wisteria
           }
-          const hl = HEALTH_LEVEL[p.health] ?? 0.5;
+          const hl = healthLevels[p.id] ?? 0.5;
           const hc = healthBarColor(hl);
           const needsWater = p.actions?.includes('water');
           const wl = waterLevels[p.id] ?? 1;
