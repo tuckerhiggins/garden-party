@@ -21,7 +21,7 @@ import { compressChatImage } from './utils/compressChatImage';
 import { PlantShopModal } from './components/PlantShopModal';
 import { MapInfoPanel, MapContextPanel, MapCarePanel } from './components/MapInfoPanel';
 import { getPhenologicalStage } from './utils/phenology';
-import { computeAgenda } from './utils/agenda';
+import { computeAgenda, extractFutureActionDate } from './utils/agenda';
 import { localDate } from './utils/dates';
 
 function useIsMobile() {
@@ -2094,6 +2094,27 @@ export default function App() {
     return ordered;
   }, [sharedAgendaItems, agendaData]);
 
+  // agendaSections — single source of truth for the task lists shown in BOTH
+  // the desktop Maps panel and the mobile Today tab. Computed once here so both
+  // panels render the literal same arrays — no re-derivation in child components.
+  const agendaSections = useMemo(() => {
+    const todayStr = localDate();
+    function isDoneToday(item) {
+      const entries = careLog[item.plantId] || [];
+      if (item.actionKey === 'tend') return entries.some(e => e.action === 'tend' && e.label === (item.task?.label || '') && e.date && localDate(e.date) === todayStr);
+      return entries.some(e => e.action === item.actionKey && e.date && localDate(e.date) === todayStr);
+    }
+    const essentialAll = pendingAgendaItems
+      .filter(i => (i.priority === 'urgent' || i.priority === 'recommended') && !extractFutureActionDate(i.task?.instructions))
+      .slice(0, 6);
+    const essentialTotal = essentialAll.length;
+    const essentialDone  = essentialAll.filter(i => isDoneToday(i)).length;
+    const notDone        = pendingAgendaItems.filter(i => !isDoneToday(i));
+    const todayItems     = notDone.filter(i => (i.priority === 'urgent' || i.priority === 'recommended') && !extractFutureActionDate(i.task?.instructions)).slice(0, 6);
+    const optItems       = notDone.filter(i => i.priority === 'optional').slice(0, 5);
+    return { essentialTotal, essentialDone, todayItems, optItems };
+  }, [pendingAgendaItems, careLog]);
+
   // Fetch "one thing to notice" — daily AI observation for the map left panel
   useEffect(() => {
     if (!weather || !seasonOpen) return;
@@ -2328,25 +2349,6 @@ export default function App() {
   const URGENT_SET = new Set(['thirsty','overlooked','struggling']);
   const needsCareCount = gardenPlants.terrace.filter(p=> seasonOpen && URGENT_SET.has(p.health)).length;
 
-  // Map info panel data — shared agenda minus tasks already completed today
-  // Converted to { plant, action, def, task } format for MapCarePanel compatibility
-  const attentionItems = useMemo(() => {
-    const todayStr = localDate();
-    return pendingAgendaItems
-      .filter(item => {
-        const entries = careLog[item.plantId] || [];
-        if (item.actionKey === 'tend') {
-          return !entries.some(e => e.action === 'tend' && e.label === (item.task?.label || '') && e.date && localDate(e.date) === todayStr);
-        }
-        return !entries.some(e => e.action === item.actionKey && e.date && localDate(e.date) === todayStr);
-      })
-      .map(item => ({
-        plant: item.plant,
-        action: item.actionKey,
-        def: ACTION_DEFS[item.actionKey] || null,
-        task: item.task,
-      }));
-  }, [pendingAgendaItems, careLog]);
 
   const recentCare = useMemo(() => {
     const all = gardenPlants.terrace.flatMap(p =>
@@ -2392,6 +2394,7 @@ export default function App() {
         morningBrief={morningBrief}
         dailyBrief={dailyBrief}
         agendaItems={pendingAgendaItems}
+        agendaSections={agendaSections}
         agendaData={agendaData}
         agendaIsWeekend={agendaIsWeekend}
         onRefreshAgenda={refreshBriefings}
@@ -2819,7 +2822,8 @@ export default function App() {
                       photoCount={photoCount}
                       activePlantCount={activePlantCount}
                       recentPhotoCount={recentPhotoCount}
-                      attentionItems={attentionItems}
+                      agendaSections={agendaSections}
+                      agendaData={agendaData}
                       warmth={warmth}
                       morningBrief={morningBrief}
                       fullBrief={dailyBrief}

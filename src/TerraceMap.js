@@ -226,7 +226,7 @@ function LatticePanel({ x, y, w, h, growth, roseColor }) {
 }
 
 // ── WISTERIA FENCE (the focal piece) ─────────────────────────────────────
-function WisteriaFence({ wisteriaPlants, selectedId, hoveredId }) {
+function WisteriaFence({ wisteriaPlants, selectedId, hoveredId, portraits = {} }) {
   const numRows = Math.ceil((VH + WIRE_STEP * 2) / WIRE_STEP) + 2;
 
   const zones = wisteriaPlants.map(p => {
@@ -322,11 +322,10 @@ function WisteriaFence({ wisteriaPlants, selectedId, hoveredId }) {
               </g>
             )}
             {z.g > 0.60 && (() => {
-              const wisBloomSeason = DAYS < 30 ? 0
-                : DAYS < 42 ? (DAYS - 30) / 12
-                : DAYS < 60 ? 1.0
-                : DAYS < 75 ? 1 - (DAYS - 60) / 15
-                : 0;
+              const wisPortrait = portraits[z.p.id];
+              const wisBloomSeason = wisPortrait?.bloomState
+                ? ({ dormant:0, budding:0.35, opening:0.70, peak:1.0, fading:0.45 }[wisPortrait.bloomState] ?? 0)
+                : (DAYS < 30 ? 0 : DAYS < 42 ? (DAYS - 30) / 12 : DAYS < 60 ? 1.0 : DAYS < 75 ? 1 - (DAYS - 60) / 15 : 0);
               const amt = Math.min(1, (z.g - 0.60) * 2.5) * wisBloomSeason;
               if (amt <= 0) return null;
               return (
@@ -355,7 +354,7 @@ function WisteriaFence({ wisteriaPlants, selectedId, hoveredId }) {
 }
 
 // ── WALL 3 ROSE TRELLISES ────────────────────────────────────────────────
-function WallThreePlanters({ plants, selectedId, hoveredId }) {
+function WallThreePlanters({ plants, selectedId, hoveredId, portraits = {} }) {
   const roses   = plants.filter(p => p.type === 'climbing-rose')
     .sort((a, b) => a.pos.x - b.pos.x);
   const lavs    = plants.filter(p => p.type === 'lavender')
@@ -374,7 +373,7 @@ function WallThreePlanters({ plants, selectedId, hoveredId }) {
   const mL = healthMod(roses[0]?.health || 'content');
   const mR = healthMod(roses[1]?.health || 'content');
 
-  function PlanterContents({ boxX, growth, roseColor = '#e84070', hm = {leafOp:1,shift:0,stemOp:0.85}, lRosePlant, rRosePlant, lavPlant }) {
+  function PlanterContents({ boxX, growth, roseColor = '#e84070', hm = {leafOp:1,shift:0,stemOp:0.85}, lRosePlant, rRosePlant, lavPlant, rosePortrait }) {
     const midX  = boxX + planterW / 2;
     const lRoseX = boxX + planterW * 0.22;
     const rRoseX = boxX + planterW * 0.78;
@@ -424,8 +423,13 @@ function WallThreePlanters({ plants, selectedId, hoveredId }) {
           ))}
         </g>
 
-        {growth > 0.55 && (() => {
-          const a = Math.min(1, (growth - 0.55) * 2.2) * hm.leafOp;
+        {(() => {
+          const bs = rosePortrait?.bloomState || null;
+          const showBlooms = bs ? ['opening','peak','fading'].includes(bs) : growth > 0.55;
+          const a = bs
+            ? (bs === 'peak' ? 1.0 : bs === 'opening' ? 0.65 : 0.35)
+            : Math.min(1, (growth - 0.55) * 2.2) * hm.leafOp;
+          if (!showBlooms || a <= 0) return null;
           return (
             <g opacity={a}>
               <circle cx={lRoseX - 3} cy={latticeY + 2} r={4.0} fill={roseColor}/>
@@ -464,9 +468,11 @@ function WallThreePlanters({ plants, selectedId, hoveredId }) {
   return (
     <g>
       <PlanterContents boxX={lBoxX} growth={gL} hm={mL}
-        lRosePlant={roses[0]} rRosePlant={roses[0]} lavPlant={lavs[0]}/>
+        lRosePlant={roses[0]} rRosePlant={roses[0]} lavPlant={lavs[0]}
+        rosePortrait={portraits[roses[0]?.id]}/>
       <PlanterContents boxX={rBoxX} growth={gR} hm={mR}
-        lRosePlant={roses[1]} rRosePlant={roses[1]} lavPlant={lavs[1]}/>
+        lRosePlant={roses[1]} rRosePlant={roses[1]} lavPlant={lavs[1]}
+        rosePortrait={portraits[roses[1]?.id]}/>
     </g>
   );
 }
@@ -1556,7 +1562,7 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
         fill="rgba(255,248,208,0.045)"/>
 
       {/* ── Wall 3 rose trellises + cedar planters ── */}
-      <WallThreePlanters plants={wall3} selectedId={selectedId} hoveredId={hovId}/>
+      <WallThreePlanters plants={wall3} selectedId={selectedId} hoveredId={hovId} portraits={portraits}/>
 
       {/* ── Jute rug (drawn here so wisteria barrels sit on top of it) ── */}
       {(() => {
@@ -1578,7 +1584,7 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
 
       {/* ── Wisteria fence (THE focal piece) ── */}
       <WisteriaFence wisteriaPlants={wisteria}
-        selectedId={selectedId} hoveredId={hovId}/>
+        selectedId={selectedId} hoveredId={hovId} portraits={portraits}/>
 
       {/* ── Metal railing: right side, hexagonal parapet protrusion ── */}
       <g>

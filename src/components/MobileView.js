@@ -8,7 +8,7 @@ import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
 import { fetchDailyAgenda, fetchJournalEntry, streamGardenChat } from '../claude';
 import { compressChatImage } from '../utils/compressChatImage';
-import { actionStatus, extractFutureActionDate, computeAgenda } from '../utils/agenda';
+import { actionStatus, extractFutureActionDate, computeAgenda, groupAgendaItems } from '../utils/agenda';
 import { localDate } from '../utils/dates';
 import { computeWaterLevel, HEALTH_LEVEL } from '../utils/health';
 
@@ -1632,35 +1632,7 @@ function plantTypePlural(type) {
   }[type] || type;
 }
 
-// Returns array of { type:'item', item } | { type:'group', actionKey, items, label, emoji }
-// Groups 2+ items sharing the same actionKey+plantType
-function groupAgendaItems(items) {
-  const byGroup = {};
-  for (const item of items) {
-    const gk = `${item.actionKey}:${item.plantType}`;
-    if (!byGroup[gk]) byGroup[gk] = [];
-    byGroup[gk].push(item);
-  }
-  const result = [];
-  const seen = new Set();
-  for (const item of items) {
-    const gk = `${item.actionKey}:${item.plantType}`;
-    if (seen.has(gk)) continue;
-    seen.add(gk);
-    const group = byGroup[gk];
-    if (group.length >= 2) {
-      const def = ACTION_DEFS[item.actionKey];
-      result.push({
-        type: 'group', gk, items: group,
-        label: item.task?.label || def?.label || item.actionKey,
-        emoji: item.task?.emoji || def?.emoji || '✨',
-      });
-    } else {
-      result.push({ type: 'item', item: group[0] });
-    }
-  }
-  return result;
-}
+
 
 function AgendaGroupCard({ group, onDoneAll, onDoneOne, justDoneKeys = new Set() }) {
   const [expanded, setExpanded] = React.useState(false);
@@ -1728,7 +1700,7 @@ function AgendaGroupCard({ group, onDoneAll, onDoneOne, justDoneKeys = new Set()
   );
 }
 
-function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seasonOpen,
+function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, agendaSections = null, seasonOpen,
   totalActivePlants = 0, morningBrief, fullBrief, onStartAction, portraits, completedThisSession = new Set(),
   doneTodayItems = [], onMarkDone, onOpenAsk, careLog = {}, onRefreshAgenda }) {
   const [briefExpanded, setBriefExpanded] = React.useState(false);
@@ -1809,8 +1781,15 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, seas
       .slice(0, 6)
       .map(i => i.key)
   ), [pendingItems]);
-  const essentialTotalCount = essentialKeys.size;
-  const essentialDoneCount = [...essentialKeys].filter(k => doneTodayKeys.has(k) || completedThisSession.has(k)).length;
+  // Use pre-computed values from App.js when available — guarantees identical numbers
+  // across Maps and Today panels. Add completedThisSession for optimistic tap response.
+  const essentialTotalCount = agendaSections?.essentialTotal ?? essentialKeys.size;
+  const optimisticExtra = agendaSections
+    ? (agendaSections.todayItems || []).filter(i => completedThisSession.has(i.key) && !doneTodayKeys.has(i.key)).length
+    : 0;
+  const essentialDoneCount = agendaSections != null
+    ? agendaSections.essentialDone + optimisticExtra
+    : [...essentialKeys].filter(k => doneTodayKeys.has(k) || completedThisSession.has(k)).length;
   const urgentRecAllDone = rawItems.length > 0 && essentialTotalCount > 0 && todayItems.length === 0 && (weekItems.length > 0 || optItems.length > 0);
 
   if (!seasonOpen) {
@@ -2625,6 +2604,7 @@ export function MobileView({
   morningBrief: externalMorningBrief = null,
   dailyBrief: externalDailyBrief = null,
   agendaItems: externalAgendaItems = null,
+  agendaSections: externalAgendaSections = null,
   agendaData: externalAgendaData = null,
   agendaIsWeekend: externalAgendaIsWeekend = false,
   onRefreshAgenda,
@@ -2944,7 +2924,7 @@ export function MobileView({
         {tab === 'today' && (
           <TodayAgenda
             rawItems={rawAgendaItems} isWeekend={agendaIsWeekend}
-            agendaData={agendaData} seasonOpen={seasonOpen}
+            agendaData={agendaData} agendaSections={externalAgendaSections} seasonOpen={seasonOpen}
             totalActivePlants={totalActivePlants}
             morningBrief={externalMorningBrief} fullBrief={externalDailyBrief}
             onStartAction={handleStartAction}

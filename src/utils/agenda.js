@@ -58,6 +58,42 @@ export function extractFutureActionDate(instructions) {
  *   { key, plant, plantId, plantName, plantType, plantHealth,
  *     actionKey, task, priority, reason, section }
  */
+/**
+ * Group agenda items by (actionKey, plantType) so that identical tasks across
+ * multiple plants of the same type are collapsed into a single card.
+ * Returns an array of { type: 'group', gk, items, label, emoji }
+ *                  or { type: 'item', item }.
+ * Used by both TodayAgenda (mobile) and MapCarePanel (desktop) to guarantee
+ * identical visual grouping from the same source arrays.
+ */
+export function groupAgendaItems(items) {
+  const byGroup = {};
+  for (const item of items) {
+    const gk = `${item.actionKey}:${item.plantType}`;
+    if (!byGroup[gk]) byGroup[gk] = [];
+    byGroup[gk].push(item);
+  }
+  const result = [];
+  const seen = new Set();
+  for (const item of items) {
+    const gk = `${item.actionKey}:${item.plantType}`;
+    if (seen.has(gk)) continue;
+    seen.add(gk);
+    const group = byGroup[gk];
+    if (group.length >= 2) {
+      const def = ACTION_DEFS[item.actionKey];
+      result.push({
+        type: 'group', gk, items: group,
+        label: item.task?.label || def?.label || item.actionKey,
+        emoji: item.task?.emoji || def?.emoji || '✨',
+      });
+    } else {
+      result.push({ type: 'item', item: group[0] });
+    }
+  }
+  return result;
+}
+
 export function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen, allPhotos = {} }) {
   if (!seasonOpen) return { items: [], isWeekend: false };
   const isWeekend = [0, 6].includes(new Date().getDay());

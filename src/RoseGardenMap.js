@@ -41,8 +41,8 @@ function healthMod(health) {
   }
 }
 
-// ── ROSE TOKEN — dormant Double Knock Out, bird's-eye ────────────────────
-function RoseToken({ plant, isSelected, isHovered, isGlowing, mapCondition }) {
+// ── ROSE TOKEN — Double Knock Out, bird's-eye ────────────────────────────
+function RoseToken({ plant, isSelected, isHovered, isGlowing, mapCondition, portrait }) {
   const { x, y } = pxy(plant.pos);
   const color = plant.color || '#e84070';
   const { op } = healthMod(plant.health);
@@ -51,7 +51,18 @@ function RoseToken({ plant, isSelected, isHovered, isGlowing, mapCondition }) {
 
   const isBlooming = mapCondition && ['budding','blooming','peak'].includes(mapCondition.bloomStatus);
 
-  // Cane spokes — 7 radiating bare canes at early spring dormancy
+  // Portrait-driven bloom / foliage appearance
+  const bloomState = portrait?.bloomState || null;
+  const foliageState = portrait?.foliageState || null;
+  const budR    = bloomState === 'budding' ? 3.2 : 2.6;
+  const budFill = bloomState === 'budding' ? '#c83050' : '#a0182a';
+  const showBlooms = bloomState && ['opening','peak','fading'].includes(bloomState);
+  const bloomR  = bloomState === 'peak' ? 5.5 : 4.0;
+  const bloomOp = bloomState === 'peak' ? 0.88 : bloomState === 'opening' ? 0.62 : 0.35;
+  const showLeaves = foliageState && ['leafing','full'].includes(foliageState);
+  const leafOp  = foliageState === 'full' ? 0.75 : 0.45;
+
+  // Cane spokes — 7 radiating canes
   const canes = [0, 52, 104, 156, 208, 260, 312];
 
   return (
@@ -87,7 +98,7 @@ function RoseToken({ plant, isSelected, isHovered, isGlowing, mapCondition }) {
       <circle cx={0} cy={0} r={r} fill="none"
         stroke={color} strokeWidth={2.5} opacity={0.55}/>
 
-      {/* Dormant canes */}
+      {/* Canes */}
       {canes.map((deg, i) => {
         const rad = (deg * Math.PI) / 180;
         const len = i % 2 === 0 ? 15 : 11;
@@ -97,14 +108,22 @@ function RoseToken({ plant, isSelected, isHovered, isGlowing, mapCondition }) {
           <g key={i}>
             <line x1={0} y1={0} x2={ex} y2={ey}
               stroke="#7a4c28" strokeWidth={1.5} strokeLinecap="round" opacity={0.85}/>
-            {/* Reddish bud nub at tip */}
-            <circle cx={ex} cy={ey} r={2.6} fill="#a0182a" opacity={0.85}/>
+            {/* Mid-cane leaf clusters when leafing/full */}
+            {showLeaves && (
+              <circle cx={ex * 0.6} cy={ey * 0.6} r={3.5} fill="#4a7030" opacity={leafOp}/>
+            )}
+            {/* Tip: bloom circle or bud nub */}
+            {showBlooms
+              ? <circle cx={ex} cy={ey} r={bloomR} fill={color} opacity={bloomOp}/>
+              : <circle cx={ex} cy={ey} r={budR} fill={budFill} opacity={0.85}/>
+            }
           </g>
         );
       })}
 
       {/* Central woody crown */}
-      <circle cx={0} cy={0} r={4} fill="#5a3218"/>
+      <circle cx={0} cy={0} r={bloomState === 'peak' ? 7 : 4}
+        fill={bloomState === 'peak' ? color : '#5a3218'} opacity={bloomState === 'peak' ? 0.65 : 1}/>
       <circle cx={0} cy={0} r={2.2} fill="#7a4c2a"/>
 
       {/* Health indicator dot */}
@@ -127,8 +146,7 @@ function RoseToken({ plant, isSelected, isHovered, isGlowing, mapCondition }) {
 
 // ── MAGNOLIA TOKEN — bespoke, spreading, pre-bloom ────────────────────────
 // Magnolia x soulangeana blooms before leaves in early April.
-// Currently: bare spreading branches with tight pink-white goblet buds forming.
-function MagnoliaToken({ plant, isSelected, isHovered, isGlowing, mapCondition }) {
+function MagnoliaToken({ plant, isSelected, isHovered, isGlowing, mapCondition, portrait }) {
   const { x, y } = pxy(plant.pos);
   const color = plant.color || '#e8a0c0';
   const { op } = healthMod(plant.health);
@@ -139,10 +157,22 @@ function MagnoliaToken({ plant, isSelected, isHovered, isGlowing, mapCondition }
   const trunk   = '#3a2010';
   const branch  = '#4e3018';
   const branch2 = '#5a3820';
-  const budPink  = '#c8607a';
-  const budPale  = '#e8c0cc';
-  const budCream = '#f0dce4';
-  const budTaupe = '#d0a8b8';
+
+  // Portrait-driven bud palette
+  const bloomState = portrait?.bloomState || null;
+  const bc = (() => {
+    switch (bloomState) {
+      case 'dormant': return { c1:'#6a5060', c2:'#5a4050', c3:'#725868', c4:'#5c4858', op:0.52 };
+      case 'opening': return { c1:'#dda8bc', c2:'#e4c4d4', c3:'#f0d8e0', c4:'#e0c0cc', op:0.92 };
+      case 'peak':    return { c1:'#f4e4ec', c2:'#fdf5f8', c3:'#fff8fa', c4:'#f0e8f0', op:0.96 };
+      case 'fading':  return { c1:'#c89890', c2:'#c8a890', c3:'#d8b8a8', c4:'#c0a098', op:0.68 };
+      default:        return { c1:'#c8607a', c2:'#d0a8b8', c3:'#f0dce4', c4:'#e8c0cc', op:0.88 };
+    }
+  })();
+  const budPink  = bc.c1;
+  const budTaupe = bc.c2;
+  const budCream = bc.c3;
+  const budPale  = bc.c4;
 
   return (
     <g transform={`translate(${x},${y}) scale(${sc})`} opacity={op}
@@ -212,36 +242,46 @@ function MagnoliaToken({ plant, isSelected, isHovered, isGlowing, mapCondition }
       <line x1={9}   y1={-40} x2={16}  y2={-52} stroke={branch2} strokeWidth={1.5} strokeLinecap="round"/>
       <line x1={9}   y1={-40} x2={4}   y2={-54} stroke={branch2} strokeWidth={1.4} strokeLinecap="round"/>
 
-      {/* ── Bud clusters — goblet-shaped, tight, not yet open ── */}
-      {/* Left outer cluster */}
-      <ellipse cx={-47} cy={-17} rx={5.5} ry={4}   fill={budPink}  opacity={0.90} transform="rotate(-20,-47,-17)"/>
-      <ellipse cx={-41} cy={-36} rx={5}   ry={3.8} fill={budTaupe} opacity={0.78} transform="rotate(10,-41,-36)"/>
-      <ellipse cx={-45} cy={8}   rx={5}   ry={4}   fill={budCream} opacity={0.78} transform="rotate(5,-45,8)"/>
-      <ellipse cx={-38} cy={-8}  rx={4}   ry={3.2} fill={budTaupe} opacity={0.72}/>
-      <ellipse cx={-31} cy={-50} rx={5}   ry={3.8} fill={budPale}  opacity={0.80}/>
-      <ellipse cx={-15} cy={-52} rx={4.5} ry={3.5} fill={budPink}  opacity={0.85}/>
+      {/* ── Peak bloom haze — soft cloud of open flowers ── */}
+      {bloomState === 'peak' && (
+        <g opacity={0.40}>
+          <ellipse cx={0} cy={-12} rx={42} ry={34} fill="#fdf0f4"/>
+          <ellipse cx={0} cy={-14} rx={30} ry={24} fill="#fff5f8"/>
+        </g>
+      )}
 
-      {/* Right outer cluster */}
-      <ellipse cx={45}  cy={-13} rx={5.5} ry={4}   fill={budPink}  opacity={0.90} transform="rotate(20,45,-13)"/>
-      <ellipse cx={41}  cy={-32} rx={5}   ry={3.8} fill={budPale}  opacity={0.82} transform="rotate(-10,41,-32)"/>
-      <ellipse cx={47}  cy={10}  rx={5}   ry={4}   fill={budCream} opacity={0.78} transform="rotate(-5,47,10)"/>
-      <ellipse cx={42}  cy={-5}  rx={4}   ry={3.2} fill={budPink}  opacity={0.72}/>
-      <ellipse cx={33}  cy={-50} rx={5}   ry={3.8} fill={budPale}  opacity={0.80}/>
-      <ellipse cx={17}  cy={-54} rx={4.5} ry={3.5} fill={budPink}  opacity={0.85}/>
+      {/* ── Bud / flower clusters — appearance driven by portrait bloomState ── */}
+      <g opacity={bc.op}>
+        {/* Left outer cluster */}
+        <ellipse cx={-47} cy={-17} rx={5.5} ry={4}   fill={budPink}  opacity={0.90} transform="rotate(-20,-47,-17)"/>
+        <ellipse cx={-41} cy={-36} rx={5}   ry={3.8} fill={budTaupe} opacity={0.78} transform="rotate(10,-41,-36)"/>
+        <ellipse cx={-45} cy={8}   rx={5}   ry={4}   fill={budCream} opacity={0.78} transform="rotate(5,-45,8)"/>
+        <ellipse cx={-38} cy={-8}  rx={4}   ry={3.2} fill={budTaupe} opacity={0.72}/>
+        <ellipse cx={-31} cy={-50} rx={5}   ry={3.8} fill={budPale}  opacity={0.80}/>
+        <ellipse cx={-15} cy={-52} rx={4.5} ry={3.5} fill={budPink}  opacity={0.85}/>
 
-      {/* Center top cluster */}
-      <ellipse cx={-18} cy={-52} rx={4.5} ry={3.5} fill={budTaupe} opacity={0.76}/>
-      <ellipse cx={-5}  cy={-55} rx={5}   ry={3.8} fill={budPink}  opacity={0.90}/>
-      <ellipse cx={5}   cy={-57} rx={4.5} ry={3.5} fill={budCream} opacity={0.82}/>
-      <ellipse cx={17}  cy={-55} rx={4.5} ry={3.5} fill={budTaupe} opacity={0.78}/>
+        {/* Right outer cluster */}
+        <ellipse cx={45}  cy={-13} rx={5.5} ry={4}   fill={budPink}  opacity={0.90} transform="rotate(20,45,-13)"/>
+        <ellipse cx={41}  cy={-32} rx={5}   ry={3.8} fill={budPale}  opacity={0.82} transform="rotate(-10,41,-32)"/>
+        <ellipse cx={47}  cy={10}  rx={5}   ry={4}   fill={budCream} opacity={0.78} transform="rotate(-5,47,10)"/>
+        <ellipse cx={42}  cy={-5}  rx={4}   ry={3.2} fill={budPink}  opacity={0.72}/>
+        <ellipse cx={33}  cy={-50} rx={5}   ry={3.8} fill={budPale}  opacity={0.80}/>
+        <ellipse cx={17}  cy={-54} rx={4.5} ry={3.5} fill={budPink}  opacity={0.85}/>
 
-      {/* Scattered accent buds — give organic density */}
-      <circle cx={-16} cy={-28} r={2.5} fill={budPink}  opacity={0.60}/>
-      <circle cx={18}  cy={-22} r={2.5} fill={budCream} opacity={0.58}/>
-      <circle cx={-6}  cy={-44} r={2.2} fill={budPale}  opacity={0.55}/>
-      <circle cx={8}   cy={-30} r={2}   fill={budPink}  opacity={0.52}/>
-      <circle cx={-26} cy={-42} r={2.2} fill={budCream} opacity={0.55}/>
-      <circle cx={26}  cy={-42} r={2.2} fill={budPink}  opacity={0.55}/>
+        {/* Center top cluster */}
+        <ellipse cx={-18} cy={-52} rx={4.5} ry={3.5} fill={budTaupe} opacity={0.76}/>
+        <ellipse cx={-5}  cy={-55} rx={5}   ry={3.8} fill={budPink}  opacity={0.90}/>
+        <ellipse cx={5}   cy={-57} rx={4.5} ry={3.5} fill={budCream} opacity={0.82}/>
+        <ellipse cx={17}  cy={-55} rx={4.5} ry={3.5} fill={budTaupe} opacity={0.78}/>
+
+        {/* Scattered accent buds — give organic density */}
+        <circle cx={-16} cy={-28} r={2.5} fill={budPink}  opacity={0.60}/>
+        <circle cx={18}  cy={-22} r={2.5} fill={budCream} opacity={0.58}/>
+        <circle cx={-6}  cy={-44} r={2.2} fill={budPale}  opacity={0.55}/>
+        <circle cx={8}   cy={-30} r={2}   fill={budPink}  opacity={0.52}/>
+        <circle cx={-26} cy={-42} r={2.2} fill={budCream} opacity={0.55}/>
+        <circle cx={26}  cy={-42} r={2.2} fill={budPink}  opacity={0.55}/>
+      </g>
 
       {/* Health dot */}
       <circle cx={48} cy={-42} r={4.2}
@@ -481,6 +521,7 @@ export function RoseGardenMap({
             isHovered={hovId === plant.id}
             isGlowing={glowPlantId === plant.id}
             mapCondition={mapConditions[plant.id]}
+            portrait={portraits[plant.id]}
           />
         ))}
       {plants
@@ -493,6 +534,7 @@ export function RoseGardenMap({
             isHovered={hovId === plant.id}
             isGlowing={glowPlantId === plant.id}
             mapCondition={mapConditions[plant.id]}
+            portrait={portraits[plant.id]}
           />
         ))}
 
