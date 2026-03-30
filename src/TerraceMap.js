@@ -1172,78 +1172,161 @@ function PlantToken({ plant, isSelected, isHovered, mapCondition = null, isGlowi
 
 // ── COOKIE POSES (bird's-eye SVG fragments) ───────────────────────────────
 function CookieSVG({ pose }) {
-  const W = '#f5f5f5', B = '#1a1a1a', PINK = '#ffaaaa', EAR = '#ffc8c8';
-  if (pose === 0) return ( // sitting upright
+  const W = '#f5f5f5', B = '#1a1a1a', PINK = '#ffb8b8', EAR = '#ffc8c8';
+  if (pose === 0) return ( // sitting upright — alert, proud
     <>
-      <ellipse cx={0} cy={9} rx={12} ry={4} fill="rgba(0,0,0,0.18)"/>
-      <ellipse cx={0} cy={2} rx={10} ry={8} fill={W}/>
-      <ellipse cx={1} cy={0} rx={7} ry={6} fill={B} opacity={0.82}/>
-      <circle cx={0} cy={-8} r={7} fill={W}/>
-      <ellipse cx={0} cy={-12} rx={5.5} ry={4} fill={B} opacity={0.88}/>
-      <polygon points="-6,-14 -5,-21 -1,-14" fill={W}/>
-      <polygon points="1,-14 5,-21 6,-14" fill={W}/>
-      <polygon points="-5,-15 -4,-19 -2,-15" fill={EAR} opacity={0.65}/>
-      <polygon points="2,-15 4,-19 5,-15" fill={EAR} opacity={0.65}/>
-      <ellipse cx={-2.5} cy={-8} rx={2} ry={1.7} fill="#33aa33"/>
-      <circle cx={-2.5} cy={-8} r={1.1} fill={B}/>
-      <circle cx={-2.0} cy={-8.5} r={0.35} fill="rgba(255,255,255,0.75)"/>
-      <ellipse cx={2.5} cy={-8} rx={2} ry={1.7} fill="#33aa33"/>
-      <circle cx={2.5} cy={-8} r={1.1} fill={B}/>
-      <circle cx={3.0} cy={-8.5} r={0.35} fill="rgba(255,255,255,0.75)"/>
-      <ellipse cx={0} cy={-5.5} rx={1.4} ry={1} fill={PINK}/>
-      <path d="M10,4 C14,6 14,11 8,11" fill="none" stroke={W} strokeWidth={2.8} strokeLinecap="round"/>
+      <ellipse cx={0} cy={11} rx={14} ry={5} fill="rgba(0,0,0,0.18)"/>
+      <ellipse cx={0} cy={3} rx={12} ry={10} fill={W}/>
+      <ellipse cx={1} cy={0} rx={8} ry={7} fill={B} opacity={0.82}/>
+      <circle cx={0} cy={-10} r={8.5} fill={W}/>
+      <ellipse cx={0} cy={-14} rx={6.5} ry={5} fill={B} opacity={0.88}/>
+      <ellipse cx={3} cy={-11} rx={4} ry={3.5} fill={B} opacity={0.75}/>
+      <polygon points="-7,-17 -6,-26 -1,-17" fill={W}/>
+      <polygon points="1,-17 6,-26 8,-17" fill={W}/>
+      <polygon points="-6,-18 -5,-23 -2,-18" fill={EAR} opacity={0.65}/>
+      <polygon points="2,-18 5,-23 7,-18" fill={EAR} opacity={0.65}/>
+      <ellipse cx={-3} cy={-10} rx={2.4} ry={2} fill="#33aa33"/>
+      <circle cx={-3} cy={-10} r={1.3} fill={B}/>
+      <circle cx={-2.5} cy={-10.5} r={0.4} fill="rgba(255,255,255,0.75)"/>
+      <ellipse cx={3} cy={-10} rx={2.4} ry={2} fill="#33aa33"/>
+      <circle cx={3} cy={-10} r={1.3} fill={B}/>
+      <circle cx={3.5} cy={-10.5} r={0.4} fill="rgba(255,255,255,0.75)"/>
+      <ellipse cx={0} cy={-7} rx={1.6} ry={1.2} fill={PINK}/>
+      <path d="M12,5 C17,7 17,13 10,13" fill="none" stroke={W} strokeWidth={3.2} strokeLinecap="round"/>
     </>
   );
   if (pose === 1) return ( // loaf — wide, compact, head peeking right
     <>
-      <ellipse cx={0} cy={8} rx={14} ry={5} fill="rgba(0,0,0,0.18)"/>
-      <ellipse cx={0} cy={0} rx={13} ry={7} fill={W}/>
-      <ellipse cx={1} cy={-1} rx={9} ry={5} fill={B} opacity={0.85}/>
-      <circle cx={11} cy={-1} r={5.5} fill={W}/>
-      <ellipse cx={12} cy={-4} rx={4} ry={3} fill={B} opacity={0.85}/>
-      <polygon points="8,-5 10,-11 14,-5" fill={W}/>
-      <polygon points="9,-5.5 10.5,-9.5 13,-5.5" fill={EAR} opacity={0.6}/>
-      <ellipse cx={12} cy={0} rx={2} ry={1.7} fill="#33aa33"/>
-      <circle cx={12} cy={0} r={1.1} fill={B}/>
-      <circle cx={12.5} cy={-0.5} r={0.35} fill="rgba(255,255,255,0.75)"/>
-      <ellipse cx={14} cy={1.5} rx={1.2} ry={0.9} fill={PINK}/>
-      <ellipse cx={-5} cy={5.5} rx={4} ry={2.5} fill="rgba(245,245,245,0.8)"/>
-      <ellipse cx={3} cy={6.5} rx={4} ry={2.5} fill="rgba(245,245,245,0.8)"/>
+      <ellipse cx={0} cy={9} rx={17} ry={6} fill="rgba(0,0,0,0.18)"/>
+      <ellipse cx={0} cy={1} rx={15} ry={8} fill={W}/>
+      <ellipse cx={1} cy={-1} rx={11} ry={6} fill={B} opacity={0.85}/>
+      <circle cx={13} cy={-1} r={6.5} fill={W}/>
+      <ellipse cx={14} cy={-5} rx={5} ry={3.5} fill={B} opacity={0.85}/>
+      <polygon points="9,-7 12,-14 16,-7" fill={W}/>
+      <polygon points="10,-7.5 12.5,-12 15,-7.5" fill={EAR} opacity={0.6}/>
+      <ellipse cx={14} cy={0} rx={2.4} ry={2} fill="#33aa33"/>
+      <circle cx={14} cy={0} r={1.3} fill={B}/>
+      <circle cx={14.6} cy={-0.6} r={0.4} fill="rgba(255,255,255,0.75)"/>
+      <ellipse cx={16.5} cy={1.8} rx={1.4} ry={1.1} fill={PINK}/>
+      <ellipse cx={-6} cy={6} rx={5} ry={3} fill="rgba(245,245,245,0.8)"/>
+      <ellipse cx={4} cy={7.5} rx={5} ry={3} fill="rgba(245,245,245,0.8)"/>
     </>
   );
-  if (pose === 2) return ( // sprawled — stretched diagonally, legs out
+  if (pose === 2) return ( // sprawled — stretched out, legs out, side view
     <g transform="rotate(-18)">
-      <ellipse cx={0} cy={8} rx={17} ry={5} fill="rgba(0,0,0,0.18)"/>
-      <ellipse cx={0} cy={0} rx={16} ry={7} fill={W}/>
-      <ellipse cx={2} cy={-2} rx={11} ry={5} fill={B} opacity={0.85}/>
-      <circle cx={-14} cy={1} r={6} fill={W}/>
-      <ellipse cx={-14} cy={-2} rx={4.5} ry={3.5} fill={B} opacity={0.85}/>
-      <polygon points="-18,-3 -17,-10 -13,-3" fill={W}/>
-      <polygon points="-13,-3 -11,-9 -9,-3" fill={W}/>
-      <polygon points="-17,-4 -16,-8 -14,-4" fill={EAR} opacity={0.6}/>
-      <polygon points="-12,-4 -11,-7.5 -10,-4" fill={EAR} opacity={0.6}/>
-      <ellipse cx={-15} cy={2} rx={2} ry={1.7} fill="#33aa33"/>
-      <circle cx={-15} cy={2} r={1.1} fill={B}/>
-      <ellipse cx={-10} cy={2} rx={2} ry={1.7} fill="#33aa33"/>
-      <circle cx={-10} cy={2} r={1.1} fill={B}/>
-      <ellipse cx={-12.5} cy={4} rx={1.4} ry={1} fill={PINK}/>
-      <ellipse cx={11} cy={5} rx={5} ry={2.5} fill="rgba(245,245,245,0.85)"/>
-      <ellipse cx={9} cy={-5} rx={3.5} ry={2} fill="rgba(245,245,245,0.85)"/>
-      <path d="M16,3 C22,2 24,-5 19,-9" fill="none" stroke={B} strokeWidth={2.5} strokeLinecap="round"/>
+      <ellipse cx={0} cy={9} rx={20} ry={6} fill="rgba(0,0,0,0.18)"/>
+      <ellipse cx={0} cy={1} rx={19} ry={8} fill={W}/>
+      <ellipse cx={2} cy={-2} rx={13} ry={6} fill={B} opacity={0.85}/>
+      <circle cx={-17} cy={1} r={7} fill={W}/>
+      <ellipse cx={-17} cy={-2.5} rx={5.5} ry={4} fill={B} opacity={0.85}/>
+      <polygon points="-22,-3 -21,-12 -15,-3" fill={W}/>
+      <polygon points="-15,-3 -13,-11 -10,-3" fill={W}/>
+      <polygon points="-21,-4 -20,-9 -17,-4" fill={EAR} opacity={0.6}/>
+      <polygon points="-14,-4 -12,-9 -11,-4" fill={EAR} opacity={0.6}/>
+      <ellipse cx={-18} cy={2} rx={2.4} ry={2} fill="#33aa33"/>
+      <circle cx={-18} cy={2} r={1.3} fill={B}/>
+      <ellipse cx={-12} cy={2} rx={2.4} ry={2} fill="#33aa33"/>
+      <circle cx={-12} cy={2} r={1.3} fill={B}/>
+      <ellipse cx={-15} cy={5} rx={1.6} ry={1.2} fill={PINK}/>
+      <ellipse cx={13} cy={6} rx={6} ry={3} fill="rgba(245,245,245,0.85)"/>
+      <ellipse cx={11} cy={-6} rx={4.5} ry={2.5} fill="rgba(245,245,245,0.85)"/>
+      <path d="M19,3 C26,2 28,-6 22,-11" fill="none" stroke={B} strokeWidth={3} strokeLinecap="round"/>
     </g>
   );
-  return ( // pose 3: curled sleeping — tight donut
+  if (pose === 3) return ( // curled sleeping — tight donut
     <>
-      <ellipse cx={0} cy={8} rx={13} ry={5} fill="rgba(0,0,0,0.18)"/>
-      <ellipse cx={0} cy={0} rx={11} ry={9} fill={W}/>
-      <ellipse cx={1} cy={-2} rx={8} ry={6.5} fill={B} opacity={0.88}/>
-      <ellipse cx={-1} cy={2} rx={5.5} ry={4.5} fill={W}/>
-      <circle cx={3} cy={5} r={4.5} fill={W}/>
-      <ellipse cx={4} cy={3} rx={3.5} ry={2.5} fill={B} opacity={0.85}/>
-      <path d="M1,5.5 C2,4.5 3.5,4.5 4.5,5.5" fill="none" stroke={B} strokeWidth={0.9} strokeLinecap="round"/>
-      <ellipse cx={3} cy={7} rx={1.2} ry={0.9} fill={PINK}/>
-      <path d="M11,3 C15,-1 13,-9 5,-11 C-1,-13 -9,-8 -11,-2"
-        fill="none" stroke={B} strokeWidth={2.8} strokeLinecap="round"/>
+      <ellipse cx={0} cy={10} rx={15} ry={6} fill="rgba(0,0,0,0.18)"/>
+      <ellipse cx={0} cy={0} rx={13} ry={11} fill={W}/>
+      <ellipse cx={1} cy={-2} rx={9.5} ry={8} fill={B} opacity={0.88}/>
+      <ellipse cx={-1} cy={3} rx={6.5} ry={5.5} fill={W}/>
+      <circle cx={4} cy={6} r={5.5} fill={W}/>
+      <ellipse cx={5} cy={4} rx={4} ry={3} fill={B} opacity={0.85}/>
+      <path d="M1,6.5 C2.5,5.5 4.5,5.5 5.5,6.5" fill="none" stroke={B} strokeWidth={1.1} strokeLinecap="round"/>
+      <ellipse cx={4} cy={8.5} rx={1.4} ry={1.1} fill={PINK}/>
+      <path d="M13,4 C18,-2 16,-11 6,-14 C-1,-16 -11,-10 -13,-3"
+        fill="none" stroke={B} strokeWidth={3.2} strokeLinecap="round"/>
+    </>
+  );
+  if (pose === 4) return ( // belly up — on back, white tummy exposed, paws in air
+    <>
+      <ellipse cx={0} cy={11} rx={16} ry={5} fill="rgba(0,0,0,0.18)"/>
+      {/* white belly — main body */}
+      <ellipse cx={0} cy={0} rx={12} ry={9} fill={W}/>
+      {/* black back/saddle patches showing around the sides */}
+      <ellipse cx={-11} cy={-1} rx={5} ry={7} fill={B} opacity={0.82}/>
+      <ellipse cx={12} cy={-1} rx={5} ry={7} fill={B} opacity={0.82}/>
+      <ellipse cx={1} cy={-8} rx={9} ry={4} fill={B} opacity={0.78}/>
+      {/* four paws in the air */}
+      <ellipse cx={-9} cy={-14} rx={4} ry={2.8} fill={W}/>
+      <ellipse cx={9} cy={-15} rx={4} ry={2.8} fill={W}/>
+      <ellipse cx={-7} cy={13} rx={4} ry={2.8} fill={W}/>
+      <ellipse cx={7} cy={13} rx={4} ry={2.8} fill={W}/>
+      <circle cx={-9} cy={-14} r={1.3} fill={PINK} opacity={0.55}/>
+      <circle cx={9} cy={-15} r={1.3} fill={PINK} opacity={0.55}/>
+      {/* head — upside down at the bottom, looking up */}
+      <circle cx={0} cy={9} r={7} fill={W}/>
+      <ellipse cx={-2.5} cy={7} rx={4.5} ry={3.5} fill={B} opacity={0.85}/>
+      <ellipse cx={3} cy={9.5} rx={2.2} ry={1.9} fill="#33aa33"/>
+      <circle cx={3} cy={9.5} r={1.3} fill={B}/>
+      <circle cx={3.6} cy={9} r={0.4} fill="rgba(255,255,255,0.75)"/>
+      <ellipse cx={-1} cy={9.5} rx={2.2} ry={1.9} fill="#33aa33"/>
+      <circle cx={-1} cy={9.5} r={1.3} fill={B}/>
+      <ellipse cx={1} cy={12} rx={1.5} ry={1.1} fill={PINK}/>
+      {/* ears pointing down (upside down) */}
+      <polygon points="-4,15 -3.5,21 0,15" fill={W}/>
+      <polygon points="1,15 3.5,21 4,15" fill={W}/>
+      <polygon points="-3.5,15.5 -3,19 -0.5,15.5" fill={EAR} opacity={0.65}/>
+      <polygon points="1.5,15.5 3,19 3.5,15.5" fill={EAR} opacity={0.65}/>
+    </>
+  );
+  if (pose === 5) return ( // pancake — pressed flat on couch, very elongated
+    <g transform="rotate(8)">
+      <ellipse cx={0} cy={8} rx={22} ry={5} fill="rgba(0,0,0,0.20)"/>
+      {/* flat elongated body */}
+      <ellipse cx={0} cy={2} rx={21} ry={6} fill={W}/>
+      <ellipse cx={3} cy={0} rx={14} ry={4.5} fill={B} opacity={0.84}/>
+      {/* head resting flat, face to the left */}
+      <circle cx={-18} cy={1} r={6.5} fill={W}/>
+      <ellipse cx={-16} cy={-1} rx={4.5} ry={3} fill={B} opacity={0.85}/>
+      {/* one ear barely visible when pressed flat */}
+      <polygon points="-21,-4 -20,-9 -16,-4" fill={W}/>
+      <polygon points="-20,-5 -19,-8 -17,-5" fill={EAR} opacity={0.55}/>
+      {/* sleepy half-closed eyes */}
+      <ellipse cx={-19} cy={2} rx={2.2} ry={1.2} fill="#33aa33"/>
+      <ellipse cx={-19} cy={2} rx={2.2} ry={0.5} fill={B}/>
+      <ellipse cx={-15} cy={2} rx={2.2} ry={1.2} fill="#33aa33"/>
+      <ellipse cx={-15} cy={2} rx={2.2} ry={0.5} fill={B}/>
+      <ellipse cx={-17} cy={4} rx={1.4} ry={1} fill={PINK}/>
+      {/* tucked front paws */}
+      <ellipse cx={-9} cy={6} rx={5} ry={2.8} fill="rgba(245,245,245,0.9)"/>
+      <ellipse cx={1} cy={7} rx={5} ry={2.8} fill="rgba(245,245,245,0.9)"/>
+      {/* tail curled at right end */}
+      <path d="M19,2 C26,0 28,-7 22,-10 C18,-12 15,-8 18,-5" fill="none" stroke={B} strokeWidth={3} strokeLinecap="round"/>
+    </g>
+  );
+  return ( // pose 6: smug curl — chin on paws, eyes half open, watching
+    <>
+      <ellipse cx={0} cy={10} rx={16} ry={5.5} fill="rgba(0,0,0,0.18)"/>
+      <ellipse cx={0} cy={0} rx={14} ry={10} fill={W}/>
+      <ellipse cx={1} cy={-3} rx={10} ry={7} fill={B} opacity={0.85}/>
+      {/* chin resting on crossed paws at front */}
+      <ellipse cx={-5} cy={7} rx={6} ry={3.5} fill={W}/>
+      <ellipse cx={5} cy={7} rx={6} ry={3.5} fill={W}/>
+      {/* head, peeking up from chin-on-paws position */}
+      <circle cx={0} cy={-1} r={7.5} fill={W}/>
+      <ellipse cx={3} cy={-3} rx={5} ry={3.5} fill={B} opacity={0.85}/>
+      <polygon points="-5,-8 -4,-15 0,-8" fill={W}/>
+      <polygon points="1,-8 5,-15 6,-8" fill={W}/>
+      <polygon points="-4.5,-9 -4,-13 -0.5,-9" fill={EAR} opacity={0.62}/>
+      <polygon points="1.5,-9 4.5,-13 5.5,-9" fill={EAR} opacity={0.62}/>
+      {/* half-lidded smug eyes */}
+      <ellipse cx={-2.5} cy={-1} rx={2.5} ry={2} fill="#33aa33"/>
+      <ellipse cx={-2.5} cy={-0.5} rx={2.5} ry={0.9} fill={B}/>
+      <ellipse cx={3} cy={-1} rx={2.5} ry={2} fill="#33aa33"/>
+      <ellipse cx={3} cy={-0.5} rx={2.5} ry={0.9} fill={B}/>
+      <ellipse cx={0.5} cy={2} rx={1.5} ry={1.2} fill={PINK}/>
+      {/* tail wrapped around */}
+      <path d="M13,5 C18,1 17,-7 10,-10" fill="none" stroke={B} strokeWidth={3.2} strokeLinecap="round"/>
     </>
   );
 }
@@ -1259,7 +1342,7 @@ export function TerraceMap({ plants, frontPlants = [], selectedId, onSelect, onM
   const cookieRef = useRef(null);
   if (!cookieRef.current) {
     cookieRef.current = {
-      pose: Math.floor(Math.random() * 4),
+      pose: Math.floor(Math.random() * 7),
       yFrac: 0.15 + Math.random() * 0.60,
       xOff: 38 + Math.floor(Math.random() * 22),
     };

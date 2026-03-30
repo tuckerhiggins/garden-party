@@ -2828,6 +2828,8 @@ export default function App() {
                       morningBrief={morningBrief}
                       fullBrief={dailyBrief}
                       portraits={portraits}
+                      briefings={briefings}
+                      weather={weather}
                       onSelectPlant={p=>setSel(p)}
                       onAction={doAction}
                     />
