@@ -1,5 +1,6 @@
 // claude.js — client-side Claude helper with localStorage caching
 // Calls /api/claude (Vercel serverless function) — never exposes API key in browser
+// Exports: fetchMorningBrief, fetchDailyBrief, fetchBriefingAnswer, fetchOracleStarters, fetchJournalEntry, and more
 
 import { getPhenologicalStage } from './utils/phenology';
 import { localDate } from './utils/dates';
