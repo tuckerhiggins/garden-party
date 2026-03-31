@@ -880,3 +880,50 @@ Two lines:`;
   // Fallback: treat whole response as observation with no subject
   return { subject: null, observation: raw.trim() };
 }
+
+// ── BRIEFING Q&A ───────────────────────────────────────────────────────────
+// Live answer to a question Tucker asks via the briefing modal.
+// Cached per question per day so the same question always returns the same answer.
+export async function fetchBriefingAnswer({ question, plants = [], careLog = {}, weather = null, portraits = {}, briefings = {}, fullBrief = null }) {
+  const today = localDate();
+  const activePlants = plants.filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && !p.noTasks);
+
+  const plantContext = activePlants.map(p => {
+    const b = briefings?.[p.id];
+    const note = (b && b !== 'loading' && b?.note) ? ` — "${b.note}"` : '';
+    const entries = careLog[p.id] || [];
+    const lastCare = entries.length
+      ? new Date(entries[entries.length - 1].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : 'no recent care';
+    return `${p.name} (${p.type || 'plant'}, ${p.health || 'unknown'} health, last care ${lastCare})${note}`;
+  }).join('\n');
+
+  const briefContext = fullBrief ? [
+    fullBrief.weather && `Weather context: ${fullBrief.weather}`,
+    fullBrief.garden  && `Garden state: ${fullBrief.garden}`,
+    fullBrief.today   && `Today's focus: ${fullBrief.today}`,
+    fullBrief.watch   && `Watch: ${fullBrief.watch}`,
+  ].filter(Boolean).join('\n') : '';
+
+  const weatherDesc = weather ? `${Math.round(weather.temp)}°F — ${weather.poem || ''}` : '';
+  const forecastStr = weather?.forecast?.slice(0, 4).map((d, i) => {
+    const lbl = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : `Day ${i + 1}`;
+    return `${lbl}: ${d.high}°/${d.low}°, ${d.label}, ${d.precipChance}% rain`;
+  }).join('; ') ?? '';
+
+  const cacheKey = `briefing_qa_v1_${today}_${question.trim().replace(/\W+/g, '_').slice(0, 50)}`;
+
+  const systemPrompt = `You are the garden oracle for Tucker's Brooklyn rooftop garden (Zone 7b, Park Slope). Tucker is an enthusiastic beginner gardener learning deeply about plants. Answer his question in 2-4 engaging, scientifically-grounded sentences. Reference his actual plants by name when relevant. Be specific and fascinating — help him understand the biology, not just the action. Do NOT give generic advice. Write in second person ("your wisteria is...").`;
+
+  const userPrompt = `Today: ${today}. ${weatherDesc}
+${forecastStr ? `Forecast: ${forecastStr}` : ''}
+
+Plants in Tucker's garden:
+${plantContext}
+
+${briefContext ? `Today's brief:\n${briefContext}` : ''}
+
+Tucker asks: ${question.trim()}`;
+
+  return cachedClaude(cacheKey, systemPrompt, userPrompt, 280, 24 * 60 * 60 * 1000);
+}
