@@ -989,7 +989,7 @@ export function MapCarePanel({
 
   // Use pre-computed sections from App.js — the single source of truth.
   // Neither this component nor TodayAgenda re-derives; both consume the same arrays.
-  const { essentialTotal = 0, essentialDone = 0, todayItems = [], optItems = [] } = agendaSections || {};
+  const { essentialTotal = 0, essentialDone = 0, todayItems = [], optItems = [], isDoneToday } = agendaSections || {};
 
   return (
     <div style={{
@@ -1132,44 +1132,55 @@ export function MapCarePanel({
                     const sectionKey = `t:${gk}`;
                     const expanded = expandedGroupKey === sectionKey;
                     const accentColor = plantColor(groupItems[0].plantType);
+                    const groupDoneCount = isDoneToday ? groupItems.filter(i => isDoneToday(i)).length : 0;
+                    const allGroupDone = groupDoneCount === groupItems.length;
                     return (
-                      <div key={sectionKey} style={{ borderRadius: 9, border: `1.5px solid ${tierBorder}`, background: tierBg, overflow: 'hidden' }}>
+                      <div key={sectionKey} style={{ borderRadius: 9, border: `1.5px solid ${tierBorder}`, background: tierBg, overflow: 'hidden', opacity: allGroupDone ? 0.6 : 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 11px 10px 0' }}>
                           <div style={{ width: 4, alignSelf: 'stretch', background: accentColor, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
                           <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{groupEmoji}</span>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, fontWeight: 500, marginBottom: 2 }}>{groupLabel}</div>
+                            <div style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, fontWeight: 500, marginBottom: 2, textDecoration: allGroupDone ? 'line-through' : 'none' }}>{groupLabel}</div>
                             <div style={{ fontFamily: SERIF, fontSize: 11, color: MUTED }}>
-                              {groupItems.length} {plantTypePlural(groupItems[0].plantType)}
+                              {groupDoneCount > 0 ? `${groupDoneCount}/${groupItems.length} done` : `${groupItems.length} ${plantTypePlural(groupItems[0].plantType)}`}
                             </div>
                             <button onClick={() => setExpandedGroupKey(expanded ? null : sectionKey)} style={{ background: 'none', border: 'none', padding: '2px 0 0', cursor: 'pointer', fontFamily: SERIF, fontSize: 10, color: 'rgba(160,130,80,0.55)', textDecoration: 'underline' }}>
                               {expanded ? 'hide' : groupItems.map(i => i.plant.name).join(', ')}
                             </button>
                           </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, paddingRight: 2 }}>
-                            <button onClick={e => { e.stopPropagation(); groupItems.forEach(i => onAction?.(i.actionKey, i.plant, i.task?.label)); }} style={{ padding: '6px 10px', background: 'rgba(200,112,32,0.22)', border: '1px solid rgba(200,112,32,0.45)', borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12, color: 'rgba(240,180,80,0.95)', whiteSpace: 'nowrap' }}>✓ All</button>
-                          </div>
+                          {!allGroupDone && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, paddingRight: 2 }}>
+                              <button onClick={async e => { e.stopPropagation(); for (const i of groupItems) { await onAction?.(i.actionKey, i.plant, i.task?.label); } }} style={{ padding: '6px 10px', background: 'rgba(200,112,32,0.22)', border: '1px solid rgba(200,112,32,0.45)', borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12, color: 'rgba(240,180,80,0.95)', whiteSpace: 'nowrap' }}>✓ All</button>
+                            </div>
+                          )}
                         </div>
                         {expanded && (
                           <div style={{ borderTop: `1px solid ${tierBorder}`, padding: '6px 11px 8px 15px' }}>
-                            {groupItems.map(item => (
-                              <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: accentColor, flexShrink: 0 }}/>
-                                  <span style={{ fontFamily: SERIF, fontSize: 12, color: TEXT }}>{item.plant.name}</span>
+                            {groupItems.map(item => {
+                              const itemDone = isDoneToday ? isDoneToday(item) : false;
+                              return (
+                                <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', opacity: itemDone ? 0.5 : 1 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: accentColor, flexShrink: 0 }}/>
+                                    <span style={{ fontFamily: SERIF, fontSize: 12, color: TEXT, textDecoration: itemDone ? 'line-through' : 'none' }}>{item.plant.name}</span>
+                                    {itemDone && <span style={{ color: '#58c030', fontSize: 11 }}>✓</span>}
+                                  </div>
+                                  {!itemDone && (
+                                    <div style={{ display: 'flex', gap: 4 }}>
+                                      <button onClick={e => { e.stopPropagation(); onAction?.(item.actionKey, item.plant, item.task?.label); }} style={{ padding: '4px 8px', background: 'rgba(200,112,32,0.18)', border: '1px solid rgba(200,112,32,0.35)', borderRadius: 5, cursor: 'pointer', fontFamily: SERIF, fontSize: 11, color: 'rgba(240,180,80,0.90)' }}>✓</button>
+                                      <button onClick={e => { e.stopPropagation(); onSelectPlant?.(item.plant); }} style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 5, cursor: 'pointer', fontFamily: SERIF, fontSize: 11, color: MUTED }}>→</button>
+                                    </div>
+                                  )}
                                 </div>
-                                <div style={{ display: 'flex', gap: 4 }}>
-                                  <button onClick={e => { e.stopPropagation(); onAction?.(item.actionKey, item.plant, item.task?.label); }} style={{ padding: '4px 8px', background: 'rgba(200,112,32,0.18)', border: '1px solid rgba(200,112,32,0.35)', borderRadius: 5, cursor: 'pointer', fontFamily: SERIF, fontSize: 11, color: 'rgba(240,180,80,0.90)' }}>✓</button>
-                                  <button onClick={e => { e.stopPropagation(); onSelectPlant?.(item.plant); }} style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 5, cursor: 'pointer', fontFamily: SERIF, fontSize: 11, color: MUTED }}>→</button>
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>
                     );
                   }
                   const { plant, actionKey, task } = entry.item;
+                  const done = isDoneToday ? isDoneToday(entry.item) : false;
                   const def = ACTION_DEFS[actionKey] || null;
                   const pc = plantColor(plant.type);
                   const itemEmoji = task?.emoji || def?.emoji || '✨';
@@ -1177,27 +1188,30 @@ export function MapCarePanel({
                   const itemKey = `${plant.id}-${actionKey}-${task?.label || ''}`;
                   const howToOpen = howToOpenKey === itemKey;
                   return (
-                    <div key={itemKey} style={{ borderRadius: 9, border: `1.5px solid ${tierBorder}`, background: tierBg, overflow: 'hidden' }}>
+                    <div key={itemKey} style={{ borderRadius: 9, border: `1.5px solid ${tierBorder}`, background: tierBg, overflow: 'hidden', opacity: done ? 0.6 : 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 11px 10px 0' }}>
                         <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
                         <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{itemEmoji}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
-                            <span style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, fontWeight: 500 }}>{plant.name}</span>
-                            <span style={{ fontFamily: SERIF, fontSize: 12, color: MUTED }}>{itemLabel}</span>
+                            <span style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, fontWeight: 500, textDecoration: done ? 'line-through' : 'none' }}>{plant.name}</span>
+                            <span style={{ fontFamily: SERIF, fontSize: 12, color: MUTED, textDecoration: done ? 'line-through' : 'none' }}>{itemLabel}</span>
+                            {done && <span style={{ color: '#58c030', fontSize: 12 }}>✓</span>}
                           </div>
-                          {(task?.reason || entry.item.reason) && (
+                          {!done && (task?.reason || entry.item.reason) && (
                             <div style={{ fontFamily: SERIF, fontSize: 11.5, fontStyle: 'italic', lineHeight: 1.45, color: 'rgba(240,220,170,0.55)' }}>
                               {task?.reason || entry.item.reason}
                             </div>
                           )}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, paddingRight: 2 }}>
-                          <button onClick={e => { e.stopPropagation(); onAction?.(actionKey, plant, task?.label); }} style={{ padding: '6px 10px', background: 'rgba(200,112,32,0.22)', border: '1px solid rgba(200,112,32,0.45)', borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12, color: 'rgba(240,180,80,0.95)', whiteSpace: 'nowrap' }}>✓ Done</button>
-                          <button onClick={e => { e.stopPropagation(); onSelectPlant?.(plant); }} style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12, color: MUTED, whiteSpace: 'nowrap' }}>Details →</button>
-                        </div>
+                        {!done && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, paddingRight: 2 }}>
+                            <button onClick={e => { e.stopPropagation(); onAction?.(actionKey, plant, task?.label); }} style={{ padding: '6px 10px', background: 'rgba(200,112,32,0.22)', border: '1px solid rgba(200,112,32,0.45)', borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12, color: 'rgba(240,180,80,0.95)', whiteSpace: 'nowrap' }}>✓ Done</button>
+                            <button onClick={e => { e.stopPropagation(); onSelectPlant?.(plant); }} style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12, color: MUTED, whiteSpace: 'nowrap' }}>Details →</button>
+                          </div>
+                        )}
                       </div>
-                      {task?.instructions && (
+                      {!done && task?.instructions && (
                         <div style={{ borderTop: `1px solid ${tierBorder}`, padding: '0 11px 0 19px' }}>
                           <button onClick={e => { e.stopPropagation(); setHowToOpenKey(howToOpen ? null : itemKey); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px 0', fontFamily: SERIF, fontSize: 11, color: 'rgba(240,220,170,0.45)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <span>{howToOpen ? '▴' : '▾'}</span><span>How to</span>
@@ -1228,44 +1242,55 @@ export function MapCarePanel({
                     const sectionKey = `o:${gk}`;
                     const expanded = expandedGroupKey === sectionKey;
                     const accentColor = plantColor(groupItems[0].plantType);
+                    const groupDoneCount = isDoneToday ? groupItems.filter(i => isDoneToday(i)).length : 0;
+                    const allGroupDone = groupDoneCount === groupItems.length;
                     return (
-                      <div key={sectionKey} style={{ borderRadius: 9, border: `1.5px solid ${optBorder}`, background: optBg, overflow: 'hidden' }}>
+                      <div key={sectionKey} style={{ borderRadius: 9, border: `1.5px solid ${optBorder}`, background: optBg, overflow: 'hidden', opacity: allGroupDone ? 0.6 : 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 11px 10px 0' }}>
                           <div style={{ width: 4, alignSelf: 'stretch', background: accentColor, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
                           <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{groupEmoji}</span>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, fontWeight: 500, marginBottom: 2 }}>{groupLabel}</div>
+                            <div style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, fontWeight: 500, marginBottom: 2, textDecoration: allGroupDone ? 'line-through' : 'none' }}>{groupLabel}</div>
                             <div style={{ fontFamily: SERIF, fontSize: 11, color: 'rgba(160,130,80,0.55)' }}>
-                              {groupItems.length} {plantTypePlural(groupItems[0].plantType)}
+                              {groupDoneCount > 0 ? `${groupDoneCount}/${groupItems.length} done` : `${groupItems.length} ${plantTypePlural(groupItems[0].plantType)}`}
                             </div>
                             <button onClick={() => setExpandedGroupKey(expanded ? null : sectionKey)} style={{ background: 'none', border: 'none', padding: '2px 0 0', cursor: 'pointer', fontFamily: SERIF, fontSize: 10, color: 'rgba(160,130,80,0.45)', textDecoration: 'underline' }}>
                               {expanded ? 'hide' : groupItems.map(i => i.plant.name).join(', ')}
                             </button>
                           </div>
-                          <div style={{ flexShrink: 0, paddingRight: 2 }}>
-                            <button onClick={e => { e.stopPropagation(); groupItems.forEach(i => onAction?.(i.actionKey, i.plant, i.task?.label)); }} style={{ padding: '6px 10px', background: 'rgba(80,120,40,0.20)', border: '1px solid rgba(80,120,40,0.40)', borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12, color: 'rgba(160,210,100,0.90)', whiteSpace: 'nowrap' }}>✓ All</button>
-                          </div>
+                          {!allGroupDone && (
+                            <div style={{ flexShrink: 0, paddingRight: 2 }}>
+                              <button onClick={async e => { e.stopPropagation(); for (const i of groupItems) { await onAction?.(i.actionKey, i.plant, i.task?.label); } }} style={{ padding: '6px 10px', background: 'rgba(80,120,40,0.20)', border: '1px solid rgba(80,120,40,0.40)', borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12, color: 'rgba(160,210,100,0.90)', whiteSpace: 'nowrap' }}>✓ All</button>
+                            </div>
+                          )}
                         </div>
                         {expanded && (
                           <div style={{ borderTop: `1px solid ${optBorder}`, padding: '6px 11px 8px 15px' }}>
-                            {groupItems.map(item => (
-                              <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: accentColor, flexShrink: 0 }}/>
-                                  <span style={{ fontFamily: SERIF, fontSize: 12, color: TEXT }}>{item.plant.name}</span>
+                            {groupItems.map(item => {
+                              const itemDone = isDoneToday ? isDoneToday(item) : false;
+                              return (
+                                <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', opacity: itemDone ? 0.5 : 1 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: accentColor, flexShrink: 0 }}/>
+                                    <span style={{ fontFamily: SERIF, fontSize: 12, color: TEXT, textDecoration: itemDone ? 'line-through' : 'none' }}>{item.plant.name}</span>
+                                    {itemDone && <span style={{ color: '#58c030', fontSize: 11 }}>✓</span>}
+                                  </div>
+                                  {!itemDone && (
+                                    <div style={{ display: 'flex', gap: 4 }}>
+                                      <button onClick={e => { e.stopPropagation(); onAction?.(item.actionKey, item.plant, item.task?.label); }} style={{ padding: '4px 8px', background: 'rgba(80,120,40,0.15)', border: '1px solid rgba(80,120,40,0.30)', borderRadius: 5, cursor: 'pointer', fontFamily: SERIF, fontSize: 11, color: 'rgba(160,210,100,0.85)' }}>✓</button>
+                                      <button onClick={e => { e.stopPropagation(); onSelectPlant?.(item.plant); }} style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 5, cursor: 'pointer', fontFamily: SERIF, fontSize: 11, color: MUTED }}>→</button>
+                                    </div>
+                                  )}
                                 </div>
-                                <div style={{ display: 'flex', gap: 4 }}>
-                                  <button onClick={e => { e.stopPropagation(); onAction?.(item.actionKey, item.plant, item.task?.label); }} style={{ padding: '4px 8px', background: 'rgba(80,120,40,0.15)', border: '1px solid rgba(80,120,40,0.30)', borderRadius: 5, cursor: 'pointer', fontFamily: SERIF, fontSize: 11, color: 'rgba(160,210,100,0.85)' }}>✓</button>
-                                  <button onClick={e => { e.stopPropagation(); onSelectPlant?.(item.plant); }} style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 5, cursor: 'pointer', fontFamily: SERIF, fontSize: 11, color: MUTED }}>→</button>
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>
                     );
                   }
                   const { plant, actionKey, task } = entry.item;
+                  const done = isDoneToday ? isDoneToday(entry.item) : false;
                   const def = ACTION_DEFS[actionKey] || null;
                   const pc = plantColor(plant.type);
                   const itemEmoji = task?.emoji || def?.emoji || '✨';
@@ -1273,27 +1298,30 @@ export function MapCarePanel({
                   const itemKey = `${plant.id}-${actionKey}-${task?.label || ''}`;
                   const howToOpen = howToOpenKey === itemKey;
                   return (
-                    <div key={itemKey} style={{ borderRadius: 9, border: `1.5px solid ${optBorder}`, background: optBg, overflow: 'hidden' }}>
+                    <div key={itemKey} style={{ borderRadius: 9, border: `1.5px solid ${optBorder}`, background: optBg, overflow: 'hidden', opacity: done ? 0.6 : 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 11px 10px 0' }}>
                         <div style={{ width: 4, alignSelf: 'stretch', background: pc, flexShrink: 0, borderRadius: '0 2px 2px 0', opacity: .9 }}/>
                         <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{itemEmoji}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
-                            <span style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, fontWeight: 500 }}>{plant.name}</span>
-                            <span style={{ fontFamily: SERIF, fontSize: 12, color: 'rgba(160,130,80,0.55)' }}>{itemLabel}</span>
+                            <span style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, fontWeight: 500, textDecoration: done ? 'line-through' : 'none' }}>{plant.name}</span>
+                            <span style={{ fontFamily: SERIF, fontSize: 12, color: 'rgba(160,130,80,0.55)', textDecoration: done ? 'line-through' : 'none' }}>{itemLabel}</span>
+                            {done && <span style={{ color: '#58c030', fontSize: 12 }}>✓</span>}
                           </div>
-                          {(task?.reason || entry.item.reason) && (
+                          {!done && (task?.reason || entry.item.reason) && (
                             <div style={{ fontFamily: SERIF, fontSize: 11.5, fontStyle: 'italic', lineHeight: 1.45, color: 'rgba(240,220,170,0.55)' }}>
                               {task?.reason || entry.item.reason}
                             </div>
                           )}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, paddingRight: 2 }}>
-                          <button onClick={e => { e.stopPropagation(); onAction?.(actionKey, plant, task?.label); }} style={{ padding: '6px 10px', background: 'rgba(80,120,40,0.20)', border: '1px solid rgba(80,120,40,0.40)', borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12, color: 'rgba(160,210,100,0.90)', whiteSpace: 'nowrap' }}>✓ Done</button>
-                          <button onClick={e => { e.stopPropagation(); onSelectPlant?.(plant); }} style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12, color: MUTED, whiteSpace: 'nowrap' }}>Details →</button>
-                        </div>
+                        {!done && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, paddingRight: 2 }}>
+                            <button onClick={e => { e.stopPropagation(); onAction?.(actionKey, plant, task?.label); }} style={{ padding: '6px 10px', background: 'rgba(80,120,40,0.20)', border: '1px solid rgba(80,120,40,0.40)', borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12, color: 'rgba(160,210,100,0.90)', whiteSpace: 'nowrap' }}>✓ Done</button>
+                            <button onClick={e => { e.stopPropagation(); onSelectPlant?.(plant); }} style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(160,130,80,0.22)', borderRadius: 6, cursor: 'pointer', fontFamily: SERIF, fontSize: 12, color: MUTED, whiteSpace: 'nowrap' }}>Details →</button>
+                          </div>
+                        )}
                       </div>
-                      {task?.instructions && (
+                      {!done && task?.instructions && (
                         <div style={{ borderTop: `1px solid ${optBorder}`, padding: '0 11px 0 19px' }}>
                           <button onClick={e => { e.stopPropagation(); setHowToOpenKey(howToOpen ? null : itemKey); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px 0', fontFamily: SERIF, fontSize: 11, color: 'rgba(240,220,170,0.45)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <span>{howToOpen ? '▴' : '▾'}</span><span>How to</span>

@@ -1952,6 +1952,9 @@ export default function App() {
   const [briefings, setBriefings] = useState({});
   const [briefingRefreshToken, setBriefingRefreshToken] = useState(0);
   const [agendaData, setAgendaData] = useState(null); // { sessionMinutes, tasks } — AI ordering + priorities
+  const [frozenAgendaDate, setFrozenAgendaDate] = useState(null);
+  const [frozenEssential, setFrozenEssential] = useState([]);
+  const [frozenOptional, setFrozenOptional] = useState([]);
   const _todayStr = localDate();
   const { portraits, updatePortrait } = usePortraits({ user });
   const { allPhotos, addPhoto: _addPhoto } = usePhotos({ user });
@@ -2057,6 +2060,19 @@ export default function App() {
     terrace: [...terracePlants.filter(p => p.type !== 'empty-pot'), ...customPlantsWithState],
   }),[terracePlants, customPlantsWithState]);
 
+  // Load frozen agenda from localStorage on mount
+  useEffect(() => {
+    const todayStr = localDate();
+    try {
+      const saved = JSON.parse(localStorage.getItem('gp_frozen_agenda_v1') || 'null');
+      if (saved && saved.date === todayStr) {
+        setFrozenAgendaDate(todayStr);
+        setFrozenEssential(saved.essential || []);
+        setFrozenOptional(saved.optional || []);
+      }
+    } catch {}
+  }, []);
+
   // Live attention items — computed from briefings, used as fallback before agenda freezes
   // Shared agenda — single source of truth for both Maps page and Mobile Today tab.
   // Both views receive agendaItems from here so they always show identical tasks.
@@ -2144,6 +2160,43 @@ export default function App() {
     return ordered;
   }, [sharedAgendaItems, agendaData]);
 
+  // Freeze the agenda once per day when pendingAgendaItems first loads
+  useEffect(() => {
+    const todayStr = localDate();
+    if (frozenAgendaDate === todayStr) return; // already frozen today
+    if (!pendingAgendaItems.length) return;     // not loaded yet
+    if (!seasonOpen) return;
+
+    const essential = pendingAgendaItems
+      .filter(i => (i.priority === 'urgent' || i.priority === 'recommended') && !extractFutureActionDate(i.task?.instructions))
+      .slice(0, 6);
+    const optional = pendingAgendaItems
+      .filter(i => i.priority === 'optional')
+      .slice(0, 5);
+
+    setFrozenEssential(essential);
+    setFrozenOptional(optional);
+    setFrozenAgendaDate(todayStr);
+    try {
+      localStorage.setItem('gp_frozen_agenda_v1', JSON.stringify({ date: todayStr, essential, optional }));
+    } catch {}
+  }, [pendingAgendaItems, frozenAgendaDate, seasonOpen]);
+
+  // Auto-clear frozen agenda at 6:30 AM so next morning gets a fresh list
+  useEffect(() => {
+    const checkTime = () => {
+      const now = new Date();
+      if (now.getHours() === 6 && now.getMinutes() >= 30) {
+        const todayStr = localDate();
+        if (frozenAgendaDate !== todayStr) {
+          setFrozenAgendaDate(null);
+        }
+      }
+    };
+    const interval = setInterval(checkTime, 60000);
+    return () => clearInterval(interval);
+  }, [frozenAgendaDate]);
+
   // agendaSections — single source of truth for the task lists shown in BOTH
   // the desktop Maps panel and the mobile Today tab. Computed once here so both
   // panels render the literal same arrays — no re-derivation in child components.
@@ -2154,16 +2207,15 @@ export default function App() {
       if (item.actionKey === 'tend') return entries.some(e => e.action === 'tend' && e.label === (item.task?.label || '') && e.date && localDate(e.date) === todayStr);
       return entries.some(e => e.action === item.actionKey && e.date && localDate(e.date) === todayStr);
     }
-    const essentialAll = pendingAgendaItems
-      .filter(i => (i.priority === 'urgent' || i.priority === 'recommended') && !extractFutureActionDate(i.task?.instructions))
-      .slice(0, 6);
-    const essentialTotal = essentialAll.length;
-    const essentialDone  = essentialAll.filter(i => isDoneToday(i)).length;
-    const notDone        = pendingAgendaItems.filter(i => !isDoneToday(i));
-    const todayItems     = notDone.filter(i => (i.priority === 'urgent' || i.priority === 'recommended') && !extractFutureActionDate(i.task?.instructions)).slice(0, 6);
-    const optItems       = notDone.filter(i => i.priority === 'optional').slice(0, 5);
-    return { essentialTotal, essentialDone, todayItems, optItems };
-  }, [pendingAgendaItems, careLog]);
+    // Use frozen lists — these don't change until next morning or manual refresh
+    const essentialItems = frozenEssential.length ? frozenEssential
+      : pendingAgendaItems.filter(i => (i.priority === 'urgent' || i.priority === 'recommended') && !extractFutureActionDate(i.task?.instructions)).slice(0, 6);
+    const optItems = frozenOptional.length ? frozenOptional
+      : pendingAgendaItems.filter(i => i.priority === 'optional').slice(0, 5);
+    const essentialTotal = essentialItems.length;
+    const essentialDone  = essentialItems.filter(i => isDoneToday(i)).length;
+    return { essentialTotal, essentialDone, todayItems: essentialItems, optItems, isDoneToday };
+  }, [frozenEssential, frozenOptional, pendingAgendaItems, careLog]);
 
   // Fetch "one thing to notice" — daily AI observation for the map left panel
   useEffect(() => {
@@ -2249,10 +2301,14 @@ export default function App() {
       Object.keys(localStorage)
         .filter(k => k.startsWith('gp_claude_') && k.includes(today))
         .forEach(k => localStorage.removeItem(k));
+      localStorage.removeItem('gp_frozen_agenda_v1');
     } catch (e) { console.warn('refreshBriefings localStorage clear failed', e); }
     setBriefings({});
     setMorningBrief(null);
     setDailyBrief(null);
+    setFrozenAgendaDate(null);
+    setFrozenEssential([]);
+    setFrozenOptional([]);
     setBriefingRefreshToken(t => t + 1);
   }, []);
 

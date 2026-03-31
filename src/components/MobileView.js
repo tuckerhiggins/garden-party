@@ -1634,10 +1634,11 @@ function plantTypePlural(type) {
 
 
 
-function AgendaGroupCard({ group, onDoneAll, onDoneOne, justDoneKeys = new Set() }) {
+function AgendaGroupCard({ group, onDoneAll, onDoneOne, justDoneKeys = new Set(), isItemDone }) {
   const [expanded, setExpanded] = React.useState(false);
-  const allDone = group.items.every(i => justDoneKeys.has(i.key));
-  const doneSoFar = group.items.filter(i => justDoneKeys.has(i.key)).length;
+  const isDone = (item) => justDoneKeys.has(item.key) || (isItemDone ? isItemDone(item) : false);
+  const allDone = group.items.every(i => isDone(i));
+  const doneSoFar = group.items.filter(i => isDone(i)).length;
   const accentColor = plantColor(group.items[0].plantType);
   return (
     <div style={{
@@ -1676,24 +1677,27 @@ function AgendaGroupCard({ group, onDoneAll, onDoneOne, justDoneKeys = new Set()
       </div>
       {expanded && (
         <div style={{ borderTop: `1px solid ${C.cardBorder}`, padding: '6px 13px 8px' }}>
-          {group.items.map(item => (
-            <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: accentColor, flexShrink: 0 }}/>
-                <span style={{ fontFamily: SERIF, fontSize: 13, color: justDoneKeys.has(item.key) ? '#5a9030' : '#3a2010' }}>
-                  {item.plant.name}
-                </span>
+          {group.items.map(item => {
+            const itemDone = isDone(item);
+            return (
+              <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', opacity: itemDone ? 0.6 : 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: accentColor, flexShrink: 0 }}/>
+                  <span style={{ fontFamily: SERIF, fontSize: 13, color: itemDone ? '#5a9030' : '#3a2010', textDecoration: itemDone ? 'line-through' : 'none' }}>
+                    {item.plant.name}
+                  </span>
+                </div>
+                {!itemDone
+                  ? <button onClick={() => onDoneOne(item)}
+                      style={{ fontFamily: SERIF, fontSize: 12, background: 'none', border: `1px solid ${C.cardBorder}`,
+                        borderRadius: 5, padding: '2px 10px', cursor: 'pointer', color: '#5a3818' }}>
+                      Done
+                    </button>
+                  : <span style={{ fontSize: 11, color: '#5a9030' }}>✓</span>
+                }
               </div>
-              {!justDoneKeys.has(item.key)
-                ? <button onClick={() => onDoneOne(item)}
-                    style={{ fontFamily: SERIF, fontSize: 12, background: 'none', border: `1px solid ${C.cardBorder}`,
-                      borderRadius: 5, padding: '2px 10px', cursor: 'pointer', color: '#5a3818' }}>
-                    Done
-                  </button>
-                : <span style={{ fontSize: 11, color: '#5a9030' }}>✓</span>
-              }
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -1726,11 +1730,11 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, agen
     setTimeout(() => setJustDoneKey(null), 3000);
   }
 
-  function handleDoneAll(groupItems) {
-    groupItems.forEach(item => {
+  async function handleDoneAll(groupItems) {
+    for (const item of groupItems) {
       setGroupJustDoneKeys(prev => new Set([...prev, item.key]));
-      onMarkDone(item);
-    });
+      await onMarkDone(item);
+    }
     setJustDoneStreak(s => s + 1);
   }
 
@@ -1935,31 +1939,39 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, agen
         </div>
       )}
 
-      {/* ── TODAY section ── */}
-      {todayItems.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
-          <div style={{
-            fontFamily: MONO, fontSize: 6.5, letterSpacing: .6,
-            color: '#b84018', marginBottom: 8,
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <span>TODAY</span>
-            <div style={{ flex: 1, height: 1, background: 'rgba(200,80,30,0.20)' }}/>
-            <span style={{ color: 'rgba(200,80,30,0.55)' }}>{todayItems.length}</span>
+      {/* ── TODAY section — uses frozen list from App.js when available ── */}
+      {(() => {
+        const frozenToday = agendaSections?.todayItems;
+        const checkDone = agendaSections?.isDoneToday;
+        const displayItems = frozenToday ?? todayItems;
+        if (!displayItems.length) return null;
+        return (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{
+              fontFamily: MONO, fontSize: 6.5, letterSpacing: .6,
+              color: '#b84018', marginBottom: 8,
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <span>TODAY</span>
+              <div style={{ flex: 1, height: 1, background: 'rgba(200,80,30,0.20)' }}/>
+              <span style={{ color: 'rgba(200,80,30,0.55)' }}>{displayItems.length}</span>
+            </div>
+            {groupAgendaItems(displayItems).map(entry =>
+              entry.type === 'group'
+                ? <AgendaGroupCard key={entry.gk} group={entry}
+                    onDoneAll={() => handleDoneAll(entry.items.filter(i => !((checkDone ? checkDone(i) : false) || completedThisSession.has(i.key))))}
+                    onDoneOne={handleDone}
+                    justDoneKeys={groupJustDoneKeys}
+                    isItemDone={i => (checkDone ? checkDone(i) : false) || completedThisSession.has(i.key)}/>
+                : <AgendaRow key={entry.item.key} item={entry.item}
+                    completed={(checkDone ? checkDone(entry.item) : false) || completedThisSession.has(entry.item.key)}
+                    justDone={justDoneKey === entry.item.key} justDoneStreak={justDoneStreak}
+                    onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
+                    onDone={handleDone} portrait={portraits[entry.item.plantId]}/>
+            )}
           </div>
-          {groupAgendaItems(todayItems).map(entry =>
-            entry.type === 'group'
-              ? <AgendaGroupCard key={entry.gk} group={entry}
-                  onDoneAll={() => handleDoneAll(entry.items)}
-                  onDoneOne={handleDone}
-                  justDoneKeys={groupJustDoneKeys}/>
-              : <AgendaRow key={entry.item.key} item={entry.item} completed={false}
-                  justDone={justDoneKey === entry.item.key} justDoneStreak={justDoneStreak}
-                  onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
-                  onDone={handleDone} portrait={portraits[entry.item.plantId]}/>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* "Essential tasks done" — when today is clear but more below */}
       {urgentRecAllDone && weekItems.length + optItems.length > 0 && (
@@ -1999,31 +2011,39 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, agen
         </div>
       )}
 
-      {/* ── WHEN YOU HAVE TIME section ── */}
-      {optItems.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
-          <div style={{
-            fontFamily: MONO, fontSize: 6.5, letterSpacing: .6,
-            color: '#507050', marginBottom: 8,
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <span>WHEN YOU HAVE TIME</span>
-            <div style={{ flex: 1, height: 1, background: 'rgba(80,120,80,0.18)' }}/>
-            <span style={{ color: 'rgba(80,120,80,0.40)' }}>{optItems.length}</span>
+      {/* ── WHEN YOU HAVE TIME section — uses frozen list from App.js when available ── */}
+      {(() => {
+        const frozenOpt = agendaSections?.optItems;
+        const checkDone = agendaSections?.isDoneToday;
+        const displayOpt = frozenOpt ?? optItems;
+        if (!displayOpt.length) return null;
+        return (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{
+              fontFamily: MONO, fontSize: 6.5, letterSpacing: .6,
+              color: '#507050', marginBottom: 8,
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <span>WHEN YOU HAVE TIME</span>
+              <div style={{ flex: 1, height: 1, background: 'rgba(80,120,80,0.18)' }}/>
+              <span style={{ color: 'rgba(80,120,80,0.40)' }}>{displayOpt.length}</span>
+            </div>
+            {groupAgendaItems(displayOpt).map(entry =>
+              entry.type === 'group'
+                ? <AgendaGroupCard key={entry.gk} group={entry}
+                    onDoneAll={() => handleDoneAll(entry.items.filter(i => !((checkDone ? checkDone(i) : false) || completedThisSession.has(i.key))))}
+                    onDoneOne={handleDone}
+                    justDoneKeys={groupJustDoneKeys}
+                    isItemDone={i => (checkDone ? checkDone(i) : false) || completedThisSession.has(i.key)}/>
+                : <AgendaRow key={entry.item.key} item={entry.item}
+                    completed={(checkDone ? checkDone(entry.item) : false) || completedThisSession.has(entry.item.key)}
+                    justDone={justDoneKey === entry.item.key} justDoneStreak={justDoneStreak}
+                    onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
+                    onDone={handleDone} portrait={portraits[entry.item.plantId]}/>
+            )}
           </div>
-          {groupAgendaItems(optItems).map(entry =>
-            entry.type === 'group'
-              ? <AgendaGroupCard key={entry.gk} group={entry}
-                  onDoneAll={() => handleDoneAll(entry.items)}
-                  onDoneOne={handleDone}
-                  justDoneKeys={groupJustDoneKeys}/>
-              : <AgendaRow key={entry.item.key} item={entry.item} completed={false}
-                  justDone={justDoneKey === entry.item.key} justDoneStreak={justDoneStreak}
-                  onTap={i => onStartAction(i.plant, i.actionKey, i.task)}
-                  onDone={handleDone} portrait={portraits[entry.item.plantId]}/>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Nothing pending ── */}
       {todayItems.length === 0 && weekItems.length === 0 && optItems.length === 0 && doneCount === 0 && (

@@ -170,13 +170,19 @@ export function usePortraits({ user }) {
         }].slice(-30);
       }
 
-      if (data.svg) data = { ...data, svg: sanitizeSvg(data.svg) };
+      if (data.svg) {
+        const sanitized = sanitizeSvg(data.svg);
+        // Only update SVG if the new one passed validation — never overwrite a good SVG with null
+        data = { ...data, svg: sanitized || existing.svg || null };
+      }
 
       const next = {
         ...prev,
         [id]: {
           ...existing,
           ...data,
+          // Never clear an existing SVG via a null incoming value — preserve it
+          svg: data.svg !== undefined ? (data.svg || existing.svg || null) : existing.svg || null,
           history,
           stages,
           currentStage: incomingStage ?? existing.currentStage ?? null,
