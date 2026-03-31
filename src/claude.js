@@ -507,7 +507,7 @@ export async function fetchDailyBrief({ plants, careLog, weather, portraits, age
   const todayCareToken = Object.values(careLog).flat().filter(e => e.date?.startsWith(today)).length;
   const taskToken = agendaTasks.map(t => t.label || t.actionKey).join(',').slice(0, 80);
   // v6: removed todayCareToken — daily brief is frozen daily
-  const cacheKey = `dailybrief6_${today}_${rainToken}_${taskToken}`;
+  const cacheKey = `dailybrief7_${today}_${rainToken}_${taskToken}`;
 
   const cached = lsGet(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.data;
@@ -572,7 +572,8 @@ Respond as JSON only — no other text:
   "weather": "1-2 sentences: today's conditions + notable next 5 days. Flag anything actionable (rain → skip water, frost → protect, heat → extra water). Be specific with temps and dates.",
   "garden": "2-3 sentences: what is actually happening biologically across the garden right now. Phenological stage, soil temps, root activity, dormancy break, visible changes. Ground this in Zone 7b late-March specifics.",
   "today": "1-3 sentences covering every required task from TODAY'S TASKS (skip completed ones and optional ones). For each care action you mention, embed its key in brackets inline: e.g. 'Give the lemon a [water] — soil is dry after five days' or 'The rose needs a [prune] to remove the crossing cane'. Use only these keys: water, fertilize, prune, neem, train, worms, repot, tend. Then in a final sentence mention any optional tasks lightly ('if you have time...'). If rain is coming adjust accordingly.",
-  "watch": "1 sentence: one specific thing to monitor or anticipate in the next 7 days — pest emergence, weather window, phenological milestone, or timing decision."
+  "watch": "1-2 sentences: one specific thing to monitor or anticipate in the next 7 days — pest emergence, weather window, phenological milestone, or timing decision.",
+  "week": "2-3 sentences: what's coming biologically in the next 5-7 days — growth stages approaching transition, seasonal milestones, what the weather will do to the garden. No care actions — just what the plants and season will do on their own."
 }`;
 
   const userPrompt = `Date: ${todayFull}. Brooklyn Zone 7b.
@@ -599,6 +600,7 @@ Write the daily briefing.`;
       garden: parsed.garden || null,
       today: parsed.today || null,
       watch: parsed.watch || null,
+      week: parsed.week || null,
     };
     const midnight = new Date(); midnight.setHours(24, 0, 0, 0);
     lsSet(cacheKey, { data, expiresAt: midnight.getTime() });

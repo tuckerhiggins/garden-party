@@ -721,10 +721,10 @@ export function MapContextPanel({
   );
 }
 
-// ── BriefingModal — full-screen today's brief with Q&A ────────────────────
+// ── BriefingModal — morning garden newspaper ─────────────────────────────
 function BriefingModal({ open, onClose, morningBrief, fullBrief, plants = [], careLog = {}, weather = null, portraits = {}, briefings = {} }) {
   const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState(null);   // { q, text }
+  const [answer, setAnswer] = useState(null);
   const [asking, setAsking] = useState(false);
   const [starters, setStarters] = useState(null);
   const inputRef = useRef(null);
@@ -756,157 +756,167 @@ function BriefingModal({ open, onClose, morningBrief, fullBrief, plants = [], ca
 
   if (!open) return null;
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  const activePlants = plants.filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && !p.noTasks);
-  const plantBriefings = activePlants.filter(p => briefings[p.id] && briefings[p.id] !== 'loading' && briefings[p.id]?.note);
+  const now = new Date();
+  const dayName  = now.toLocaleDateString('en-US', { weekday: 'long' });
+  const dateLine = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
-  const MODAL_BG  = 'rgba(9,5,1,0.98)';
-  const GOLD_DIM  = 'rgba(212,168,48,0.70)';
-  const RULE_M    = 'rgba(160,130,80,0.18)';
+  const MODAL_BG = '#0c0702';
+  const RULE_M   = 'rgba(160,130,80,0.16)';
+  const GOLD_DIM = 'rgba(212,168,48,0.65)';
 
-  const sectionLabel = (label) => (
-    <div style={{ fontFamily: MONO, fontSize: 6.5, color: GOLD_DIM, letterSpacing: .7, marginBottom: 7, textTransform: 'uppercase' }}>{label}</div>
-  );
-
-  const briefSections = fullBrief ? [
-    { key: 'weather', label: 'Context'     },
-    { key: 'garden',  label: 'Garden State'},
-    { key: 'today',   label: 'Today'       },
-    { key: 'watch',   label: 'Watch'       },
-  ].filter(s => fullBrief[s.key]) : [];
+  // Compact weather row — one line per day
+  const forecastDays = weather?.forecast?.slice(0, 5) ?? [];
 
   return (
-    <div
-      onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.75)',
+    <div onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.80)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px' }}>
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 660, maxHeight: '88vh', overflowY: 'auto',
-          background: MODAL_BG, border: '1px solid rgba(160,130,80,0.30)',
-          borderRadius: 16, display: 'flex', flexDirection: 'column' }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: 620, maxHeight: '90vh', overflowY: 'auto',
+          background: MODAL_BG, border: '1px solid rgba(160,130,80,0.28)',
+          borderRadius: 14, display: 'flex', flexDirection: 'column' }}>
 
-        {/* ── Modal header ── */}
-        <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid ${RULE_M}`,
-          background: 'rgba(14,8,2,0.95)', borderRadius: '16px 16px 0 0', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* ── Masthead ── */}
+        <div style={{ padding: '22px 28px 18px', borderBottom: `1px solid ${RULE_M}`,
+          background: 'rgba(8,4,0,0.90)', borderRadius: '14px 14px 0 0', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontFamily: MONO, fontSize: 7, color: GOLD, letterSpacing: .8, marginBottom: 4 }}>TODAY'S BRIEF · GARDEN PARTY</div>
-              <div style={{ fontFamily: SERIF, fontSize: 17, color: TEXT, fontWeight: 600 }}>{today}</div>
+              <div style={{ fontFamily: MONO, fontSize: 6, color: GOLD_DIM, letterSpacing: 1.2, marginBottom: 6 }}>
+                GARDEN PARTY · MORNING BRIEF
+              </div>
+              <div style={{ fontFamily: SERIF, fontSize: 22, fontWeight: 700, color: 'rgba(240,220,170,0.95)', lineHeight: 1.1, marginBottom: 3 }}>
+                {dayName}
+              </div>
+              <div style={{ fontFamily: SERIF, fontSize: 12, color: MUTED, fontStyle: 'italic' }}>{dateLine}</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 2 }}>
               {weather && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: SERIF, fontSize: 14, color: MUTED }}>
-                  <span style={{ fontSize: 20 }}>{wmoEmoji(weather.code)}</span>
-                  <span>{Math.round(weather.temp)}°F</span>
+                <div style={{ fontFamily: SERIF, fontSize: 18, color: MUTED }}>
+                  {wmoEmoji(weather.code)} <span style={{ fontSize: 14 }}>{Math.round(weather.temp)}°</span>
                 </div>
               )}
               <button onClick={onClose}
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(160,130,80,0.22)',
-                  borderRadius: 8, width: 32, height: 32, cursor: 'pointer',
-                  fontFamily: SERIF, fontSize: 18, color: MUTED, lineHeight: 1,
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(160,130,80,0.20)',
+                  borderRadius: 7, width: 30, height: 30, cursor: 'pointer',
+                  fontFamily: SERIF, fontSize: 17, color: MUTED, lineHeight: 1,
                   display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
             </div>
           </div>
         </div>
 
-        {/* ── Daily brief sections ── */}
-        {briefSections.length > 0 && (
-          <div style={{ padding: '20px 24px', borderBottom: `1px solid ${RULE_M}` }}>
-            {/* Morning brief — the one-liner */}
-            {morningBrief && (
-              <div style={{ marginBottom: 20, padding: '12px 14px', background: 'rgba(212,168,48,0.07)',
-                border: '1px solid rgba(212,168,48,0.18)', borderRadius: 10 }}>
-                <div style={{ fontFamily: SERIF, fontSize: 14, color: 'rgba(240,220,170,0.90)', fontStyle: 'italic', lineHeight: 1.65 }}>
-                  {renderBriefText(morningBrief)}
+        {/* ── Lede — the morning brief one-liner ── */}
+        {morningBrief && (
+          <div style={{ padding: '22px 28px 20px', borderBottom: `1px solid ${RULE_M}` }}>
+            <div style={{ fontFamily: SERIF, fontSize: 16, color: 'rgba(245,230,185,0.92)',
+              fontStyle: 'italic', lineHeight: 1.7, letterSpacing: .1 }}>
+              {renderBriefText(morningBrief)}
+            </div>
+          </div>
+        )}
+
+        {/* ── Main story — IN THE GARDEN ── */}
+        {fullBrief?.garden && (
+          <div style={{ padding: '20px 28px', borderBottom: `1px solid ${RULE_M}` }}>
+            <div style={{ fontFamily: MONO, fontSize: 6, color: GOLD_DIM, letterSpacing: .9, marginBottom: 10 }}>
+              IN THE GARDEN
+            </div>
+            <div style={{ fontFamily: SERIF, fontSize: 14, color: 'rgba(230,210,170,0.88)', lineHeight: 1.80 }}>
+              {renderBriefText(fullBrief.garden)}
+            </div>
+          </div>
+        )}
+
+        {/* ── Two-column: COMING UP + WEATHER ── */}
+        {(fullBrief?.week || forecastDays.length > 0) && (
+          <div style={{ display: 'flex', borderBottom: `1px solid ${RULE_M}` }}>
+
+            {/* Coming up */}
+            {fullBrief?.week && (
+              <div style={{ flex: 1, padding: '18px 20px 18px 28px',
+                borderRight: forecastDays.length > 0 ? `1px solid ${RULE_M}` : 'none' }}>
+                <div style={{ fontFamily: MONO, fontSize: 6, color: GOLD_DIM, letterSpacing: .9, marginBottom: 10 }}>
+                  COMING UP
+                </div>
+                <div style={{ fontFamily: SERIF, fontSize: 13, color: 'rgba(220,200,160,0.82)', lineHeight: 1.75 }}>
+                  {renderBriefText(fullBrief.week)}
                 </div>
               </div>
             )}
-            {briefSections.map((s, i) => (
-              <div key={s.key} style={{ marginBottom: i < briefSections.length - 1 ? 16 : 0 }}>
-                {sectionLabel(s.label)}
-                <div style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, lineHeight: 1.72 }}>
-                  {renderBriefText(fullBrief[s.key])}
+
+            {/* Weather column */}
+            {forecastDays.length > 0 && (
+              <div style={{ width: 148, flexShrink: 0, padding: '18px 20px 18px 16px' }}>
+                <div style={{ fontFamily: MONO, fontSize: 6, color: GOLD_DIM, letterSpacing: .9, marginBottom: 10 }}>
+                  FORECAST
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {forecastDays.map((day, i) => {
+                    const label = i === 0 ? 'Today' : i === 1 ? 'Tmrw'
+                      : new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+                    const isRain = day.precipChance >= 60;
+                    return (
+                      <div key={day.date} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontFamily: MONO, fontSize: 5.5, color: MUTED, width: 28, flexShrink: 0, letterSpacing: .3 }}>
+                          {label.toUpperCase()}
+                        </span>
+                        <span style={{ fontSize: 13, lineHeight: 1 }}>{wmoEmoji(day.code)}</span>
+                        <span style={{ fontFamily: SERIF, fontSize: 11, color: TEXT }}>
+                          {day.high}°<span style={{ color: MUTED }}>/{day.low}°</span>
+                        </span>
+                        {isRain && <span style={{ fontFamily: MONO, fontSize: 5, color: '#6090c0', letterSpacing: .2 }}>RAIN</span>}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            ))}
+            )}
           </div>
         )}
 
-        {/* ── 5-day weather strip ── */}
-        {weather?.forecast?.length > 0 && (
-          <div style={{ padding: '16px 24px', borderBottom: `1px solid ${RULE_M}` }}>
-            {sectionLabel('Week Ahead')}
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
-              {weather.forecast.slice(0, 6).map((day, i) => {
-                const label = i === 0 ? 'Today' : i === 1 ? 'Tmrw' : new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
-                const isRainy = day.precipChance >= 60;
-                return (
-                  <div key={day.date} style={{ flexShrink: 0, width: 68,
-                    background: isRainy ? 'rgba(60,80,140,0.12)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${isRainy ? 'rgba(80,120,200,0.25)' : RULE_M}`,
-                    borderRadius: 9, padding: '8px 6px', textAlign: 'center' }}>
-                    <div style={{ fontFamily: MONO, fontSize: 6, color: MUTED, letterSpacing: .3, marginBottom: 4 }}>{label.toUpperCase()}</div>
-                    <div style={{ fontSize: 18, lineHeight: 1, marginBottom: 5 }}>{wmoEmoji(day.code)}</div>
-                    <div style={{ fontFamily: SERIF, fontSize: 11, color: TEXT }}>{day.high}°<span style={{ color: MUTED, fontSize: 10 }}>/{day.low}°</span></div>
-                    {day.precip > 0 && <div style={{ fontFamily: MONO, fontSize: 5.5, color: '#6090c0', marginTop: 3, letterSpacing: .2 }}>{day.precip}"</div>}
-                  </div>
-                );
-              })}
+        {/* ── Watch callout ── */}
+        {fullBrief?.watch && (
+          <div style={{ padding: '18px 28px', borderBottom: `1px solid ${RULE_M}` }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start',
+              background: 'rgba(212,168,48,0.06)', border: '1px solid rgba(212,168,48,0.16)',
+              borderRadius: 10, padding: '14px 16px' }}>
+              <span style={{ fontFamily: MONO, fontSize: 9, color: GOLD, flexShrink: 0, marginTop: 2 }}>◉</span>
+              <div>
+                <div style={{ fontFamily: MONO, fontSize: 6, color: GOLD_DIM, letterSpacing: .8, marginBottom: 6 }}>WATCH</div>
+                <div style={{ fontFamily: SERIF, fontSize: 13, color: 'rgba(240,215,150,0.88)', fontStyle: 'italic', lineHeight: 1.65 }}>
+                  {renderBriefText(fullBrief.watch)}
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* ── Per-plant briefing cards ── */}
-        {plantBriefings.length > 0 && (
-          <div style={{ padding: '16px 24px', borderBottom: `1px solid ${RULE_M}` }}>
-            {sectionLabel('Plant Notes')}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
-              {plantBriefings.map(plant => {
-                const b = briefings[plant.id];
-                const hl = HEALTH_LEVEL[b?.health || plant.health] ?? 0.5;
-                const pc = plantColor(plant.type);
-                const healthLabel = b?.health || plant.health || 'unknown';
-                return (
-                  <div key={plant.id} style={{ background: 'rgba(255,255,255,0.03)',
-                    border: `1px solid rgba(160,130,80,0.14)`, borderRadius: 10,
-                    overflow: 'hidden' }}>
-                    <div style={{ height: 3, background: 'rgba(255,255,255,0.05)' }}>
-                      <div style={{ height: '100%', width: `${hl * 100}%`, background: pc, borderRadius: 3 }}/>
-                    </div>
-                    <div style={{ padding: '9px 11px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: pc, flexShrink: 0 }}/>
-                        <span style={{ fontFamily: SERIF, fontSize: 12, color: TEXT, fontWeight: 600, lineHeight: 1 }}>{plant.name}</span>
-                      </div>
-                      <div style={{ fontFamily: MONO, fontSize: 5.5, color: MUTED, letterSpacing: .3, marginBottom: 6 }}>
-                        {healthLabel.toUpperCase()}
-                        {b?.waterDays && <span style={{ color: '#6090c0', marginLeft: 6 }}>water /{b.waterDays}d</span>}
-                      </div>
-                      <div style={{ fontFamily: SERIF, fontSize: 11.5, color: 'rgba(220,200,160,0.80)', fontStyle: 'italic', lineHeight: 1.5 }}>{b.note}</div>
-                    </div>
-                  </div>
-                );
-              })}
+        {/* ── Loading state ── */}
+        {!fullBrief && (
+          <div style={{ padding: '32px 28px', textAlign: 'center' }}>
+            <div style={{ fontFamily: SERIF, fontSize: 13, color: DIM, fontStyle: 'italic' }}>
+              Reading the garden…
             </div>
           </div>
         )}
 
-        {/* ── Ask the oracle ── */}
-        <div style={{ padding: '16px 24px 24px' }}>
-          {sectionLabel('Ask the Oracle')}
+        {/* ── Ask the Oracle ── */}
+        <div style={{ padding: '18px 28px 26px' }}>
+          <div style={{ fontFamily: MONO, fontSize: 6, color: GOLD_DIM, letterSpacing: .9, marginBottom: 12 }}>
+            ASK THE ORACLE
+          </div>
 
-          {/* Suggested question pills */}
           {starters === null && (
-            <div style={{ fontFamily: SERIF, fontSize: 11, color: DIM, fontStyle: 'italic', marginBottom: 12 }}>Generating questions…</div>
+            <div style={{ fontFamily: SERIF, fontSize: 11, color: DIM, fontStyle: 'italic', marginBottom: 12 }}>
+              Generating questions…
+            </div>
           )}
           {starters && starters.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
               {starters.map((q, i) => (
                 <button key={i} onClick={() => { setQuestion(q); handleAsk(q); }}
-                  style={{ background: 'rgba(212,168,48,0.08)', border: '1px solid rgba(212,168,48,0.22)',
-                    borderRadius: 20, padding: '5px 11px', cursor: 'pointer',
-                    fontFamily: SERIF, fontSize: 11, color: 'rgba(220,190,100,0.85)',
+                  style={{ background: 'rgba(212,168,48,0.07)', border: '1px solid rgba(212,168,48,0.20)',
+                    borderRadius: 20, padding: '5px 12px', cursor: 'pointer',
+                    fontFamily: SERIF, fontSize: 11, color: 'rgba(220,190,100,0.82)',
                     fontStyle: 'italic', textAlign: 'left', lineHeight: 1.4 }}>
                   {q}
                 </button>
@@ -914,28 +924,31 @@ function BriefingModal({ open, onClose, morningBrief, fullBrief, plants = [], ca
             </div>
           )}
 
-          {/* Free-text input */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             <input ref={inputRef} value={question} onChange={e => setQuestion(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAsk()}
               placeholder="Ask anything about the garden today…"
-              style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(160,130,80,0.28)',
+              style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(160,130,80,0.25)',
                 borderRadius: 8, padding: '9px 12px', fontFamily: SERIF, fontSize: 13, color: TEXT,
                 outline: 'none', caretColor: GOLD }} />
             <button onClick={() => handleAsk()} disabled={asking || !question.trim()}
-              style={{ padding: '9px 16px', background: asking ? 'rgba(160,130,80,0.10)' : 'rgba(212,168,48,0.18)',
-                border: '1px solid rgba(212,168,48,0.35)', borderRadius: 8, cursor: asking ? 'default' : 'pointer',
-                fontFamily: SERIF, fontSize: 13, color: asking ? MUTED : GOLD, whiteSpace: 'nowrap' }}>
+              style={{ padding: '9px 16px',
+                background: asking ? 'rgba(160,130,80,0.08)' : 'rgba(212,168,48,0.16)',
+                border: '1px solid rgba(212,168,48,0.32)', borderRadius: 8,
+                cursor: asking ? 'default' : 'pointer',
+                fontFamily: SERIF, fontSize: 13, color: asking ? MUTED : GOLD,
+                whiteSpace: 'nowrap' }}>
               {asking ? '…' : 'Ask →'}
             </button>
           </div>
 
-          {/* Answer */}
           {answer && (
-            <div style={{ background: 'rgba(212,168,48,0.06)', border: '1px solid rgba(212,168,48,0.18)',
-              borderRadius: 10, padding: '12px 14px' }}>
-              <div style={{ fontFamily: MONO, fontSize: 6, color: GOLD_DIM, letterSpacing: .5, marginBottom: 7 }}>ORACLE</div>
-              <div style={{ fontFamily: SERIF, fontSize: 13, color: TEXT, fontStyle: 'italic', lineHeight: 1.7 }}>{answer.text}</div>
+            <div style={{ background: 'rgba(212,168,48,0.05)', border: '1px solid rgba(212,168,48,0.16)',
+              borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ fontFamily: MONO, fontSize: 6, color: GOLD_DIM, letterSpacing: .5, marginBottom: 8 }}>ORACLE</div>
+              <div style={{ fontFamily: SERIF, fontSize: 13.5, color: TEXT, fontStyle: 'italic', lineHeight: 1.75 }}>
+                {answer.text}
+              </div>
             </div>
           )}
         </div>
