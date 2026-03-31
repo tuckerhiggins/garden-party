@@ -1470,49 +1470,52 @@ function DetailPanel({ plant, careLog, onClose, onAction, seasonOpen, onAnalyze,
 
                 {/* Quick stats — stage, health, water */}
                 {(() => {
-                  const port = portraits?.[plant.id] || {};
-                  const computedHealth = computeHealth(plant, careLog, port, weather);
-                  const hl = HEALTH_LEVEL[computedHealth] ?? 0.5;
-                  const wl = computeWaterLevel(plant, careLog, port, weather);
-                  const needsWater = plant.actions?.includes('water');
-                  const stages = port.stages || [];
-                  const currentIdx = stages.indexOf(port.currentStage);
-                  const nextStage = currentIdx >= 0 && currentIdx < stages.length - 1 ? stages[currentIdx + 1] : null;
-                  return (
-                    <div style={{ marginBottom: 14, padding: '10px 12px', background: `${color}06`,
-                      borderRadius: 8, border: `1px solid ${color}18` }}>
-                      {port.currentStage && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 9 }}>
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, opacity: 0.7, flexShrink: 0 }}/>
-                          <span style={{ fontFamily: SERIF, fontSize: 12, color, fontStyle: 'italic', fontWeight: 600 }}>{port.currentStage}</span>
-                          {nextStage && <>
-                            <span style={{ color: '#b09070', fontSize: 11 }}>→</span>
-                            <span style={{ fontFamily: SERIF, fontSize: 11, color: '#907050', fontStyle: 'italic' }}>{nextStage}</span>
-                          </>}
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: needsWater ? 5 : 0 }}>
-                        <span style={{ fontFamily: MONO, fontSize: 7, color: 'rgba(160,130,80,0.55)', width: 36, letterSpacing: .2 }}>HEALTH</span>
-                        <div style={{ flex: 1, height: 4, background: 'rgba(160,130,80,0.12)', borderRadius: 2, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${hl*100}%`,
-                            background: hl>=0.75?'#58c030':hl>=0.5?'#a8c820':hl>=0.25?'#d4820a':'#c83020',
-                            borderRadius: 2, transition: 'width .4s' }}/>
-                        </div>
-                        <span style={{ fontFamily: MONO, fontSize: 7, color: 'rgba(160,130,80,0.70)', width: 28, textAlign: 'right' }}>{Math.round(hl*100)}%</span>
-                      </div>
-                      {needsWater && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: MONO, fontSize: 7, color: 'rgba(160,130,80,0.55)', width: 36, letterSpacing: .2 }}>WATER</span>
-                          <div style={{ flex: 1, height: 4, background: 'rgba(160,130,80,0.12)', borderRadius: 2, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${wl*100}%`,
-                              background: wl>=0.6?'#4a8ac8':wl>=0.3?'#7aa8d0':'#c87030',
+                  try {
+                    const port = portraits?.[plant.id] || {};
+                    const computedHealth = computeHealth(plant, careLog, port, weather);
+                    const hl = HEALTH_LEVEL[computedHealth] ?? 0.5;
+                    const wl = computeWaterLevel(plant, careLog, port, weather);
+                    const needsWater = plant.actions?.includes('water');
+                    const stages = port.stages || [];
+                    const currentIdx = stages.indexOf(port.currentStage);
+                    const nextStage = currentIdx >= 0 && currentIdx < stages.length - 1 ? stages[currentIdx + 1] : null;
+                    return (
+                      <div style={{ marginBottom: 14, padding: '10px 12px',
+                        background: 'rgba(160,130,80,0.06)',
+                        borderRadius: 8, border: '1px solid rgba(160,130,80,0.18)' }}>
+                        {port.currentStage && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 9 }}>
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, opacity: 0.7, flexShrink: 0 }}/>
+                            <span style={{ fontFamily: SERIF, fontSize: 12, color, fontStyle: 'italic', fontWeight: 600 }}>{port.currentStage}</span>
+                            {nextStage && <>
+                              <span style={{ color: '#b09070', fontSize: 11 }}>→</span>
+                              <span style={{ fontFamily: SERIF, fontSize: 11, color: '#907050', fontStyle: 'italic' }}>{nextStage}</span>
+                            </>}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: needsWater ? 5 : 0 }}>
+                          <span style={{ fontFamily: MONO, fontSize: 7, color: '#a08060', width: 36, letterSpacing: .2 }}>HEALTH</span>
+                          <div style={{ flex: 1, height: 4, background: 'rgba(160,130,80,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${hl*100}%`,
+                              background: hl>=0.75?'#58c030':hl>=0.5?'#a8c820':hl>=0.25?'#d4820a':'#c83020',
                               borderRadius: 2, transition: 'width .4s' }}/>
                           </div>
-                          <span style={{ fontFamily: MONO, fontSize: 7, color: 'rgba(160,130,80,0.70)', width: 28, textAlign: 'right' }}>{Math.round(wl*100)}%</span>
+                          <span style={{ fontFamily: MONO, fontSize: 7, color: '#907050', width: 28, textAlign: 'right' }}>{Math.round(hl*100)}%</span>
                         </div>
-                      )}
-                    </div>
-                  );
+                        {needsWater && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontFamily: MONO, fontSize: 7, color: '#a08060', width: 36, letterSpacing: .2 }}>WATER</span>
+                            <div style={{ flex: 1, height: 4, background: 'rgba(160,130,80,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${wl*100}%`,
+                                background: wl>=0.6?'#4a8ac8':wl>=0.3?'#7aa8d0':'#c87030',
+                                borderRadius: 2, transition: 'width .4s' }}/>
+                            </div>
+                            <span style={{ fontFamily: MONO, fontSize: 7, color: '#907050', width: 28, textAlign: 'right' }}>{Math.round(wl*100)}%</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  } catch (e) { return null; }
                 })()}
 
                 {/* Oracle briefing */}
@@ -2883,7 +2886,7 @@ export default function App() {
                   </>
                 )}
                 {sel && (
-                  <div style={{position:'relative',zIndex:2,width:320,flexShrink:0,
+                  <div key={sel.id} style={{position:'relative',zIndex:2,width:320,flexShrink:0,
                     background:'rgba(250,246,238,0.97)',borderLeft:`1px solid ${C.cardBorder}`}}>
                     <DetailPanel plant={sel} careLog={careLog} onClose={()=>setSel(null)}
                       onAction={doAction} seasonOpen={seasonOpen} onAnalyze={updatePortrait} portraits={portraits}

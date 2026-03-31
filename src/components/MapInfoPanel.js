@@ -1042,28 +1042,26 @@ export function MapCarePanel({
 
       {/* ── Today's Brief — narrative + pill to open full modal ── */}
       <div style={{ borderTop: `1px solid ${RULE}`, padding: '12px 16px 11px' }}>
-        {morningBrief ? (
-          <div>
-            <div style={{ borderLeft: `3px solid rgba(212,168,48,0.45)`, paddingLeft: 11, marginBottom: 10 }}>
-              <div style={{ fontFamily: SERIF, fontSize: 13, color: 'rgba(240,220,170,0.88)', fontStyle: 'italic', lineHeight: 1.6 }}>
-                {renderBriefText(morningBrief)}
-              </div>
+        <div style={{ borderLeft: `3px solid rgba(212,168,48,0.45)`, paddingLeft: 11, marginBottom: 10 }}>
+          {morningBrief ? (
+            <div style={{ fontFamily: SERIF, fontSize: 13, color: 'rgba(240,220,170,0.88)', fontStyle: 'italic', lineHeight: 1.6 }}>
+              {renderBriefText(morningBrief)}
             </div>
-            <button
-              onClick={() => setBriefModalOpen(true)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 5,
-                background: 'rgba(212,168,48,0.10)', border: '1px solid rgba(212,168,48,0.30)',
-                borderRadius: 20, padding: '4px 11px', cursor: 'pointer',
-                fontFamily: SERIF, fontSize: 11, color: 'rgba(212,168,48,0.85)',
-                fontStyle: 'italic', lineHeight: 1 }}>
-              <span>✦</span><span>Today's Brief</span><span style={{ fontSize: 9, opacity: .7 }}>→</span>
-            </button>
-          </div>
-        ) : (
-          <div style={{ borderLeft: `3px solid ${RULE}`, paddingLeft: 11 }}>
+          ) : (
             <div style={{ fontFamily: SERIF, fontSize: 12, color: DIM, fontStyle: 'italic' }}>Reading the garden…</div>
-          </div>
-        )}
+          )}
+        </div>
+        <button
+          onClick={() => setBriefModalOpen(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5,
+            background: morningBrief ? 'rgba(212,168,48,0.10)' : 'rgba(160,130,80,0.06)',
+            border: morningBrief ? '1px solid rgba(212,168,48,0.30)' : '1px solid rgba(160,130,80,0.18)',
+            borderRadius: 20, padding: '4px 11px', cursor: 'pointer',
+            fontFamily: SERIF, fontSize: 11,
+            color: morningBrief ? 'rgba(212,168,48,0.85)' : 'rgba(160,130,80,0.45)',
+            fontStyle: 'italic', lineHeight: 1 }}>
+          <span>✦</span><span>Today's Brief</span><span style={{ fontSize: 9, opacity: .7 }}>→</span>
+        </button>
       </div>
 
       {/* ── Briefing modal ── */}
