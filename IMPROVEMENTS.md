@@ -51,5 +51,5 @@ Say **"what's next?"** to implement the next unchecked item. Items within a phas
 
 - [x] **Seasonal training cooldown for wisteria** — Wisteria training cooldown changes to 14 days starting in June (month >= 6) to slow vigorous summer growth.
 - [x] **Tilt-to-camera tooltip on first use** — Shows "Tilt phone sideways to open camera" above the button on first visit. Dismissed after first tap via localStorage flag.
-- [ ] **Stage arc labels respect high-contrast mode** — Past/future stage name labels use hardcoded `rgba(160,130,80,0.40)` color. When `useCC()` is in high-contrast mode, use `CC.dim` instead so they're readable outdoors.
+- [ ] **Stage arc labels respect high-contrast mode** — Stage arc visualization not yet built as a separate component. Apply when arc is implemented.
 - [x] **Rain threshold advisory for neem** — ActionModal for neem shows rain advisory banner when rain ≥50% is forecast in next 4 days, with day name: "Apply before Thursday's rain — contact time matters."
