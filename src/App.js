@@ -2049,8 +2049,8 @@ export default function App() {
   // Shared agenda — single source of truth for both Maps page and Mobile Today tab.
   // Both views receive agendaItems from here so they always show identical tasks.
   const { items: sharedAgendaItems, isWeekend: agendaIsWeekend } = useMemo(
-    () => computeAgenda({ plants: gardenPlants.terrace, frontPlants, careLog, briefings, weather, seasonOpen, allPhotos }),
-    [gardenPlants.terrace, frontPlants, careLog, briefings, weather, seasonOpen, allPhotos]
+    () => computeAgenda({ plants: gardenPlants.terrace, frontPlants, careLog, briefings, weather, seasonOpen, portraits, allPhotos }),
+    [gardenPlants.terrace, frontPlants, careLog, briefings, weather, seasonOpen, portraits, allPhotos]
   );
 
   const desktopPlantUrgency = useMemo(() => {

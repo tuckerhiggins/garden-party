@@ -95,6 +95,15 @@ export function computeWaterLevel(plant, careLog, portrait = null, weather = nul
   return Math.max(0, 1 - days / drainDays);
 }
 
+// Drought-tolerant / established types that need less frequent attention
+const DROUGHT_TOLERANT = new Set(['lavender', 'evergreen', 'wisteria', 'japanese-maple', 'serviceberry', 'maple']);
+
+function overlookedDays(plant) {
+  const inGround = plant.container?.toLowerCase().includes('in ground') ?? false;
+  if (inGround || DROUGHT_TOLERANT.has(plant.type)) return 30;
+  return 21; // containerized roses and climbers need more frequent attention
+}
+
 // ── COMPUTE HEALTH ────────────────────────────────────────────────────────────
 // Uses portrait.health as the baseline (set by photo analysis, persisted).
 // Drifts downward based on water and care — never auto-upgrades without a photo.
@@ -128,7 +137,7 @@ export function computeHealth(plant, careLog, portrait = null, weather = null) {
   }
 
   // ── Prolonged neglect: always overrides ──────────────────────────────────
-  if (daysSinceCare > 21) return 'overlooked';
+  if (daysSinceCare > overlookedDays(plant)) return 'overlooked';
 
   // ── Recovering: recently watered after a dry spell ────────────────────────
   if (needsWater && waterEntries.length >= 2) {
@@ -169,8 +178,8 @@ export function computeHealth(plant, careLog, portrait = null, weather = null) {
       if (recentWater >= 2) return 'content';
     }
 
-    // Any positive state drifts to 'overlooked' at 14 days without care
-    if (base !== 'overlooked' && daysSinceCare > 14) return 'overlooked';
+    // Any positive state drifts to 'overlooked' based on plant type tolerance
+    if (base !== 'overlooked' && daysSinceCare > overlookedDays(plant) * 0.5) return 'overlooked';
 
     return base;
   }

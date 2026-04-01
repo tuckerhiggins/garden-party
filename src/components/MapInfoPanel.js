@@ -315,10 +315,8 @@ export function MapInfoPanel({
         {/* Season blocking reason */}
         {!seasonOpen && seasonBlocking && (
           <div style={{ fontSize: 11, color: 'rgba(96,144,180,0.80)', fontFamily: SERIF, fontStyle: 'italic', lineHeight: 1.5, marginBottom: 8 }}>
-            {seasonBlocking === 'readiness'    ? `${photoCount}/${activePlantCount} plants photographed` :
-             seasonBlocking === 'calendar'     ? 'Too early in the season' :
-             seasonBlocking === 'rain-today'   ? 'Raining today' :
-             seasonBlocking === 'rain-tomorrow'? 'Rain forecast tomorrow' : ''}
+            {seasonBlocking === 'readiness' ? `${photoCount}/${activePlantCount} plants photographed` :
+             seasonBlocking === 'calendar'  ? 'Too early in the season' : ''}
           </div>
         )}
 
@@ -1040,10 +1038,8 @@ export function MapCarePanel({
         </div>
         {!seasonOpen && seasonBlocking && (
           <div style={{ fontSize: 11, color: 'rgba(96,144,180,0.80)', fontFamily: SERIF, fontStyle: 'italic', lineHeight: 1.5, marginBottom: 8 }}>
-            {seasonBlocking === 'readiness'    ? `${photoCount}/${activePlantCount} plants photographed` :
-             seasonBlocking === 'calendar'     ? 'Too early in the season' :
-             seasonBlocking === 'rain-today'   ? 'Raining today' :
-             seasonBlocking === 'rain-tomorrow'? 'Rain forecast tomorrow' : ''}
+            {seasonBlocking === 'readiness' ? `${photoCount}/${activePlantCount} plants photographed` :
+             seasonBlocking === 'calendar'  ? 'Too early in the season' : ''}
           </div>
         )}
         <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 0, margin: '0 -16px' }}>

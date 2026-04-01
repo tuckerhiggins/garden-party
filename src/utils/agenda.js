@@ -4,23 +4,26 @@
 
 import { ACTION_DEFS } from '../data/plants';
 import { localDate } from './dates';
+import { smartWaterDays } from './health';
 
 export const AGENDA_SKIP_ACTIONS = new Set(['photo', 'visit', 'note', 'plant']);
 export const AGENDA_URGENT_HEALTH = new Set(['struggling', 'thirsty', 'overlooked']);
 export const AGENDA_TIER = { urgent: 0, recommended: 1, routine: 2, optional: 3 };
 export const AGENDA_HEALTH_SEV = { struggling: 0, thirsty: 1, overlooked: 2 };
 
-export function actionStatus(plant, key, careLog, seasonOpen) {
+export function actionStatus(plant, key, careLog, seasonOpen, portrait = null, weather = null) {
   if (!seasonOpen) return { available: false, reason: 'Not yet open' };
   const def = ACTION_DEFS[key]; if (!def) return { available: false, reason: '?' };
   // Water is suppressed after any watering OR rain event.
-  // Rain suppresses for 2 days (ground stays wet longer); manual water suppresses for 1 day.
+  // Cooldown = max(0.5, drainDays / 2) so slow-draining plants cool down longer
+  // and fast-draining plants can show as needed sooner. Rain always suppresses 2 days.
   // Must check BEFORE alwaysAvailable since water has alwaysAvailable:true.
   if (key === 'water') {
     const recentLog = (careLog[plant.id] || []).filter(e => e.action === 'water' || e.action === 'rain');
     if (recentLog.length > 0) {
       const lastEntry = recentLog[recentLog.length - 1];
-      const cooldown = lastEntry.action === 'rain' ? 2 : 1;
+      const drainDays = (portrait?.waterDays > 0) ? portrait.waterDays : smartWaterDays(plant, weather);
+      const cooldown = lastEntry.action === 'rain' ? 2 : Math.max(0.5, drainDays / 2);
       const days = (Date.now() - new Date(lastEntry.date).getTime()) / 86400000;
       if (days < cooldown) return { available: false, reason: 'Recently watered' };
     }
@@ -94,7 +97,7 @@ export function groupAgendaItems(items) {
   return result;
 }
 
-export function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen, allPhotos = {} }) {
+export function computeAgenda({ plants, frontPlants, careLog, briefings, weather, seasonOpen, portraits = {}, allPhotos = {} }) {
   if (!seasonOpen) return { items: [], isWeekend: false };
   const isWeekend = [0, 6].includes(new Date().getDay());
   const emmaPlantsSet = new Set(frontPlants.map(p => p.id));
@@ -110,6 +113,7 @@ export function computeAgenda({ plants, frontPlants, careLog, briefings, weather
   for (const plant of [...plants, ...frontPlants]) {
     if (plant.type === 'empty-pot' || plant.health === 'memorial') continue;
     const brief = briefings[plant.id];
+    const portrait = portraits[plant.id] || null;
     const briefTasks = Array.isArray(brief?.tasks) ? brief.tasks : [];
     const briefTaskKeys = new Set(briefTasks.map(t => t.key));
     const isUrgent = AGENDA_URGENT_HEALTH.has(plant.health);
@@ -118,7 +122,7 @@ export function computeAgenda({ plants, frontPlants, careLog, briefings, weather
     // AI-recommended tasks (may include novel/custom tasks not in plant.actions)
     for (const task of briefTasks) {
       if (AGENDA_SKIP_ACTIONS.has(task.key)) continue;
-      if (task.key !== 'tend' && !actionStatus(plant, task.key, careLog, seasonOpen).available) continue;
+      if (task.key !== 'tend' && !actionStatus(plant, task.key, careLog, seasonOpen, portrait, weather).available) continue;
       // Water suppression: skip entirely if it rained today; if rain is coming soon
       // but the briefing has an explicit reason (e.g. "growth push, hydrate first"),
       // keep it but downgrade to optional so Tucker can decide.
@@ -147,7 +151,7 @@ export function computeAgenda({ plants, frontPlants, careLog, briefings, weather
       for (const actionKey of (plant.actions || [])) {
         if (AGENDA_SKIP_ACTIONS.has(actionKey)) continue;
         if (briefTaskKeys.has(actionKey)) continue;
-        if (!actionStatus(plant, actionKey, careLog, seasonOpen).available) continue;
+        if (!actionStatus(plant, actionKey, careLog, seasonOpen, portrait, weather).available) continue;
         if (actionKey === 'water' && rainedToday) continue; // already rained — skip
         if (actionKey === 'neem' && hasRainSoon) continue;
 
@@ -167,7 +171,7 @@ export function computeAgenda({ plants, frontPlants, careLog, briefings, weather
     if (!brief) {
       for (const actionKey of (plant.actions || [])) {
         if (AGENDA_SKIP_ACTIONS.has(actionKey)) continue;
-        if (!actionStatus(plant, actionKey, careLog, seasonOpen).available) continue;
+        if (!actionStatus(plant, actionKey, careLog, seasonOpen, portrait, weather).available) continue;
         if (actionKey === 'water' && hasRainSoon && !isUrgent) continue;
         if (actionKey === 'neem' && hasRainSoon) continue;
 

@@ -2651,8 +2651,8 @@ export function MobileView({
   const { items: localAgendaItems, isWeekend: localAgendaIsWeekend } = useMemo(
     () => externalAgendaItems
       ? { items: externalAgendaItems, isWeekend: externalAgendaIsWeekend }
-      : computeAgenda({ plants, frontPlants, careLog, briefings: mergedBriefings, weather, seasonOpen, allPhotos }),
-    [externalAgendaItems, externalAgendaIsWeekend, plants, frontPlants, careLog, mergedBriefings, weather, seasonOpen, allPhotos]
+      : computeAgenda({ plants, frontPlants, careLog, briefings: mergedBriefings, weather, seasonOpen, portraits, allPhotos }),
+    [externalAgendaItems, externalAgendaIsWeekend, plants, frontPlants, careLog, mergedBriefings, weather, seasonOpen, portraits, allPhotos]
   );
   const rawAgendaItems = localAgendaItems;
   const agendaIsWeekend = localAgendaIsWeekend;

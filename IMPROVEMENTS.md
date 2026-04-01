@@ -36,12 +36,12 @@ Say **"what's next?"** to implement the next unchecked item. Items within a phas
 ## Phase 3 — Features & Larger Improvements
 *Bigger scope. Plan before implementing.*
 
-- [ ] **Watering cooldown should use drain rate** — `src/utils/agenda.js`. Replace the hard 1-day water cooldown with `max(0.5, drainDays / 2)` using `smartWaterDays()` from `health.js`. Prevents plants from showing "overlooked" when they genuinely need water but the cooldown gate blocks it.
+- [x] **Watering cooldown should use drain rate** — `src/utils/agenda.js`. Replace the hard 1-day water cooldown with `max(0.5, drainDays / 2)` using `smartWaterDays()` from `health.js`. Prevents plants from showing "overlooked" when they genuinely need water but the cooldown gate blocks it.
 - [ ] **Hydrangea pruning phenological guard** — Limelight hydrangeas must be pruned before bud break (≈Feb 20 – March 25 in Zone 7b). Add a date-range check so pruning is not recommended after this window has closed. Warn if it's already past and buds are forming.
 - [ ] **Portrait analysis failure feedback** — When `/api/analyze-plant` fails or returns null SVG, show a "tap to retry" badge instead of silently reverting to the generic portrait. Touch point: `MobilePlantCard` in `MobileView.js` and `PhotoSection` in `App.js`.
 - [ ] **Agenda freeze should wait for AI data** — `App.js` freeze `useEffect`. Add `if (!agendaData) return;` so the freeze doesn't capture the heuristic fallback list before Claude's enriched ordering arrives.
-- [ ] **Overlooked threshold differentiation** — `src/utils/health.js`. Plants that are drought-tolerant / established (lavender, evergreen, wisteria, maple) should have a 28–35 day overlooked threshold. Only containerized roses and climbers keep the 21-day rule.
-- [ ] **B4 · Dead `seasonBlocking` branches** — `MapInfoPanel.js` lines ~315–317 reference `rain-today` and `rain-tomorrow` blocking states that `App.js` never assigns. Remove the dead branches.
+- [x] **Overlooked threshold differentiation** — `src/utils/health.js`. Plants that are drought-tolerant / established (lavender, evergreen, wisteria, maple) should have a 28–35 day overlooked threshold. Only containerized roses and climbers keep the 21-day rule.
+- [x] **B4 · Dead `seasonBlocking` branches** — `MapInfoPanel.js` lines ~315–317 reference `rain-today` and `rain-tomorrow` blocking states that `App.js` never assigns. Remove the dead branches.
 - [ ] **Emma warmth multiplier — UI acknowledgment** — When Emma is logged in and logs care with the `isWithEmma` fix (Phase 1), the warmth bar should visually pulse or show "with Emma ♥" on the action confirmation. Currently the multiplier fires but there's no UI signal.
 
 ---
