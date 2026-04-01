@@ -980,6 +980,7 @@ export function MapCarePanel({
   weather = null,
   onSelectPlant,
   onAction,
+  onQuickLog,
 }) {
   const [howToOpenKey, setHowToOpenKey] = useState(null);
   const [expandedGroupKey, setExpandedGroupKey] = useState(null);
@@ -1041,6 +1042,23 @@ export function MapCarePanel({
             {seasonBlocking === 'readiness' ? `${photoCount}/${activePlantCount} plants photographed` :
              seasonBlocking === 'calendar'  ? 'Too early in the season' : ''}
           </div>
+        )}
+        {onQuickLog && (
+          <button
+            onClick={onQuickLog}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              width: '100%', background: 'rgba(212,168,48,0.08)',
+              border: '1px solid rgba(212,168,48,0.22)', borderRadius: 6,
+              padding: '6px 10px', marginBottom: 8, cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 12 }}>✏️</span>
+            <span style={{ fontFamily: MONO, fontSize: 6, color: GOLD, letterSpacing: .4 }}>QUICKLOG</span>
+            <span style={{ fontFamily: SERIF, fontSize: 10, color: MUTED, fontStyle: 'italic', marginLeft: 2 }}>
+              — log in your own words
+            </span>
+          </button>
         )}
         <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 0, margin: '0 -16px' }}>
           <div style={{

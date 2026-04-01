@@ -20,6 +20,7 @@ import { MobileView } from './components/MobileView';
 import { compressChatImage } from './utils/compressChatImage';
 import { PlantShopModal } from './components/PlantShopModal';
 import { MapInfoPanel, MapContextPanel, MapCarePanel } from './components/MapInfoPanel';
+import { QuickLog } from './components/QuickLog';
 import { getPhenologicalStage } from './utils/phenology';
 import { computeAgenda, extractFutureActionDate } from './utils/agenda';
 import { localDate, parsePastDate } from './utils/dates';
@@ -1953,6 +1954,7 @@ export default function App() {
   const isMobile = useIsMobile();
   const [flash, setFlash] = useState(null);
   const [showExpense, setShowExpense] = useState(false);
+  const [quickLogOpen, setQuickLogOpen] = useState(false);
   const [expTab, setExpTab] = useState('log'); // 'log' | 'ledger'
   const [expInput, setExpInput] = useState({desc:'',amount:'',group:'',category:''});
   const [draggingId, setDraggingId] = useState(null);
@@ -2956,6 +2958,7 @@ export default function App() {
                       weather={weather}
                       onSelectPlant={p=>setSel(p)}
                       onAction={doAction}
+                      onQuickLog={() => setQuickLogOpen(true)}
                     />
                   </>
                 )}
@@ -2996,6 +2999,15 @@ export default function App() {
 
       </div>{/* end inner main content */}
       </div>{/* end body: sidebar + content */}
+
+      {/* ── QUICKLOG MODAL ── */}
+      {quickLogOpen && (
+        <QuickLog
+          plants={[...terracePlants, ...frontPlants]}
+          onApply={doAction}
+          onClose={() => setQuickLogOpen(false)}
+        />
+      )}
 
       {/* ── EXPENSE MODAL ── */}
       {showExpense&&(()=>{

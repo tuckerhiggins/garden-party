@@ -4,6 +4,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { OracleChat } from './OracleChat';
 import { MobileMapProtos } from './MobileMapProtos';
 import { CameraIdentifier } from './CameraIdentifier';
+import { QuickLog } from './QuickLog';
 import { ACTION_DEFS } from '../data/plants';
 import { PlantPortrait } from '../PlantPortraits';
 import { fetchDailyAgenda, fetchJournalEntry, streamGardenChat } from '../claude';
@@ -1666,7 +1667,7 @@ function AgendaGroupCard({ group, onDoneAll, onDoneOne, justDoneKeys = new Set()
 
 function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, agendaSections = null, seasonOpen,
   totalActivePlants = 0, morningBrief, fullBrief, onStartAction, portraits, completedThisSession = new Set(),
-  doneTodayItems = [], onMarkDone, onOpenAsk, careLog = {}, onRefreshAgenda }) {
+  doneTodayItems = [], onMarkDone, onOpenAsk, careLog = {}, onRefreshAgenda, onQuickLog }) {
   const [briefExpanded, setBriefExpanded] = React.useState(false);
   const [justDoneKey, setJustDoneKey] = React.useState(null);
   const [justDoneStreak, setJustDoneStreak] = React.useState(0);
@@ -1751,8 +1752,14 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, agen
   const optimisticExtra = agendaSections
     ? (agendaSections.todayItems || []).filter(i => completedThisSession.has(i.key) && !doneTodayKeys.has(i.key)).length
     : 0;
+  // Count done tasks two ways and take the max:
+  // 1. agendaSections.essentialDone — computed in App.js from careLog vs frozenEssential
+  // 2. doneTodayKeys overlap with frozen items — more immediate, reflects local careLog
+  // Taking max handles the case where Supabase sync is slow and one source lags the other.
+  const frozenItemKeys = agendaSections?.todayItems ? new Set(agendaSections.todayItems.map(i => i.key)) : null;
+  const doneFrozenCount = frozenItemKeys ? [...doneTodayKeys].filter(k => frozenItemKeys.has(k)).length : 0;
   const essentialDoneCount = agendaSections != null
-    ? agendaSections.essentialDone + optimisticExtra
+    ? Math.max(agendaSections.essentialDone, doneFrozenCount) + optimisticExtra
     : [...essentialKeys].filter(k => doneTodayKeys.has(k) || completedThisSession.has(k)).length;
   const urgentRecAllDone = rawItems.length > 0 && essentialTotalCount > 0 && todayItems.length === 0 && (weekItems.length > 0 || optItems.length > 0);
 
@@ -1828,14 +1835,26 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, agen
                   )}
                 </div>
               </div>
-              {onRefreshAgenda && (
-                <button onClick={onRefreshAgenda} title="Refresh agenda"
-                  style={{ background: 'none', border: 'none', padding: '4px 6px', cursor: 'pointer',
-                    color: '#a08050', fontSize: 16, opacity: 0.55, lineHeight: 1,
-                    WebkitTapHighlightColor: 'transparent', minHeight: 36 }}>
-                  ↻
-                </button>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {onQuickLog && (
+                  <button onClick={onQuickLog}
+                    style={{ background: 'rgba(212,168,48,0.10)', border: '1px solid rgba(212,168,48,0.25)',
+                      borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+                      fontFamily: MONO, fontSize: 6, color: C.uiGold, letterSpacing: .3,
+                      WebkitTapHighlightColor: 'transparent', minHeight: 36, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>✏️</span>
+                    <span>QUICKLOG</span>
+                  </button>
+                )}
+                {onRefreshAgenda && (
+                  <button onClick={onRefreshAgenda} title="Refresh agenda"
+                    style={{ background: 'none', border: 'none', padding: '4px 6px', cursor: 'pointer',
+                      color: '#a08050', fontSize: 16, opacity: 0.55, lineHeight: 1,
+                      WebkitTapHighlightColor: 'transparent', minHeight: 36 }}>
+                    ↻
+                  </button>
+                )}
+              </div>
             </div>
             <div style={{ height: 4, background: 'rgba(160,130,80,0.15)', borderRadius: 2, overflow: 'hidden' }}>
               <div style={{
@@ -2599,6 +2618,7 @@ export function MobileView({
   const [guestError, setGuestError] = useState('');
   // Briefs come exclusively from App.js (externalMorningBrief / externalDailyBrief).
   // No local fetch — App.js is the single source of truth so both platforms show identical text.
+  const [quickLogOpen, setQuickLogOpen] = useState(false);
   const [analysisNotice, setAnalysisNotice] = useState(null);
   const prevAnalyzingRef = useRef({});
   const completedKeysRef = useRef(new Set());
@@ -2886,6 +2906,16 @@ export function MobileView({
         </div>
       )}
 
+      {/* QuickLog modal */}
+      {quickLogOpen && (
+        <QuickLog
+          plants={[...plants, ...frontPlants]}
+          onApply={onAction}
+          onClose={() => setQuickLogOpen(false)}
+          isMobile
+        />
+      )}
+
       {/* Flash message */}
       {flash && (
         <div style={{
@@ -2914,6 +2944,7 @@ export function MobileView({
             onOpenAsk={() => setTab('ask')}
             careLog={careLog}
             onRefreshAgenda={onRefreshAgenda}
+            onQuickLog={() => setQuickLogOpen(true)}
           />
         )}
 
