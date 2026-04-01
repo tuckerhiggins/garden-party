@@ -505,9 +505,9 @@ export async function fetchDailyBrief({ plants, careLog, weather, portraits, age
   const rainToken = weather?.forecast?.slice(0, 2).map(d => d.precipChance >= 60 ? '1' : '0').join('') ?? 'xx';
   // Invalidate when today's care changes (same pattern as fetchMorningBrief)
   const todayCareToken = Object.values(careLog).flat().filter(e => e.date?.startsWith(today)).length;
-  const taskToken = agendaTasks.map(t => t.label || t.actionKey).join(',').slice(0, 80);
-  // v6: removed todayCareToken — daily brief is frozen daily
-  const cacheKey = `dailybrief7_${today}_${rainToken}_${taskToken}`;
+  const taskToken = agendaTasks.map(t => t.actionKey).join(',').slice(0, 80);
+  // v8: use frozen task keys (not labels) — stable cache, matches morning brief input source
+  const cacheKey = `dailybrief8_${today}_${rainToken}_${taskToken}`;
 
   const cached = lsGet(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.data;

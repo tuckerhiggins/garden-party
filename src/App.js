@@ -2105,17 +2105,19 @@ export default function App() {
     return map;
   }, [sharedAgendaItems]);
 
-  // Morning brief + daily brief — frozen daily; only re-fetches on manual refresh
+  // Morning brief + daily brief — fire AFTER the freeze so the brief only receives
+  // the tasks Tucker can actually mark done. This guarantees the narrative never
+  // references an action that isn't in the markable TODAY list.
   useEffect(() => {
-    if (!weather) return;
+    if (!weather || !frozenEssential.length) return;
     let isMounted = true;
     const allPlants = [...gardenPlants.terrace, ...frontPlants];
-    const agendaTasks = sharedAgendaItems.map(item => ({
+    const agendaTasks = frozenEssential.map(item => ({
       plantName: item.plant.name,
       actionKey: item.actionKey,
       label: item.task?.label || null,
       reason: item.task?.reason || null,
-      optional: item.task?.optional || false,
+      optional: false,
     }));
     fetchMorningBrief({ plants: allPlants, careLog, weather, portraits, agendaTasks })
       .then(brief => { if (isMounted && brief) setMorningBrief(brief); })
@@ -2124,7 +2126,7 @@ export default function App() {
       .then(brief => { if (isMounted && brief) setDailyBrief(brief); })
       .catch(() => {});
     return () => { isMounted = false; };
-  }, [weather, briefingRefreshToken]);
+  }, [frozenEssential, weather, briefingRefreshToken]); // frozenEssential replaces sharedAgendaItems as input
 
   // Fetch AI-enriched agenda once per day — single source of truth for both mobile and desktop
   const rawAgendaKeys = sharedAgendaItems.map(i => i.key).join(',');
@@ -2229,6 +2231,7 @@ export default function App() {
       : pendingAgendaItems.filter(i => i.priority === 'optional').slice(0, 5);
     const essentialTotal = essentialItems.length;
     const essentialDone  = essentialItems.filter(i => isDoneToday(i)).length;
+
     return { essentialTotal, essentialDone, todayItems: essentialItems, optItems, isDoneToday };
   }, [frozenEssential, frozenOptional, pendingAgendaItems, careLog]);
 
@@ -2429,15 +2432,15 @@ export default function App() {
             await logAction(act.key, plant, isWithEmma, act.label, customDate, role);
           }
           const firstDef = ACTION_DEFS[actions[0].key];
-          setFlash(`${firstDef?.emoji || '✨'} ${actions[0].label}${isWithEmma ? ' with Emma ♥' : ''}${actions.length > 1 ? ` +${actions.length - 1} more` : ''}`);
+          setFlash(`${firstDef?.emoji || '✨'} ${actions[0].label}${actions.length > 1 ? ` +${actions.length - 1} more` : ''}`);
         } else {
           await logAction('note', plant, isWithEmma, customLabel, customDate, role);
-          setFlash(`📝 ${customLabel}${isWithEmma ? ' with Emma ♥' : ''}`);
+          setFlash(`📝 ${customLabel}`);
         }
         setTimeout(() => setFlash(null), 2500);
       }).catch(async () => {
         await logAction('note', plant, isWithEmma, customLabel, customDate, role);
-        setFlash(`📝 ${customLabel}${isWithEmma ? ' with Emma ♥' : ''}`);
+        setFlash(`📝 ${customLabel}`);
         setTimeout(() => setFlash(null), 2500);
       });
       return;
@@ -2449,7 +2452,7 @@ export default function App() {
     const emoji = def?.emoji || '✨';
     setFlash(syncError
       ? `⚠️ Logged locally but sync failed: ${syncError}`
-      : `${emoji} ${displayLabel}${isWithEmma ? ' with Emma ♥' : ''}`
+      : `${emoji} ${displayLabel}`
     );
     setTimeout(() => setFlash(null), syncError ? 5000 : 2500);
   }, [role, logAction]);
