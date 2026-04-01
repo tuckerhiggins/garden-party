@@ -439,7 +439,7 @@ export async function fetchMorningBrief({ plants, careLog, weather, portraits, a
   // Invalidate when today's care changes — count of actions logged today
   const todayCareToken = Object.values(careLog).flat()
     .filter(e => e.date?.startsWith(today)).length;
-  const taskToken = agendaTasks.filter(t => !t.optional).map(t => t.label || t.actionKey).join(',').slice(0, 60);
+  const taskToken = agendaTasks.filter(t => !t.optional).map(t => t.actionKey).join(',').slice(0, 60);
   // v7: removed todayCareToken — morning brief is frozen daily
   const cacheKey = `morningbrief7_${today}_${rainToken}_${taskToken}`;
 

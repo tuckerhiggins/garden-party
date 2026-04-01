@@ -2309,7 +2309,7 @@ export default function App() {
   // Auto-log rain watering — fires when weather shows actual precip > 1mm today.
   // DEDUP_KEYS prevents double-logging on reload.
   useEffect(() => {
-    if (!weather || !seasonOpen) return;
+    if (!weather || !seasonOpen || dbLoading) return;
     const today = weather.forecast?.[0];
     if (!today || today.precip <= 5) return; // 5mm ≈ 0.2" — filters out trace/sprinkle events
     const inchesRaw = today.precip / 25.4;

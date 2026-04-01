@@ -25,11 +25,11 @@ Say **"what's next?"** to implement the next unchecked item. Items within a phas
 ## Phase 2 — Medium Fixes
 *Slightly more involved — architectural or multi-file.*
 
-- [ ] **B2 · Auto-rain fires before Supabase settles** — `App.js` lines ~2337–2349. The auto-rain `useEffect` has no `!dbLoading` guard (unlike the backfill effect). Add `if (!weather || dbLoading) return;` to prevent double-logging on load.
-- [ ] **AI6 · Morning brief cache key uses unstable labels** — `src/claude.js` ~line 444. The `taskToken` includes `t.label || t.actionKey` — Claude's labels are non-deterministic and bust the daily cache. Change to `t.actionKey` only for stable cache keys.
-- [ ] **AI7 · Journal log re-fetches on every map remount** — `MapInfoPanel.js` `PanelJournalLog`. The `entries` local state resets to `{}` on every unmount. Cache entries in `sessionStorage` keyed by `date + versionKey` so navigating away and back doesn't re-fire Claude calls.
-- [ ] **Gardening4 · Neem temperature warning missing** — `src/data/plants.js` `ACTION_HOWTO.neem.default`. Add: "Do not apply when temperatures exceed 90°F — causes leaf burn." Also add "Taper off in July–August heat."
-- [ ] **Gardening7 · No loggable frost-protection action** — Add a `shelter` action to `ACTION_DEFS` in `src/data/plants.js` (emoji: 🧊, label: "Cover & Shelter", cooldown: 0.5 days). Add it to the `actions` array of frost-sensitive plants (climbing roses, rose, serviceberry). This gives the care log memory of frost events.
+- [x] **B2 · Auto-rain fires before Supabase settles** — `App.js` lines ~2337–2349. The auto-rain `useEffect` has no `!dbLoading` guard (unlike the backfill effect). Add `if (!weather || dbLoading) return;` to prevent double-logging on load.
+- [x] **AI6 · Morning brief cache key uses unstable labels** — `src/claude.js` ~line 444. The `taskToken` includes `t.label || t.actionKey` — Claude's labels are non-deterministic and bust the daily cache. Change to `t.actionKey` only for stable cache keys.
+- [x] **AI7 · Journal log re-fetches on every map remount** — `MapInfoPanel.js` `PanelJournalLog`. The `entries` local state resets to `{}` on every unmount. Cache entries in `sessionStorage` keyed by `date + versionKey` so navigating away and back doesn't re-fire Claude calls.
+- [x] **Gardening4 · Neem temperature warning missing** — `src/data/plants.js` `ACTION_HOWTO.neem.default`. Add: "Do not apply when temperatures exceed 90°F — causes leaf burn." Also add "Taper off in July–August heat."
+- [x] **Gardening7 · No loggable frost-protection action** — Add a `shelter` action to `ACTION_DEFS` in `src/data/plants.js` (emoji: 🧊, label: "Cover & Shelter", cooldown: 0.5 days). Add it to the `actions` array of frost-sensitive plants (climbing roses, rose, serviceberry). This gives the care log memory of frost events.
 
 ---
 

@@ -155,6 +155,12 @@ function PanelJournalLog({ careLog, plants, portraits, allPhotos }) {
   React.useEffect(() => {
     activeDays.forEach(([dateStr, day]) => {
       if (entries[dateStr] !== undefined) return;
+      // Check sessionStorage first — avoids re-fetching on remount (tab switches, map navigation)
+      const cacheKey = `gp_journal_brief_${dateStr}_${day.care.length}_${day.obs.length}`;
+      try {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached !== null) { setEntries(prev => ({ ...prev, [dateStr]: cached || null })); return; }
+      } catch {}
       setEntries(prev => ({ ...prev, [dateStr]: 'loading' }));
       fetchJournalEntry({
         dateStr,
@@ -163,8 +169,10 @@ function PanelJournalLog({ careLog, plants, portraits, allPhotos }) {
         photoCount: day.photos,
         plantHistories: [],
         brief: true,
-      }).then(text => setEntries(prev => ({ ...prev, [dateStr]: text || null })))
-        .catch(() => setEntries(prev => ({ ...prev, [dateStr]: null })));
+      }).then(text => {
+        try { sessionStorage.setItem(cacheKey, text || ''); } catch {}
+        setEntries(prev => ({ ...prev, [dateStr]: text || null }));
+      }).catch(() => setEntries(prev => ({ ...prev, [dateStr]: null })));
     });
   }, [activeDays.map(([d]) => d).join(',')]); // eslint-disable-line
 

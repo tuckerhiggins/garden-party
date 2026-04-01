@@ -21,6 +21,7 @@ export const ACTION_DEFS = {
   worms:     { label:'Add worms',   emoji:'🪱', cooldownDays:60, seasonMax:2 },
   note:      { label:'Observation', emoji:'📝', cooldownDays:0,  seasonMax:null,  alwaysAvailable:true },
   tend:      { label:'Tend',        emoji:'✨', cooldownDays:0,  seasonMax:null,  alwaysAvailable:true },
+  shelter:   { label:'Cover & Shelter', emoji:'🧊', cooldownDays:0.5, seasonMax:null },
 };
 
 // ── HOW-TO INSTRUCTIONS (shown before doing the action) ───────────────────
@@ -31,7 +32,7 @@ export const ACTION_HOWTO = {
     'default': `Remove dead, damaged, or crossing growth. Cut just above an outward-facing bud at a 45° angle. When in doubt, less is more.`,
   },
   neem: {
-    'default': `Neem oil prevents fungal disease and deters aphids on roses.\n\n1. Mix 2 tsp neem oil + 1 tsp dish soap per quart of water.\n2. Spray all leaf surfaces — top and bottom.\n3. Apply in early morning or evening, never in direct sun.\n4. Repeat every 10–14 days through the growing season.`,
+    'default': `Neem oil prevents fungal disease and deters aphids on roses.\n\n1. Mix 2 tsp neem oil + 1 tsp dish soap per quart of water.\n2. Spray all leaf surfaces — top and bottom.\n3. Apply in early morning or evening, never in direct sun.\n4. Do not apply when temperatures exceed 90°F — causes leaf burn.\n5. Repeat every 10–14 days through the growing season. Taper off in July–August heat.`,
   },
   train: {
     'wisteria': `Wisteria needs regular training to follow the wire grid and not just bulk up.\n\n1. Identify new green shoots from this season.\n2. Gently wind them around the wire in the direction you want.\n3. Tie loosely with soft garden twine — never wire.\n4. Remove any shoots growing inward toward the wall.`,
@@ -43,6 +44,9 @@ export const ACTION_HOWTO = {
   },
   worms: {
     'default': `Adding worms improves soil aeration and nutrient cycling.\n\n1. Get red wigglers or nightcrawlers from a garden center.\n2. Add a layer of compost first if you have it.\n3. Place worms on the soil surface in early morning.\n4. They'll work their way down on their own. Don't bury them.`,
+  },
+  shelter: {
+    'default': `Cover frost-sensitive plants before temperatures drop below 32°F.\n\n1. Use burlap, frost cloth, or an old bedsheet — not plastic.\n2. Cover in the evening before the freeze, uncover the next morning once temps rise.\n3. For roses in pots, move them closer to the building wall for wind protection.\n4. Log this so you have a record of frost events for future seasons.`,
   },
 };
 
@@ -105,7 +109,7 @@ export const TERRACE_PLANTS = [
     container:'Cedar raised planter (left)',
     poem:'Thornless, they say,\nas if softness were not\nits own kind of power.',
     lore:'Thornless, deep pink, famously fragrant. Named for a Burgundy wine merchant. Climbing the left lattice on Wall 3. The lavender at her feet keeps aphids nervous.',
-    actions:['water','neem','prune','train','photo'],
+    actions:['water','neem','prune','train','shelter','photo'],
     special:'zephirine',
   },
   {
@@ -143,7 +147,7 @@ export const TERRACE_PLANTS = [
     container:'Cedar raised planter (right)',
     poem:'My sister to the left.\nThe same thorns we lack.\nThe same perfume, come June.',
     lore:'Second Zéphirine Drouhin on Wall 3 — same species, same beauty. Training up the right lattice panel.',
-    actions:['water','neem','prune','train','photo'],
+    actions:['water','neem','prune','train','shelter','photo'],
     special:'zephirine',
   },
   {
@@ -168,7 +172,7 @@ export const TERRACE_PLANTS = [
     container:'Grey glazed cylinder',
     poem:'She planted me\nthe year they married.\nI remember everything.',
     lore:"A wedding gift for Emma. Planted the first spring here. The coral-red branches glow in winter light. Spring: white blossoms. Summer: small purple berries for birds. It takes its role seriously.",
-    actions:['water','photo','visit'],
+    actions:['water','shelter','photo','visit'],
     special:'wedding',
   },
   {
@@ -329,33 +333,33 @@ export const FRONT_PLANTS = [
     container:"in ground (Emma's Rose Garden)", gardenSection:"Emma's Rose Garden",
     poem:'Six in a row, all\npruned back to sticks. They know what\ncomes after the cold.',
     lore:"Emma's Rose Garden. Bulletproof.",
-    actions:['water','neem','prune','fertilize','photo'] },
+    actions:['water','neem','prune','fertilize','shelter','photo'] },
   { id:'dko-2', name:"Double Knock Out Rose", subtitle:'Left column, middle', species:"Rosa 'Double Knock Out'",
     type:'rose', pos:{x:0.19, y:0.52}, health:'resting', color:'#e84070', moveable:false,
     container:"in ground (Emma's Rose Garden)", gardenSection:"Emma's Rose Garden",
     poem:'Center front. Best spot.\nI did not ask for this.\nI am grateful anyway.',
     lore:'Center position, most sun.',
-    actions:['water','neem','prune','fertilize','photo'] },
+    actions:['water','neem','prune','fertilize','shelter','photo'] },
   { id:'dko-3', name:"Double Knock Out Rose", subtitle:'Left column, bottom', species:"Rosa 'Double Knock Out'",
     type:'rose', pos:{x:0.19, y:0.84}, health:'resting', color:'#e84070', moveable:false,
     container:"in ground (Emma's Rose Garden)", gardenSection:"Emma's Rose Garden",
     poem:'Still as bare wire.\nStill as everything waiting—\nstill as what will bloom.',
     lore:'The third front rose.',
-    actions:['water','neem','prune','fertilize','photo'] },
+    actions:['water','neem','prune','fertilize','shelter','photo'] },
   { id:'dko-4', name:"Double Knock Out Rose", subtitle:'Center column, top', species:"Rosa 'Double Knock Out'",
     type:'rose', pos:{x:0.50, y:0.30}, health:'resting', color:'#e84070', moveable:false,
     container:"in ground (Emma's Rose Garden)", gardenSection:"Emma's Rose Garden",
     poem:null, lore:'Middle row left.',
-    actions:['water','neem','prune','fertilize','photo'] },
+    actions:['water','neem','prune','fertilize','shelter','photo'] },
   { id:'dko-5', name:"Double Knock Out Rose", subtitle:'Center column, bottom', species:"Rosa 'Double Knock Out'",
     type:'rose', pos:{x:0.50, y:0.62}, health:'resting', color:'#e84070', moveable:false,
     container:"in ground (Emma's Rose Garden)", gardenSection:"Emma's Rose Garden",
     poem:null, lore:'Middle row right.',
-    actions:['water','neem','prune','fertilize','photo'] },
+    actions:['water','neem','prune','fertilize','shelter','photo'] },
   { id:'dko-6', name:"Double Knock Out Rose", subtitle:'Bottom right', species:"Rosa 'Double Knock Out'",
     type:'rose', pos:{x:0.80, y:0.84}, health:'resting', color:'#e84070', moveable:false,
     container:"in ground (Emma's Rose Garden)", gardenSection:"Emma's Rose Garden",
     poem:"Six red roses wait\nbeneath the brownstone's shadow—\nEmma's garden sleeps.",
     lore:'Near the stoop. Every visitor sees this one.',
-    actions:['water','neem','prune','fertilize','photo'] },
+    actions:['water','neem','prune','fertilize','shelter','photo'] },
 ];
