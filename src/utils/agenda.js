@@ -28,6 +28,16 @@ export function actionStatus(plant, key, careLog, seasonOpen, portrait = null, w
       if (days < cooldown) return { available: false, reason: 'Recently watered' };
     }
   }
+  // Hydrangea pruning window: Feb 20 – March 25 (before bud break in Zone 7b).
+  // Block pruning after the window — it damages the current season's blooms.
+  if (key === 'prune' && plant.type === 'hydrangea') {
+    const now = new Date();
+    const month = now.getMonth() + 1; // 1-indexed
+    const day = now.getDate();
+    const pastWindow = month > 3 || (month === 3 && day > 25);
+    const beforeWindow = month < 2 || (month === 2 && day < 20);
+    if (pastWindow || beforeWindow) return { available: false, reason: pastWindow ? 'Past prune window' : 'Too early' };
+  }
   if (def.alwaysAvailable) return { available: true };
   const entries = (careLog[plant.id] || []).filter(e => e.action === key);
   if (def.seasonMax !== null && entries.length >= def.seasonMax)

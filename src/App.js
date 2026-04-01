@@ -773,6 +773,57 @@ function PlantCard({ plant, careLog, onSelect, isSelected, seasonOpen, portrait,
 // ── PHOTO SECTION ─────────────────────────────────────────────────────────
 function PhotoSection({ plant, color, careLog, onAnalyze, portraits, photos = [], onAddPhoto, onGrowthUpdate }) {
   const fileRef = useRef(null);
+  const [analysisFailed, setAnalysisFailed] = useState(false);
+  const lastBase64Ref = useRef(null);
+
+  async function runAnalysis(base64, dataUrl) {
+    setAnalysisFailed(false);
+    lastBase64Ref.current = { base64, dataUrl };
+    if (!onAnalyze) return;
+    onAnalyze(plant.id, { analyzing: true });
+    const plantEntries = (careLog[plant.id] || []).slice().reverse();
+    const portrait = portraits?.[plant.id] || {};
+    const plantHistory = (portrait.history || []).slice(-5);
+    fetch('/api/analyze-plant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64: base64,
+        plantName: plant.name,
+        plantType: plant.type,
+        plantSpecies: plant.species || '',
+        today: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+        careLog: plantEntries,
+        plantHistory,
+        plantContext: {
+          health: plant.health,
+          container: plant.container,
+          poem: plant.poem,
+          lore: plant.lore,
+          special: plant.special,
+        },
+      }),
+    })
+      .then(r => r.json())
+      .then(({ analysis, svg }) => {
+        onAnalyze(plant.id, {
+          svg: svg || null,
+          visualNote: analysis?.visualNote || null,
+          growth: analysis?.growth ?? null,
+          bloomState: analysis?.bloomState || null,
+          foliageState: analysis?.foliageState || null,
+          analyzing: false,
+          date: new Date().toISOString(),
+        });
+        if (analysis?.growth != null) {
+          onGrowthUpdate?.(plant.id, analysis.growth);
+        }
+      })
+      .catch(() => {
+        onAnalyze(plant.id, { analyzing: false });
+        setAnalysisFailed(true);
+      });
+  }
 
   async function handleFile(e) {
     const file = e.target.files[0]; if (!file) return;
@@ -781,52 +832,12 @@ function PhotoSection({ plant, color, careLog, onAnalyze, portraits, photos = []
     onAddPhoto?.(plant.id, dataUrl, date);
     e.target.value = '';
     // Trigger AI analysis in background with full plant context
-    if (onAnalyze) {
-      onAnalyze(plant.id, { analyzing: true });
-      const plantEntries = (careLog[plant.id] || []).slice().reverse(); // recent-first
-      const portrait = portraits?.[plant.id] || {};
-      const plantHistory = (portrait.history || []).slice(-5); // last 5 observations
-      const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
-      fetch('/api/analyze-plant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: base64,
-          plantName: plant.name,
-          plantType: plant.type,
-          plantSpecies: plant.species || '',
-          today: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
-          careLog: plantEntries,
-          plantHistory,
-          plantContext: {
-            health: plant.health,
-            container: plant.container,
-            poem: plant.poem,
-            lore: plant.lore,
-            special: plant.special,
-          },
-        }),
-      })
-        .then(r => r.json())
-        .then(({ analysis, svg }) => {
-          onAnalyze(plant.id, {
-            svg: svg || null,
-            visualNote: analysis?.visualNote || null,
-            growth: analysis?.growth ?? null,
-            bloomState: analysis?.bloomState || null,
-            foliageState: analysis?.foliageState || null,
-            analyzing: false,
-            date: new Date().toISOString(),
-          });
-          if (analysis?.growth != null) {
-            onGrowthUpdate?.(plant.id, analysis.growth);
-          }
-        })
-        .catch(() => onAnalyze(plant.id, { analyzing: false }));
-    }
+    const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+    runAnalysis(base64, dataUrl);
   }
 
   const lastPhoto = photos[photos.length - 1];
+  const isAnalyzing = portraits?.[plant.id]?.analyzing;
   return (
     <div style={{marginBottom:14,borderRadius:8,overflow:'hidden',border:`1px solid ${color}22`}}>
       {lastPhoto ? (
@@ -838,6 +849,20 @@ function PhotoSection({ plant, color, careLog, onAnalyze, portraits, photos = []
           background:`${color}07`,color:'#b09070',fontFamily:SERIF,fontSize:13,fontStyle:'italic'}}>
           No photos yet this season
         </div>
+      )}
+      {isAnalyzing && (
+        <div style={{padding:'5px 12px',background:'rgba(212,168,48,0.07)',borderTop:`1px solid ${color}15`,
+          fontFamily:SERIF,fontSize:11,color:'#a08050',fontStyle:'italic'}}>
+          Analyzing photo…
+        </div>
+      )}
+      {analysisFailed && !isAnalyzing && (
+        <button onClick={() => lastBase64Ref.current && runAnalysis(lastBase64Ref.current.base64, lastBase64Ref.current.dataUrl)}
+          style={{width:'100%',padding:'6px 12px',background:'rgba(200,80,32,0.08)',border:'none',
+            borderTop:`1px solid rgba(200,80,32,0.20)`,cursor:'pointer',
+            fontFamily:SERIF,fontSize:11,color:'#c86030',fontStyle:'italic',textAlign:'left'}}>
+          Analysis failed — tap to retry ↺
+        </button>
       )}
       <div style={{padding:'7px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',
         background:`${color}06`,borderTop:`1px solid ${color}15`}}>
@@ -2132,12 +2157,14 @@ export default function App() {
     return ordered;
   }, [sharedAgendaItems, agendaData]);
 
-  // Freeze the agenda once per day when pendingAgendaItems first loads
+  // Freeze the agenda once per day when pendingAgendaItems first loads.
+  // Wait for agendaData (AI ordering) so we freeze the enriched list, not the heuristic fallback.
   useEffect(() => {
     const todayStr = localDate();
     if (frozenAgendaDate === todayStr) return; // already frozen today
     if (!pendingAgendaItems.length) return;     // not loaded yet
     if (!seasonOpen) return;
+    if (!agendaData) return;                    // wait for AI ordering to arrive
 
     const essential = pendingAgendaItems
       .filter(i => (i.priority === 'urgent' || i.priority === 'recommended') && !extractFutureActionDate(i.task?.instructions))
@@ -2152,7 +2179,7 @@ export default function App() {
     try {
       localStorage.setItem('gp_frozen_agenda_v1', JSON.stringify({ date: todayStr, essential, optional }));
     } catch {}
-  }, [pendingAgendaItems, frozenAgendaDate, seasonOpen]);
+  }, [pendingAgendaItems, frozenAgendaDate, seasonOpen, agendaData]);
 
   // Auto-clear frozen agenda at 6:30 AM so next morning gets a fresh list
   useEffect(() => {
@@ -2386,15 +2413,15 @@ export default function App() {
             await logAction(act.key, plant, isWithEmma, act.label, customDate, role);
           }
           const firstDef = ACTION_DEFS[actions[0].key];
-          setFlash(`${firstDef?.emoji || '✨'} ${actions[0].label}${isWithEmma ? ' with Emma' : ''}${actions.length > 1 ? ` +${actions.length - 1} more` : ''}`);
+          setFlash(`${firstDef?.emoji || '✨'} ${actions[0].label}${isWithEmma ? ' with Emma ♥' : ''}${actions.length > 1 ? ` +${actions.length - 1} more` : ''}`);
         } else {
           await logAction('note', plant, isWithEmma, customLabel, customDate, role);
-          setFlash(`📝 ${customLabel}${isWithEmma ? ' with Emma' : ''}`);
+          setFlash(`📝 ${customLabel}${isWithEmma ? ' with Emma ♥' : ''}`);
         }
         setTimeout(() => setFlash(null), 2500);
       }).catch(async () => {
         await logAction('note', plant, isWithEmma, customLabel, customDate, role);
-        setFlash(`📝 ${customLabel}${isWithEmma ? ' with Emma' : ''}`);
+        setFlash(`📝 ${customLabel}${isWithEmma ? ' with Emma ♥' : ''}`);
         setTimeout(() => setFlash(null), 2500);
       });
       return;
@@ -2406,7 +2433,7 @@ export default function App() {
     const emoji = def?.emoji || '✨';
     setFlash(syncError
       ? `⚠️ Logged locally but sync failed: ${syncError}`
-      : `${emoji} ${displayLabel}${isWithEmma ? ' with Emma' : ''}`
+      : `${emoji} ${displayLabel}${isWithEmma ? ' with Emma ♥' : ''}`
     );
     setTimeout(() => setFlash(null), syncError ? 5000 : 2500);
   }, [role, logAction]);
