@@ -98,11 +98,8 @@ function gardenCondition(day) {
     return { tag: 'HEAT', note: `${high}°F — water AM only`, color: '#c04020', bg: 'rgba(190,60,30,0.14)', icon: '🔥' };
   if (high >= 88)
     return { tag: 'HOT', note: `${high}°F high`, color: '#d05828', bg: 'rgba(200,80,32,0.12)', icon: '☀️' };
-  if (chance < 30 && high >= 62 && high <= 80 && low > 40) {
-    const dow = new Date(day.date).getDay();
-    const notes = ['prune window', 'fertilize window', 'good to train', 'check ties', 'inspect roots', 'neem if needed', 'general rounds'];
-    return { tag: 'IDEAL', note: notes[dow], color: '#4a9a30', bg: 'rgba(60,140,40,0.14)', icon: '🌱' };
-  }
+  if (chance < 30 && high >= 62 && high <= 80 && low > 40)
+    return { tag: 'IDEAL', note: `${high}°F`, color: '#4a9a30', bg: 'rgba(60,140,40,0.14)', icon: '🌱' };
   if (chance < 30 && high >= 55 && low > 38)
     return { tag: 'CLEAR', note: `${high}°F`, color: '#6a8a50', bg: 'rgba(80,120,60,0.10)', icon: '🌤' };
   if (high < 45)
@@ -1100,7 +1097,7 @@ export function MapCarePanel({
                 {essentialDone}/{essentialTotal}
               </span>
               <span style={{ fontFamily: MONO, fontSize: 6, color: GOLD, letterSpacing: .4, lineHeight: 1 }}>
-                ESSENTIAL
+                {essentialDone === essentialTotal && essentialTotal > 0 ? 'DONE ✓' : 'ESSENTIAL'}
               </span>
               {optItems.length > 0 && (
                 <span style={{ fontFamily: SERIF, fontSize: 11, color: DIM, fontStyle: 'italic', marginLeft: 3 }}>

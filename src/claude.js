@@ -349,7 +349,7 @@ What does this plant need right now?`;
     if (jsonStart === -1 || jsonEnd === -1) throw new Error('no JSON');
     const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1));
     const tasks = Array.isArray(parsed.tasks)
-      ? parsed.tasks.filter(t => t && typeof t.label === 'string')
+      ? parsed.tasks.filter(t => t && typeof t.label === 'string').slice(0, 2)
       : [];
     const VALID_HEALTH = new Set(['thriving','content','recovering','thirsty','overlooked','struggling']);
     return {

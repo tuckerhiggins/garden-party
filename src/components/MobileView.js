@@ -9,7 +9,7 @@ import { PlantPortrait } from '../PlantPortraits';
 import { fetchDailyAgenda, fetchJournalEntry, streamGardenChat } from '../claude';
 import { compressChatImage } from '../utils/compressChatImage';
 import { actionStatus, extractFutureActionDate, computeAgenda, groupAgendaItems } from '../utils/agenda';
-import { localDate } from '../utils/dates';
+import { localDate, parsePastDate } from '../utils/dates';
 import { computeWaterLevel, HEALTH_LEVEL } from '../utils/health';
 
 const SERIF = '"Crimson Pro", Georgia, serif';
@@ -127,46 +127,6 @@ const MOBILE_AFFIRMATIONS = {
   repot:     ['Logged. Keep water consistent.', 'New roots incoming.'],
   worms:     ['Soil biology logged.', 'Good long-term investment.'],
 };
-// ── NATURAL LANGUAGE DATE PARSER ──────────────────────────────────────────
-function parsePastDate(text) {
-  const t = (text || '').toLowerCase().trim();
-  if (!t) return null;
-  const now = new Date();
-
-  if (t === 'today') return now.toISOString();
-  if (t === 'yesterday') { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString(); }
-
-  const daysAgoM = t.match(/^(\d+)\s+days?\s+ago$/);
-  if (daysAgoM) { const d = new Date(); d.setDate(d.getDate() - parseInt(daysAgoM[1])); return d.toISOString(); }
-
-  const weeksAgoM = t.match(/^(\d+)\s+weeks?\s+ago$/);
-  if (weeksAgoM) { const d = new Date(); d.setDate(d.getDate() - parseInt(weeksAgoM[1]) * 7); return d.toISOString(); }
-
-  const DAYS = { monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6, sunday:0 };
-  const weekdayM = t.match(/^(?:last\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/);
-  if (weekdayM) {
-    const target = DAYS[weekdayM[1]];
-    const d = new Date();
-    let back = (d.getDay() - target + 7) % 7;
-    if (back === 0) back = 7;
-    d.setDate(d.getDate() - back);
-    return d.toISOString();
-  }
-
-  const MONTHS = { january:0, february:1, march:2, april:3, may:4, june:5, july:6, august:7, september:8, october:9, november:10, december:11 };
-  const monthDayM = t.match(/^(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?$/);
-  if (monthDayM) {
-    const d = new Date(now.getFullYear(), MONTHS[monthDayM[1]], parseInt(monthDayM[2]));
-    if (d > now) d.setFullYear(d.getFullYear() - 1);
-    return d.toISOString();
-  }
-
-  // ISO or native parseable date (e.g. "2026-03-15")
-  const native = new Date(text);
-  if (!isNaN(native.getTime())) return native.toISOString();
-
-  return null;
-}
 
 function mobileAffirmation(key) {
   const arr = MOBILE_AFFIRMATIONS[key] || ['Logged.'];
@@ -1853,7 +1813,7 @@ function TodayAgenda({ rawItems = [], isWeekend = false, agendaData = null, agen
                     {essentialDoneCount}/{essentialTotalCount}
                   </span>
                   <span style={{ fontFamily: MONO, fontSize: 7, color: C.uiGold, letterSpacing: .4, lineHeight: 1 }}>
-                    ESSENTIAL
+                    {essentialDoneCount === essentialTotalCount && essentialTotalCount > 0 ? 'DONE ✓' : 'ESSENTIAL'}
                   </span>
                 </div>
                 <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -2982,7 +2942,7 @@ export function MobileView({
           <MobileMapProtos
             plants={plants} frontPlants={frontPlants} careLog={careLog}
             briefings={mergedBriefings} portraits={portraits}
-            onAction={handleAction}
+            onAction={handleAction} weather={weather}
             onOpenCamera={() => cameraHandlerRef.current?.()}
             style={{ height: '100%' }}
           />

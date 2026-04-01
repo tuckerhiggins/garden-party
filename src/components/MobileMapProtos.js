@@ -44,11 +44,11 @@ function arcPath(cx, cy, r, frac) {
 // ─────────────────────────────────────────────────────
 // Shared bottom sheet — slides up from bottom on plant tap
 // ─────────────────────────────────────────────────────
-function PlantSheet({ plant, careLog, briefings, portraits, onAction, onClose }) {
+function PlantSheet({ plant, careLog, briefings, portraits, weather, onAction, onClose }) {
   const portrait = portraits?.[plant.id] || {};
   const briefing = briefings?.[plant.id] || null;
   const healthLevel = HEALTH_LEVEL[plant.health] ?? 0.5;
-  const waterLevel  = computeWaterLevel(plant, careLog, portrait?.waterDays ? portrait : null);
+  const waterLevel  = computeWaterLevel(plant, careLog, portrait || null, weather || null);
   const needsWater  = plant.actions?.includes('water');
   const hColor = healthLevel >= 0.75 ? '#58c030' : healthLevel >= 0.5 ? '#a8c820' : healthLevel >= 0.25 ? '#d4820a' : '#c83020';
   const wColor = waterLevel  >= 0.6  ? '#3898d0' : waterLevel  >= 0.35 ? '#c8a820' : '#c83020';
@@ -129,7 +129,7 @@ function PlantSheet({ plant, careLog, briefings, portraits, onAction, onClose })
 // PROTOTYPE 1: Terrace Blueprint
 // Minimal SVG overhead map, dark HUD aesthetic
 // ─────────────────────────────────────────────────────
-function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, onAction, onOpenCamera }) {
+function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, weather, onAction, onOpenCamera }) {
   const [section, setSection] = useState('terrace');
   const [selectedId, setSelectedId] = useState(null);
   // expandedCluster: [{id, x, y}] — spread positions while picker is open, null otherwise
@@ -354,7 +354,7 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
       }}>
         {selected && (
           <PlantSheet plant={selected} careLog={careLog} briefings={briefings}
-            portraits={portraits} onAction={onAction} onClose={() => setSelectedId(null)}/>
+            portraits={portraits} weather={weather} onAction={onAction} onClose={() => setSelectedId(null)}/>
         )}
       </div>
 
@@ -368,11 +368,11 @@ function BlueprintProto({ plants, frontPlants, careLog, briefings, portraits, on
 // ─────────────────────────────────────────────────────
 // Main export
 // ─────────────────────────────────────────────────────
-export function MobileMapProtos({ plants, frontPlants, careLog, briefings, portraits, onAction, onOpenCamera, style }) {
+export function MobileMapProtos({ plants, frontPlants, careLog, briefings, portraits, weather, onAction, onOpenCamera, style }) {
   return (
     <BlueprintProto plants={plants} frontPlants={frontPlants}
       careLog={careLog} briefings={briefings} portraits={portraits}
-      onAction={onAction} onOpenCamera={onOpenCamera}/>
+      weather={weather} onAction={onAction} onOpenCamera={onOpenCamera}/>
   );
 }
 
