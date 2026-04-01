@@ -1003,7 +1003,15 @@ function ActionModal({ plant, actionKey, task = null, careLog, portraits, weathe
   function readPhoto(file) { return compressChatImage(file); }
 
   // ── Mode chooser ──────────────────────────────────────────────────────────
-  if (!mode) return (
+  if (!mode) {
+    // Neem rain advisory: find the next rain day in the forecast
+    const neemRainAdvisory = actionKey === 'neem' ? (() => {
+      const rainDay = weather?.forecast?.slice(0, 4).find(d => d.precipChance >= 50 || d.precip > 2);
+      if (!rainDay) return null;
+      const rainLabel = new Date(rainDay.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+      return `Apply before ${rainLabel}'s rain — contact time matters, rain after application reduces efficacy.`;
+    })() : null;
+    return (
     <div style={{ position:'absolute', inset:0, background:'#faf6ee', zIndex:20,
       display:'flex', flexDirection:'column', fontFamily:SERIF, padding:'18px 16px', overflowY:'auto' }}>
       <button onClick={onClose} style={{ alignSelf:'flex-start', background:'none', border:'none',
@@ -1012,7 +1020,14 @@ function ActionModal({ plant, actionKey, task = null, careLog, portraits, weathe
       </button>
       <div style={{ fontSize:26, marginBottom:4 }}>{def.emoji}</div>
       <div style={{ fontSize:18, color:'#2a1808', fontWeight:600, fontFamily:SERIF }}>{def.label}</div>
-      <div style={{ fontSize:12, color:'#907050', fontStyle:'italic', fontFamily:SERIF, marginBottom:22 }}>{plant.name}</div>
+      <div style={{ fontSize:12, color:'#907050', fontStyle:'italic', fontFamily:SERIF, marginBottom: neemRainAdvisory ? 10 : 22 }}>{plant.name}</div>
+      {neemRainAdvisory && (
+        <div style={{ fontSize:11, color:'#5080c8', fontStyle:'italic', fontFamily:SERIF,
+          lineHeight:1.5, marginBottom:16, padding:'7px 10px',
+          background:'rgba(60,100,190,0.07)', borderRadius:6, border:'1px solid rgba(60,100,190,0.15)' }}>
+          💧 {neemRainAdvisory}
+        </div>
+      )}
       <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
         <button onClick={() => setMode('help')}
           style={{ display:'flex', alignItems:'flex-start', gap:12, background:'#fff',
@@ -1044,7 +1059,8 @@ function ActionModal({ plant, actionKey, task = null, careLog, portraits, weathe
         </button>
       </div>
     </div>
-  );
+    );
+  }
 
   // ── Confirm mode ──────────────────────────────────────────────────────────
   if (mode === 'confirm') {

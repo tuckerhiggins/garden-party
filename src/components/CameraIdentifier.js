@@ -171,27 +171,40 @@ export function CameraIdentifier({ plants = [], frontPlants = [], portraits = {}
 
   // Show camera button in idle state on all platforms
   if (phase === 'idle') {
+    const showTiltHint = !localStorage.getItem('gp_tilt_hint_seen') && permState === 'granted';
     async function handleCameraButton() {
       if (permState === 'needs-request') {
         // Request tilt permission as a side effect; proceed to camera regardless
         try { await requestPermission(); } catch {}
       }
+      try { localStorage.setItem('gp_tilt_hint_seen', '1'); } catch {}
       startCameraRef.current?.();
     }
     return (
-      <button onClick={handleCameraButton} style={{
-        position: 'fixed', bottom: 84, right: 14, zIndex: 90,
-        background: 'rgba(18,12,6,0.90)', border: `1px solid rgba(212,168,48,0.30)`,
-        borderRadius: 22, padding: '8px 12px',
-        display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.40)',
-        WebkitTapHighlightColor: 'transparent',
-      }}>
-        <span style={{ fontSize: 14 }}>📷</span>
-        <span style={{ fontFamily: MONO, fontSize: 5, color: C.uiGold, letterSpacing: .3 }}>
-          IDENTIFY PLANT
-        </span>
-      </button>
+      <div style={{ position: 'fixed', bottom: 84, right: 14, zIndex: 90, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+        {showTiltHint && (
+          <div style={{
+            background: 'rgba(18,12,6,0.88)', border: `1px solid rgba(212,168,48,0.22)`,
+            borderRadius: 10, padding: '6px 10px', maxWidth: 160,
+            fontFamily: SERIF, fontSize: 11, fontStyle: 'italic',
+            color: 'rgba(240,220,180,0.75)', lineHeight: 1.4, textAlign: 'right',
+          }}>
+            Tilt phone sideways to open camera
+          </div>
+        )}
+        <button onClick={handleCameraButton} style={{
+          background: 'rgba(18,12,6,0.90)', border: `1px solid rgba(212,168,48,0.30)`,
+          borderRadius: 22, padding: '8px 12px',
+          display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.40)',
+          WebkitTapHighlightColor: 'transparent',
+        }}>
+          <span style={{ fontSize: 14 }}>📷</span>
+          <span style={{ fontFamily: MONO, fontSize: 5, color: C.uiGold, letterSpacing: .3 }}>
+            IDENTIFY PLANT
+          </span>
+        </button>
+      </div>
     );
   }
 

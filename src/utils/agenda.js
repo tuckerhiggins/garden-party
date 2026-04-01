@@ -42,11 +42,15 @@ export function actionStatus(plant, key, careLog, seasonOpen, portrait = null, w
   const entries = (careLog[plant.id] || []).filter(e => e.action === key);
   if (def.seasonMax !== null && entries.length >= def.seasonMax)
     return { available: false, reason: 'Done for season' };
-  if (def.cooldownDays > 0 && entries.length > 0) {
+  // Wisteria training cooldown: 14 days after summer solstice (June 21) to slow vigorous summer growth
+  const effectiveCooldown = (key === 'train' && plant.type === 'wisteria' && new Date().getMonth() >= 5)
+    ? 14
+    : def.cooldownDays;
+  if (effectiveCooldown > 0 && entries.length > 0) {
     const last = new Date(entries[entries.length - 1].date);
     const days = (Date.now() - last.getTime()) / 86400000;
-    if (days < def.cooldownDays)
-      return { available: false, reason: `${Math.ceil(def.cooldownDays - days)}d` };
+    if (days < effectiveCooldown)
+      return { available: false, reason: `${Math.ceil(effectiveCooldown - days)}d` };
   }
   return { available: true };
 }

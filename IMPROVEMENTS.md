@@ -49,7 +49,7 @@ Say **"what's next?"** to implement the next unchecked item. Items within a phas
 ## Phase 4 — Nice to Have
 *Lower priority. Revisit when the above is done.*
 
-- [ ] **Seasonal training cooldown for wisteria** — Modulate the 7-day training cooldown to 14-day after June 21 (summer solstice). Low stakes, minor quality of life.
-- [ ] **Tilt-to-camera tooltip on first use** — Show a one-time hint ("tilt phone sideways to identify a plant") after first app load. Dismiss on tap. Store dismissal in localStorage.
+- [x] **Seasonal training cooldown for wisteria** — Wisteria training cooldown changes to 14 days starting in June (month >= 6) to slow vigorous summer growth.
+- [x] **Tilt-to-camera tooltip on first use** — Shows "Tilt phone sideways to open camera" above the button on first visit. Dismissed after first tap via localStorage flag.
 - [ ] **Stage arc labels respect high-contrast mode** — Past/future stage name labels use hardcoded `rgba(160,130,80,0.40)` color. When `useCC()` is in high-contrast mode, use `CC.dim` instead so they're readable outdoors.
-- [ ] **Rain threshold advisory for neem** — When upcoming rain is forecast and neem is due, surface: "Apply neem before Wednesday's rain — rain after application reduces efficacy."
+- [x] **Rain threshold advisory for neem** — ActionModal for neem shows rain advisory banner when rain ≥50% is forecast in next 4 days, with day name: "Apply before Thursday's rain — contact time matters."
