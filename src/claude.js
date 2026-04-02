@@ -590,7 +590,7 @@ TODAY'S TASKS: ${taskList}
 Write the daily briefing.`;
 
   try {
-    const raw = await callClaude(systemPrompt, userPrompt, 500);
+    const raw = await callClaude(systemPrompt, userPrompt, 1000);
     // Extract the first {...} block regardless of any surrounding prose or code fences
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON object in response');
