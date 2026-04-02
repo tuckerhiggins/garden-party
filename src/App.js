@@ -2096,6 +2096,16 @@ export default function App() {
     [gardenPlants.terrace, frontPlants, careLog, briefings, weather, seasonOpen, portraits, allPhotos]
   );
 
+  // True once every active plant has a settled briefing (loaded or failed — not 'loading').
+  // Used to allow the freeze (and thus the daily brief) to fire even on low-task days
+  // where sharedAgendaItems is empty and the normal agendaData chain never completes.
+  const briefingsSettled = useMemo(() => {
+    const active = [...gardenPlants.terrace, ...frontPlants]
+      .filter(p => p.health !== 'memorial' && p.type !== 'empty-pot' && !p.noTasks);
+    if (!active.length) return false;
+    return active.every(p => briefings[p.id] !== undefined && briefings[p.id] !== 'loading');
+  }, [briefings, gardenPlants.terrace, frontPlants]);
+
   const desktopPlantUrgency = useMemo(() => {
     const TIER = { urgent: 0, recommended: 1, routine: 2, optional: 3 };
     const map = {};
@@ -2180,13 +2190,15 @@ export default function App() {
   }, [sharedAgendaItems, agendaData]);
 
   // Freeze the agenda once per day when pendingAgendaItems first loads.
-  // Wait for agendaData (AI ordering) so we freeze the enriched list, not the heuristic fallback.
+  // Normal path: wait for agendaData (AI ordering) so we freeze the enriched list.
+  // Fallback path: if all briefings settled with no tasks (rest day / all on cooldown),
+  // freeze with empty list so the daily brief can still fire.
   useEffect(() => {
     const todayStr = localDate();
     if (frozenAgendaDate === todayStr) return; // already frozen today
-    if (!pendingAgendaItems.length) return;     // not loaded yet
     if (!seasonOpen) return;
-    if (!agendaData) return;                    // wait for AI ordering to arrive
+    if (pendingAgendaItems.length > 0 && !agendaData) return; // wait for AI ordering
+    if (pendingAgendaItems.length === 0 && !briefingsSettled) return; // wait for briefings to settle
 
     const essential = pendingAgendaItems
       .filter(i => (i.priority === 'urgent' || i.priority === 'recommended') && !extractFutureActionDate(i.task?.instructions))
@@ -2201,7 +2213,7 @@ export default function App() {
     try {
       localStorage.setItem('gp_frozen_agenda_v1', JSON.stringify({ date: todayStr, essential, optional }));
     } catch {}
-  }, [pendingAgendaItems, frozenAgendaDate, seasonOpen, agendaData]);
+  }, [pendingAgendaItems, frozenAgendaDate, seasonOpen, agendaData, briefingsSettled]);
 
   // Auto-clear frozen agenda at 6:30 AM so next morning gets a fresh list
   useEffect(() => {
