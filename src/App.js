@@ -2110,8 +2110,10 @@ export default function App() {
   // Morning brief + daily brief — fire AFTER the freeze so the brief only receives
   // the tasks Tucker can actually mark done. This guarantees the narrative never
   // references an action that isn't in the markable TODAY list.
+  // Guard: frozenAgendaDate === today means the freeze has run (even if list is empty —
+  // e.g. all tasks already done — the brief should still fire with 0 tasks).
   useEffect(() => {
-    if (!weather || !frozenEssential.length) return;
+    if (!weather || frozenAgendaDate !== localDate()) return;
     let isMounted = true;
     const allPlants = [...gardenPlants.terrace, ...frontPlants];
     const agendaTasks = frozenEssential.map(item => ({
@@ -2128,7 +2130,7 @@ export default function App() {
       .then(brief => { if (isMounted && brief) setDailyBrief(brief); })
       .catch(() => {});
     return () => { isMounted = false; };
-  }, [frozenEssential, weather, briefingRefreshToken]); // frozenEssential replaces sharedAgendaItems as input
+  }, [frozenAgendaDate, weather, briefingRefreshToken]); // frozenAgendaDate (not frozenEssential) — fires once freeze is set
 
   // Fetch AI-enriched agenda once per day — single source of truth for both mobile and desktop
   const rawAgendaKeys = sharedAgendaItems.map(i => i.key).join(',');
